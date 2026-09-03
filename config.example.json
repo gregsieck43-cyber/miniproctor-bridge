@@ -1,0 +1,31 @@
+{
+  "bridge": {
+    "deviceName": "my-pc",
+    "dataDir": "./data",
+    "pollIntervalMs": 3000,
+    "pushBatchMs": 5000,
+    "permissionTimeoutAction": "deny"
+  },
+  "relay": {
+    "kind": "http-poll",
+    "baseUrl": "http://127.0.0.1:8790",
+    "timeoutMs": 5000
+  },
+  "wechat": {
+    "appid": "TEST_APPID",
+    "secret": "",
+    "envId": ""
+  },
+  "agent": {
+    "adapter": "auto",
+    "command": "claude",
+    "args": [
+      "-p",
+      "--output-format", "stream-json",
+      "--input-format", "stream-json",
+      "--permission-prompt-tool", "stdio",
+      "--replay-user-messages"
+    ],
+    "cwd": "."
+  }
+}
