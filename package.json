@@ -1,0 +1,16 @@
+{
+  "name": "miniproctor-bridge",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "miniproctor PC bridge: agent stdio -> structured events -> cloud relay (zero runtime dependencies)",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "doctor": "node src/main.js doctor",
+    "run": "node src/main.js run",
+    "demo": "node src/main.js demo",
+    "test": "node --test --test-timeout=10000"
+  }
+}
