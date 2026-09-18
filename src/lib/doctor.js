@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { needsWechatCredentials } from '../cloud/wechat-auth.js';
+import { inspectDeviceKeyPermissions } from '../cloud/device-keys.js';
 
 /**
  * doctor 健康判定的纯函数核心：输入环境事实，输出 { ok, checks }。
@@ -19,6 +21,7 @@ export function buildDoctorReport({
   agentConfig = { source: null, miniproctor: null, ui: false },
   checkAgent = true,
   probe = () => null,
+  lockStatus = null,
 } = {}) {
   const checks = [];
 
@@ -43,6 +46,25 @@ export function buildDoctorReport({
     checks.push(fail('wechat-credentials', '微信云调用凭据', `relay kind=${relayKind} 但 appid/secret/envId 缺失或为测试占位值`));
   } else {
     checks.push(warn('wechat-credentials', '微信云调用凭据', 'appid/secret/envId 缺失或为 TEST_APPID，仅 mock 可用'));
+  }
+
+  // TASK-019 ④：device.json（本机私钥）权限检查——过宽/无法确认只警告不算 fail
+  // （权限收紧是尽力而为，写入失败不阻塞核心功能）；检查结论不含文件内容与绝对路径。
+  const keyPath = config?.bridge?.dataDir ? path.join(config.bridge.dataDir, 'device.json') : null;
+  if (keyPath) {
+    const perm = inspectDeviceKeyPermissions(keyPath);
+    if (perm.status === 'pass') checks.push(pass('device-key-permissions', '本机私钥文件权限', perm.detail));
+    else if (perm.status === 'warn') checks.push(warn('device-key-permissions', '本机私钥文件权限', perm.detail));
+    else checks.push(info('device-key-permissions', '本机私钥文件权限', perm.detail));
+  }
+
+  // CLOSE-010：单实例锁状态（只读检查，不影响 ok 判定）：
+  //   held        → info（提示已有实例在跑，doctor 本身不受影响）
+  //   stale       → warn（下次 run 会自动接管）
+  //   corrupt/remote-host/unavailable → warn（可能阻塞下次 run，需人工确认）
+  if (lockStatus && lockStatus.status && lockStatus.status !== 'free') {
+    const label = { held: info, stale: warn, corrupt: warn, 'remote-host': warn, unavailable: warn }[lockStatus.status] || info;
+    checks.push(label('instance-lock', '单实例锁', lockStatus.detail || lockStatus.status));
   }
 
   if (checkAgent) {

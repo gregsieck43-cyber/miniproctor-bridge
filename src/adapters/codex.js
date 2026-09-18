@@ -8,6 +8,9 @@ export function isCodexStreamType(raw) {
   if (!raw || typeof raw !== 'object') return false;
   if (typeof raw.type !== 'string') return false;
   if (raw.type === 'event_msg' || raw.type === 'item' || raw.type === 'item.completed') return true;
+  // P2-D（CLOSE-007）：顶层 error 帧（流错误 / Reconnecting 通知）必须进入 codex 映射，
+  // 否则落入 generic 兜底显示「未知 JSON 事件」，且 fatal 流错误永远不会到达手机端。
+  if (raw.type === 'error') return true;
   if (raw.type.startsWith('thread.') || raw.type.startsWith('turn.')) return true;
   return Boolean(raw.item && typeof raw.item === 'object');
 }
@@ -118,7 +121,47 @@ export function mapCodexRaw(raw, { sessionId, agentType = 'codex', sequencer }) 
     return events;
   }
 
-  if (raw.type === 'turn.failed' || raw.type === 'error' || itemType === 'error') {
+  // P1-C（CLOSE-007）：item 容器（item.completed/item/event_msg）内的 {type:'error'}
+  // 是【非致命诊断】——codex-cli 0.144.1 实测会在 turn 正常进行中发出「model metadata
+  // 回退」「skills context budget 超限」等诊断帧，turn 继续执行。旧映射把它们当
+  // fatal error 事件，手机端把诊断信息当致命错误展示。判定以 item 容器为准：
+  // 顶层 {"type":"error"} 流错误不走这里（见下方 fatal 分支）。
+  if ((raw.type === 'item.completed' || raw.type === 'item' || raw.type === 'event_msg')
+    && item && item.type === 'error' && (raw.item || payload.item)) {
+    const message = String(item.message || 'Codex 诊断信息');
+    events.push(createEvent({
+      sessionId, agentType, sequencer,
+      eventType: 'custom',
+      payload: {
+        custom_type: 'diagnostic',
+        fallback_text: `Codex 诊断：${message}`,
+        data: { item_id: item.id || null, message },
+      },
+    }));
+    return events;
+  }
+
+  // P2-D（CLOSE-007）：重连通知帧 {"type":"error","message":"Reconnecting... 1/5 (…)"}
+  // ——顶层 error 形态但语义非致命（CLI 正在自动重试）。必须先于 fatal 分支拦截，
+  // 否则手机端要么误报致命错误、要么显示「未知 JSON 事件」。
+  const reconnectMatch = raw.type === 'error'
+    ? /^Reconnecting\.{2,}\s*(\d+)\s*\/\s*(\d+)/.exec(String(raw.message || ''))
+    : null;
+  if (reconnectMatch) {
+    events.push(createEvent({
+      sessionId, agentType, sequencer,
+      eventType: 'custom',
+      payload: {
+        custom_type: 'reconnecting',
+        fallback_text: `Codex 网络波动，正在自动重连（${reconnectMatch[1]}/${reconnectMatch[2]}）`,
+        data: { message: String(raw.message), attempt: Number(reconnectMatch[1]), total: Number(reconnectMatch[2]) },
+      },
+    }));
+    return events;
+  }
+
+  // 顶层流错误 / turn.failed 收尾：致命语义保留（会话失败或结束）。
+  if (raw.type === 'turn.failed' || raw.type === 'error') {
     const message = raw.message || raw.error?.message || item?.message || 'Codex 错误';
     events.push(createEvent({
       sessionId, agentType, sequencer,

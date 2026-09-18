@@ -5,13 +5,19 @@
  * 每个 POST 都带 ed25519 签名字段（auth_ts/auth_sig），云端 syncReport/pullCommands
  * 持 bindings.public_key 强制验签。AppSecret 永不离开小程序开发者本人。
  *
- * URL 形态（CloudBase HTTP 访问服务）：
- *   https://<envId>.service.tcloudbase.com/<functionName>
- * 返回：云函数 return 值即 HTTP body（无 resp_data 包装）。
- * 接口形状与 CloudGatewayTransport 完全一致：{ ok, status, data }。
+ * URL 形态（CloudBase HTTP 访问服务默认域名）：
+ *   https://<envId>-<suffix>.<region>.app.tcloudbase.com/<functionName>
+ * 注意：不是 <envId>.service.tcloudbase.com——2026-08 经微信渠道开通的环境没有该旧格式域名。
+ * 返回：云函数 return 值即 HTTP body（无 resp_data 包装；云端已做网关事件解包）。
+ *
+ * 统一错误语义（TASK-006/E06 修复）：成功返回 { ok:true, status, data }；
+ * 网络失败 / HTTP 非 2xx / 非法 JSON / null body / HTTP200+ok:false 一律
+ * **抛 TransportError**（定义于 lib/outbox.js，全桥唯一规范错误），调用方必须
+ * catch 处理——禁止把失败响应当成功消费。
  */
 import { appendAuthFields } from '../cloud/device-keys.js';
 import { canonical } from '../lib/canonical.js';
+import { TransportError, isPermanentFailure } from '../lib/outbox.js';
 
 export class EndpointTransport {
   /**
@@ -25,7 +31,7 @@ export class EndpointTransport {
   constructor({ config, deviceId, tokenHash = null, privateKey = null, logger = console, fetchImpl, now }) {
     if (!config) throw new TypeError('EndpointTransport requires config');
     const base = (config.relay && config.relay.endpoints && config.relay.endpoints.baseUrl) || '';
-    if (!base) throw new TypeError('relay.endpoints.baseUrl required (e.g. https://<env>.service.tcloudbase.com)');
+    if (!base) throw new TypeError('relay.endpoints.baseUrl required (e.g. https://<env>-<suffix>.<region>.app.tcloudbase.com)');
     this.baseUrl = base.replace(/\/+$/, '');
     this.deviceId = deviceId;
     this.tokenHash = tokenHash;
@@ -44,12 +50,17 @@ export class EndpointTransport {
   }
 
   async pushEvents(events) {
-    if (!events?.length) return { ok: true, accepted: 0 };
+    if (!events?.length) return { ok: true, status: 200, accepted: 0, data: { ok: true, accepted: 0 } };
     return this._invoke('syncReport', this._authed({ token_hash: this.tokenHash, events }));
   }
 
   async pullCommands() {
     return this._invoke('pullCommands', this._authed({ token_hash: this.tokenHash }));
+  }
+
+  /** 命令执行结果上报（TASK-007；云端函数部署待办见部署清单）。 */
+  async ackCommand(payload) {
+    return this._invoke('ackCommand', this._authed({ token_hash: this.tokenHash, ...payload }));
   }
 
   async registerPairing(offer) {
@@ -69,30 +80,43 @@ export class EndpointTransport {
     return this._invoke('checkPairing', { pairing_id: pairingId });
   }
 
-  /** 云函数版状态上报暂无对应函数，保留接口避免调用方分支。 */
-  async reportStatus(status = {}) {
-    this.logger.warn?.('[endpoint] reportStatus 未映射云函数，已忽略', Object.keys(status));
-    return { ok: true, accepted: false };
-  }
+  // reportStatus 已移除（TASK-017/E18）：此前是"未映射云函数、恒返回伪成功"的空实现。
+  // 心跳职责由 pullCommands 承担（每次成功鉴权的 pull 刷新 binding.last_seen_at，
+  // 空闲时轮询退避封顶 30s < 60s 在线阈值），无需独立状态上报调用点。
 
   async _invoke(name, data) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let res;
     try {
-      const res = await (this._fetchImpl || fetch)(`${this.baseUrl}/${name}`, {
+      res = await (this._fetchImpl || fetch)(`${this.baseUrl}/${name}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(data),
         signal: controller.signal,
       });
-      const json = await res.json().catch(() => null);
-      const ok = res.ok && (json === null || json.ok !== false);
-      return { ok, status: res.status, data: json };
     } catch (e) {
-      this.logger.warn?.(`[endpoint] ${name} failed: ${e.message}`);
-      return { ok: false, status: 0, data: null };
+      throw new TransportError(`[endpoint] ${name} network failure: ${e.message}`, {
+        code: 'UPSTREAM_UNAVAILABLE', status: 0, data: null, retryable: true,
+      });
     } finally {
       clearTimeout(timer);
     }
+    const json = await res.json().catch(() => null);
+    if (!res.ok || json === null || json.ok === false) {
+      // 任何空/非法响应一律视失败：ok:false 业务失败保留 data 供逐事件分类
+      const bizCode = json && typeof json === 'object' ? json.error : null;
+      const retryable = !isPermanentFailure({ status: res.status, data: json });
+      throw new TransportError(
+        `[endpoint] ${name} failed: HTTP ${res.status}${bizCode ? ` ${bizCode}` : ' (invalid/empty body)'}`,
+        {
+          code: bizCode || (!res.ok ? `HTTP_${res.status}` : 'INVALID_RESPONSE'),
+          status: res.status,
+          data: json,
+          retryable,
+        },
+      );
+    }
+    return { ok: true, status: res.status, data: json };
   }
 }

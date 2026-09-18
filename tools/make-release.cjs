@@ -1,29 +1,50 @@
 #!/usr/bin/env node
 /**
- * make-release：打 bridge 发行 zip + sha256 + 生成「Agent 自装」用户提示词。
+ * make-release：打 bridge 发行 zip + sha256 + manifest + 「Agent 自装」用户提示词。
  *
  * 产物（xcx/.tmp/release/，git 忽略）：
- *   - miniproctor-bridge-vX.Y.Z.zip   （源码+安装器，不含密钥/数据/模型/node_modules）
- *   - miniproctor-bridge-vX.Y.Z.zip.sha256
- *   - agent-prompt.txt                （整段提示词：多镜像下载+sha256 校验+自装+配对）
+ *   - miniproctor-bridge-vX.Y.Z.zip        （扁平结构：package.json/src/tools 直接在 zip 根，
+ *                                           不含密钥/数据/模型/node_modules/config.json/device.json）
+ *   - miniproctor-bridge-vX.Y.Z.zip.sha256 （下载校验用 sidecar）
+ *   - manifest.json                        （构建侧全量清单：zip sha256 + 逐文件 sha256 + 版本 + 构建时间 + 源 commit；
+ *                                           verify-release.cjs 的 zip 模式以此为准）
+ *   - agent-prompt.txt                     （整段提示词：与小程序端 services/agent-prompt.js 同源生成）
  *
- * 用法：node bridge/tools/make-release.cjs [--version 0.4.0] [--url <zip直链> ...]
- *   --url 可给多条（主链接+镜像），未给时提示词留占位符由上传后回填。
+ * 包内还会写入 RELEASE-MANIFEST.json（逐文件 sha256，不含自身）：
+ *   安装脚本据此对「安装后的文件」做完整性校验（node tools/verify-release.cjs --installed <dir>）。
+ *
+ * 用法：node bridge/tools/make-release.cjs [--version 0.5.0] [--url <zip直链> ...] [--out-dir <目录>]
+ *   --url 可给多条（主链接+镜像），未给时按 GitHub release 规范式自动生成。
+ *   --out-dir 改变产物目录（缺省 xcx/.tmp/release/）；scripts/ci.mjs --release 门禁
+ *   用它把「门禁验证构建」隔离到 xcx/.tmp/release-gate/，不触碰正式发布产物目录。
+ *
+ * 跨平台要点：
+ *   - 打包用 bsdtar（Windows 10 1803+ 自带 / macOS 自带；Linux 的 GNU tar 不能写 zip，
+ *     需 libarchive-tools 的 bsdtar）。PS 5.1 Compress-Archive 产出的反斜杠条目 zip 在
+ *     macOS/Linux 会解出一批带 `\` 的扁平文件（v0.4.2 实测损坏），禁止回退。
+ *   - zip 条目一律正斜杠、扁平结构（TASK-021/E20：安装脚本按 package.json 所在目录定位，
+ *     兼容「bridge/」子目录布局）。
  */
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { execSync } = require('node:child_process');
+const { execFileSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..', '..'); // xcx/
 const bridgeDir = path.join(root, 'bridge');
-const outDir = path.join(root, '.tmp', 'release');
+const installerDir = path.join(root, 'installer');
+const DEFAULT_OUT_DIR = path.join(root, '.tmp', 'release');
+const REPO = 'gregsieck43-cyber/miniproctor-bridge';
+const IN_PACKAGE_MANIFEST = 'RELEASE-MANIFEST.json';
+// zip 条目固定 mtime（2020-01-01T00:00:00Z）：同一内容构建出逐字节相同的 zip，sha256 可回填收敛
+const FIXED_MTIME_MS = 1577836800000;
 
 function args(argv) {
   const out = { urls: [] };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--version') out.version = argv[++i];
     if (argv[i] === '--url') out.urls.push(argv[++i]);
+    if (argv[i] === '--out-dir') out.outDir = argv[++i];
   }
   return out;
 }
@@ -32,99 +53,244 @@ function sha256File(p) {
   return crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 }
 
-/** 递归收集待打包文件（排除密钥/数据/模型/临时物）。 */
+function sha256Buf(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+/** 源 commit（只读 rev-parse；失败时 unknown，不阻断构建）。 */
+function gitCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** 递归收集待打包文件（排除密钥/数据/模型/临时物/点文件/本机日志）。rel 一律正斜杠。 */
 function collectFiles(dir, base = '') {
   const EXCLUDE_DIR = new Set(['node_modules', 'data', 'asr', '.tmp', 'test', 'dist']);
-  const EXCLUDE_FILE = new Set(['config.json', 'device.json', 'package-lock.json']);
+  const EXCLUDE_FILE = new Set([
+    'config.json', 'device.json', 'package-lock.json',
+    'pair.log', 'run.log', 'audit.log', IN_PACKAGE_MANIFEST,
+  ]);
   const out = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue; // .tmp-*.mjs 等调试残留不进发行包
     if (entry.isDirectory()) {
-      if (!EXCLUDE_DIR.has(entry.name)) out.push(...collectFiles(path.join(dir, entry.name), path.join(base, entry.name)));
+      if (!EXCLUDE_DIR.has(entry.name)) out.push(...collectFiles(path.join(dir, entry.name), base ? `${base}/${entry.name}` : entry.name));
     } else if (!EXCLUDE_FILE.has(entry.name)) {
-      out.push({ abs: path.join(dir, entry.name), rel: path.join('miniproctor-bridge', base, entry.name) });
+      out.push({ abs: path.join(dir, entry.name), rel: base ? `${base}/${entry.name}` : entry.name });
     }
   }
   return out;
 }
 
-function makeZip(files, zipPath) {
-  // Windows 10+ 自带 tar 可产 zip；Git Bash 下用 powershell Compress-Archive 更稳。
-  const staging = path.join(outDir, 'staging');
-  fs.rmSync(staging, { recursive: true, force: true });
-  fs.mkdirSync(staging, { recursive: true });
-  for (const f of files) {
-    const dest = path.join(staging, f.rel);
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(f.abs, dest);
-  }
-  // 写入发行说明，让拿到包的人/Agent 不猜
-  fs.writeFileSync(path.join(staging, 'miniproctor-bridge', 'README-RELEASE.txt'), RELEASE_README, 'utf8');
-  fs.rmSync(zipPath, { force: true });
-  execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${staging.replace(/\//g, '\\')}\\miniproctor-bridge' -DestinationPath '${zipPath.replace(/\//g, '\\')}' -Force"`, { stdio: 'inherit' });
-  fs.rmSync(staging, { recursive: true, force: true });
+/** 遍历 staging 目录，产出逐文件 {path, sha256, bytes}（path 正斜杠）。 */
+function walkStaged(staging) {
+  const out = [];
+  const walk = (dir, base = '') => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const rel = base ? `${base}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), rel);
+      else {
+        const buf = fs.readFileSync(path.join(dir, entry.name));
+        out.push({ path: rel, sha256: sha256Buf(buf), bytes: buf.length });
+      }
+    }
+  };
+  walk(staging);
+  return out;
 }
 
 const RELEASE_README = `miniproctor bridge 发行包
 ==========================
-要求：Node.js >= 22（bridge 语音识别另需 setup-asr 下载模型，本包不含）。
+要求：Node.js >= 22（建议 v24；bridge 语音识别另需 node tools/setup-asr.cjs 下载模型，本包不含）。
 
-安装：
+包结构：扁平——package.json / src/ / tools/ 直接位于解压目录根部。
+安全边界：本包不含 config.json、device.json、data/、.env、node_modules
+（设备身份与配置永不随包分发；升级安装会原样保留它们）。
+
+一键安装（推荐；自动定位包内容，默认装到用户主目录 miniproctor-bridge）：
+  Windows PowerShell：powershell -NoProfile -ExecutionPolicy Bypass -File installer\\setup.ps1
+  macOS / Linux / Git Bash：sh installer/setup.sh
+  升级保护：目标已有的 config.json / device.json / data/（outbox/inbox）一律保留，
+  config.json 仅补齐缺失字段。
+
+手动安装（也可解压到任意目录后逐步执行）：
   1. node tools/setup-wizard.cjs   # 交互式配置（endpoint 模式无需任何密钥）
   2. node src/main.js doctor       # 自检
   3. node src/main.js pair         # 生成 6 位配对码，到小程序输入完成绑定
   4. node src/main.js run          # 启动（可另配语音识别：node tools/setup-asr.cjs）
 
+发行完整性：
+  node tools/verify-release.cjs --installed <安装目录>
+  （按包内 RELEASE-MANIFEST.json 逐文件校验 sha256；下载侧校验见发布页 sha256 / 接入提示词）
+
+installer/ 内是一键脚本（setup.ps1 = Windows，setup.sh = macOS/Linux），
+miniproctor-doctor.sh 是只读体检脚本。
 安全：config.json / data/ 含本机身份，勿分享。请求经 ed25519 签名，服务器只存公钥。
 `;
 
+function makeZip(files, zipPath, meta, outDir = DEFAULT_OUT_DIR) {
+  const staging = path.join(outDir, 'staging');
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(staging, { recursive: true });
+  for (const f of files) {
+    const dest = path.join(staging, ...f.rel.split('/'));
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(f.abs, dest);
+  }
+  // installer 一并进包（posix 用户没有 setup.sh 就只能裸敲 node 命令）
+  if (fs.existsSync(installerDir)) {
+    fs.cpSync(installerDir, path.join(staging, 'installer'), { recursive: true });
+  }
+  fs.writeFileSync(path.join(staging, 'README-RELEASE.txt'), RELEASE_README.replace('{version}', meta.version), 'utf8');
+
+  // 包内清单：先按当前 staging 计算逐文件哈希（此时还没有 RELEASE-MANIFEST.json，
+  // 其自身因此天然不在清单内），写包内清单，再全量重算供构建侧 manifest 使用。
+  // 包内清单刻意不含构建时间——配合固定 mtime，同一 commit 的构建逐字节可复现，
+  // 这样 config.js 回填 sha256 后重建不会漂移。
+  const packageFiles = walkStaged(staging);
+  fs.writeFileSync(path.join(staging, IN_PACKAGE_MANIFEST), `${JSON.stringify({
+    manifest_version: 1,
+    package: 'miniproctor-bridge',
+    version: meta.version,
+    commit: meta.commit,
+    files: packageFiles,
+  }, null, 2)}\n`, 'utf8');
+  const allFiles = walkStaged(staging);
+
+  // 固定全部条目 mtime：zip 字节级可复现（sha256 只取决于内容，不取决于构建时刻）
+  const fixed = new Date(FIXED_MTIME_MS);
+  const fixMtimes = (dir) => {
+    fs.utimesSync(dir, fixed, fixed);
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) fixMtimes(p);
+      else fs.utimesSync(p, fixed, fixed);
+    }
+  };
+  fixMtimes(staging);
+  // Windows：bsdtar 的 zip UT 扩展字段还包含 ctime（创建时间），utimesSync 改不了——
+  // 用 PowerShell 把 CreationTimeUtc 一并固定，否则同一内容两次构建 sha256 漂移。
+  if (process.platform === 'win32') {
+    execFileSync('powershell.exe', [
+      '-NoProfile', '-Command',
+      `$d='${staging.replace(/'/g, "''")}'; (Get-Item -LiteralPath $d -Force).CreationTimeUtc='2020-01-01T00:00:00Z'; Get-ChildItem -LiteralPath $d -Recurse -Force | ForEach-Object { $_.CreationTimeUtc='2020-01-01T00:00:00Z' }`,
+    ], { stdio: 'ignore' });
+  }
+
+  fs.rmSync(zipPath, { force: true });
+  // bsdtar -a 按扩展名产 zip：条目正斜杠；显式列出全部"文件"条目（扁平结构，无包装目录）。
+  // 刻意不写目录条目：tar 遍历会触碰目录 atime/ctime，导致同一内容两次构建 zip 字节漂移；
+  // 解压器（tar/unzip/Expand-Archive）都会按文件路径隐式创建父目录，功能不受影响。
+  const tarBin = process.platform === 'win32' ? 'C:\\Windows\\System32\\tar.exe' : 'tar';
+  const filePaths = [];
+  const listFiles = (dir, base = '') => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const rel = base ? `${base}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) listFiles(path.join(dir, entry.name), rel);
+      else filePaths.push(rel);
+    }
+  };
+  listFiles(staging);
+  try {
+    execFileSync(tarBin, ['-a', '-cf', zipPath, '-C', staging, ...filePaths], { stdio: 'inherit' });
+  } catch (e) {
+    throw new Error(`打 zip 失败（需要 bsdtar：Windows/macOS 自带；Linux 请安装 libarchive-tools）：${e.message}`);
+  }
+  fs.rmSync(staging, { recursive: true, force: true });
+  return allFiles;
+}
+
+/**
+ * 提示词与小程序端同源：清掉 require 缓存后覆写 config.BRIDGE_RELEASE（仅内存），
+ * 调用小程序端 services/agent-prompt.js 的共用生成器。
+ * 同源验证：连续两次独立加载并生成，逐字节一致才通过（防止生成器读到外部可变状态/模板漂移）。
+ */
 function makePrompt(version, zipName, sha256, urls) {
-  const urlsBlock = urls.length
-    ? urls.map((u, i) => `   ${i + 1}. ${u}`).join('\n')
-    : '   1. {{下载地址1：发布后回填}}\n   2. {{镜像地址2}}\n   3. {{镜像地址3}}';
-  return `请帮我安装并启动 miniproctor bridge（小程序「智能体遥知」的电脑端，v${version}）。步骤：
+  const configPath = path.join(root, 'miniprogram', 'config.js');
+  const promptModulePath = path.join(root, 'miniprogram', 'services', 'agent-prompt.js');
+  const tag = `v${version}`;
+  const canonical = `https://github.com/${REPO}/releases/download/${tag}/${zipName}`;
+  const release = {
+    version: tag,
+    zip: zipName,
+    sha256,
+    urls: urls.length ? urls : [canonical, `https://ghfast.top/${canonical}`, `https://ghproxy.net/${canonical}`],
+  };
 
-1. 下载安装包（${zipName}）。按顺序尝试以下地址，成功一个即停：
-${urlsBlock}
-   下载后计算文件的 SHA256，必须等于 ${sha256}；不符则换下一个地址重试，全部不符则停止并告诉我。
+  const generate = () => {
+    delete require.cache[configPath];
+    delete require.cache[promptModulePath];
+    const mpConfig = require(configPath);
+    const original = mpConfig.BRIDGE_RELEASE;
+    const staleVersion = original && original.version !== tag;
+    mpConfig.BRIDGE_RELEASE = release;
+    const { buildFullSetupPrompt } = require(promptModulePath);
+    const text = buildFullSetupPrompt();
+    mpConfig.BRIDGE_RELEASE = original;
+    return { text, staleVersion, configVersion: original ? original.version : null };
+  };
 
-2. 解压到 %USERPROFILE%\\miniproctor-bridge（不要放 C:\\Program Files）。
-
-3. 在解压目录运行：node tools/setup-wizard.cjs
-   配置向导选 endpoint 模式，接入地址填：{{小程序设置页展示的接入地址}}
-   （endpoint 模式不需要任何密钥。）
-
-4. 运行：node src/main.js doctor 自检，确认 Node 版本与网络连通。
-
-5. 运行：node src/main.js pair 启动配对。终端会显示 6 位配对码，请原样告诉我，
-   我会在手机小程序里输入完成绑定。配对完成后保持窗口运行。
-
-6. 绑定成功后运行：node src/main.js run 保持在线。
-
-注意：不要把 config.json 或 data/ 目录内容发到任何地方；网络失败先重试下一个下载地址。`;
+  const first = generate();
+  const second = generate();
+  if (first.text !== second.text) {
+    throw new Error('同源提示词两次生成结果不一致（生成器含非确定逻辑），构建失败。');
+  }
+  // 逐项断言：提示词必须内嵌本次发行的全部事实（防模板与数据漂移）
+  const mustContain = [release.zip, release.sha256, release.version, ...release.urls];
+  for (const s of mustContain) {
+    if (!first.text.includes(s)) throw new Error(`同源提示词缺少发行事实「${s}」，构建失败。`);
+  }
+  if (first.staleVersion) {
+    console.warn(`[make-release] 警告：miniprogram/config.js 的 BRIDGE_RELEASE.version=${first.configVersion} 与本次构建 ${tag} 不一致。`);
+    console.warn('[make-release] 请把新构建的 sha256/urls 同步回 config.js 后再次构建，保证小程序端提示词与发行包一致。');
+  }
+  return first.text;
 }
 
 async function main() {
   const opts = args(process.argv.slice(2));
   const pkg = JSON.parse(fs.readFileSync(path.join(bridgeDir, 'package.json'), 'utf8'));
   const version = opts.version || pkg.version || '0.0.0';
+  const outDir = opts.outDir ? path.resolve(opts.outDir) : DEFAULT_OUT_DIR;
   fs.mkdirSync(outDir, { recursive: true });
 
   const zipName = `miniproctor-bridge-v${version}.zip`;
   const zipPath = path.join(outDir, zipName);
   const files = collectFiles(bridgeDir);
-  console.log(`[make-release] 打包 ${files.length} 个文件 → ${zipName}`);
-  makeZip(files, zipPath);
+  const meta = { version, buildTime: new Date().toISOString(), commit: gitCommit() };
+  console.log(`[make-release] 打包 ${files.length} 个文件 + installer → ${zipName}（commit ${meta.commit.slice(0, 12)}，产物目录 ${outDir}）`);
+  const allFiles = makeZip(files, zipPath, meta, outDir);
 
   const sha256 = sha256File(zipPath);
   const shaPath = `${zipPath}.sha256`;
   fs.writeFileSync(shaPath, `${sha256}  ${zipName}\n`, 'utf8');
+
+  const manifest = {
+    manifest_version: 1,
+    package: 'miniproctor-bridge',
+    version,
+    buildTime: meta.buildTime,
+    commit: meta.commit,
+    zip: { name: zipName, sha256, bytes: fs.statSync(zipPath).size },
+    files: allFiles,
+  };
+  const manifestPath = path.join(outDir, 'manifest.json');
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
   const promptPath = path.join(outDir, 'agent-prompt.txt');
   fs.writeFileSync(promptPath, makePrompt(version, zipName, sha256, opts.urls), 'utf8');
 
   console.log(`[make-release] zip: ${zipPath}`);
   console.log(`[make-release] sha256: ${sha256}`);
-  console.log(`[make-release] 提示词: ${promptPath}（--url 未传时含占位符，上传后重跑可回填）`);
+  console.log(`[make-release] manifest: ${manifestPath}（${allFiles.length} 个文件）`);
+  console.log(`[make-release] 提示词: ${promptPath}（与小程序端 services/agent-prompt.js 同源，三平台口径）`);
 }
 
-main().catch((e) => { console.error('[make-release] 失败：', e.message); process.exitCode = 1; });
+if (require.main === module) {
+  main().catch((e) => { console.error('[make-release] 失败：', e.message); process.exitCode = 1; });
+}
+
+module.exports = { collectFiles, walkStaged, makePrompt, makeZip, args, IN_PACKAGE_MANIFEST };

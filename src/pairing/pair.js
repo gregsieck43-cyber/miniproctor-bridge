@@ -25,3 +25,15 @@ export function createPairingOffer({ deviceId, ttlMs = 10 * 60 * 1000, generateK
 export function sha256(value) {
   return crypto.createHash('sha256').update(String(value), 'utf8').digest('hex');
 }
+
+/**
+ * checkPairing 状态 → 轮询动作映射（纯函数，便于单测；TASK-004 ⑦）。
+ * 云端状态枚举扩展（如 claiming）与未知新状态一律返回 wait，保持旧轮询语义
+ * （向后兼容：已部署 bridge 对非 bound 状态持续轮询直至超时）。
+ */
+export function evaluatePairingStatus(status) {
+  if (status === 'bound') return { action: 'bound' };
+  if (status === 'expired') return { action: 'abort', reason: 'pairing-expired' };
+  if (status === 'failed') return { action: 'abort', reason: 'pairing-locked' };
+  return { action: 'wait' };
+}

@@ -1,4 +1,4 @@
-import { createEvent, sanitizePreview, truncateText } from '../lib/events.js';
+import { createEvent, getEventPolicy, redactThinkingEvent, sanitizePreview, truncateText } from '../lib/events.js';
 
 const KNOWN_TYPES = new Set([
   'system', 'assistant', 'user', 'result', 'control_request', 'control_cancel_request',
@@ -45,16 +45,26 @@ export function mapClaudeRaw(raw, { sessionId, agentType = 'claude-code', sequen
             },
           }));
         } else if (item.type === 'thinking' && typeof item.thinking === 'string' && item.thinking) {
-          events.push(createEvent({
-            sessionId, agentType, sequencer,
-            eventType: 'custom',
-            payload: {
-              custom_type: 'thinking',
-              fallback_text: item.thinking,
-              data: { thinking: item.thinking },
-            },
-            metadata: { sensitive: true },
-          }));
+          // TASK-019 ②①：thinking/sensitive 默认不上传正文（落实《隐私与数据清单》"默认
+          // 不上传"承诺）——降级为脱敏占位事件（type 保留 + redacted/original_bytes）；
+          // 仅当 config bridge.uploadThinking=true 显式开启时透传正文（createEvent 对
+          // metadata.sensitive 事件还会做凭据形态二次清洗，双保险）。
+          if (getEventPolicy().uploadThinking) {
+            events.push(createEvent({
+              sessionId, agentType, sequencer,
+              eventType: 'custom',
+              payload: {
+                custom_type: 'thinking',
+                fallback_text: item.thinking,
+                data: { thinking: item.thinking },
+              },
+              metadata: { sensitive: true },
+            }));
+          } else {
+            events.push(redactThinkingEvent({
+              sessionId, agentType, sequencer, originalText: item.thinking,
+            }));
+          }
         } else if (item.type === 'tool_use') {
           events.push(createEvent({
             sessionId, agentType, sequencer,
@@ -186,14 +196,16 @@ function fileChangeFromTool(item) {
   const lines = [`--- ${filePath}`];
   if (oldText) lines.push(prefix(oldText, '-'));
   if (newText) lines.push(prefix(newText, '+'));
-  const preview = truncateText(lines.join(NL), 8192);
+  // TASK-019 ②②：diff 预览上限从 8KB 收到 6KB——与信封 7.5KB 收敛上限协调，
+  // file_change 事件整体不再触发信封级截断（原 8KB 预览 + 头部必然超 7.5KB）。
+  const preview = truncateText(lines.join(NL), 6144);
   return {
     file_path: filePath,
     change_type: item.name === 'Write' ? 'created' : 'modified',
     summary: `${item.name} ${filePath}`,
     diff_preview: preview,
     diff_bytes: Buffer.byteLength(preview, 'utf8'),
-    truncated: Buffer.byteLength(preview, 'utf8') >= 8192,
+    truncated: Buffer.byteLength(preview, 'utf8') >= 6144,
   };
 }
 

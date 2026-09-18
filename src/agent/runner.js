@@ -1,18 +1,20 @@
 import { spawn, spawnSync } from 'node:child_process';
-import readline from 'node:readline';
 import { EventEmitter } from 'node:events';
 import { resolveCommandPath, isCmdShimPath } from '../lib/command-resolve.js';
 
 const DEFAULT_STOP_GRACE_MS = 3000;
 const STDERR_TAIL_BYTES = 4096;
 const NL = 0x0a; // '\n'
+// TASK-012 资源限制：超长单行输出截断（结构上限，内容级脱敏归 TASK-019）。
+// 行缓冲以字节计，超过即进入截断模式（丢弃后续字节直到换行），内存上限 = 行上限。
+export const MAX_LINE_BYTES = 256 * 1024;
 
 // cmd.exe 需要的环境防线：防 ANSI 色码污染 stream-json、强制子进程 UTF-8 输出。
-const CHILD_ENV_GUARDS = Object.freeze({
-  PYTHONIOENCODING: 'utf-8',
-  LANG: 'en_US.UTF-8',
-  FORCE_COLOR: '0',
-});
+// LANG/PYTHONIOENCODING 仅 Windows 注入——posix 上若系统无该 locale 反而触发
+// setlocale 告警甚至 ASCII 回退，污染 stdout 的 JSONL。
+const CHILD_ENV_GUARDS = process.platform === 'win32'
+  ? Object.freeze({ PYTHONIOENCODING: 'utf-8', LANG: 'en_US.UTF-8', FORCE_COLOR: '0' })
+  : Object.freeze({ FORCE_COLOR: '0' });
 
 /**
  * 构造经过转义的单个 token（cmd 引号规则：内嵌双引号写成 ""）。
@@ -37,6 +39,13 @@ export class AgentRunner extends EventEmitter {
     this.stderrTail = '';
     this._stdoutDone = false;
     this._stderrPending = Buffer.alloc(0);
+    // stdout 行缓冲（替代 readline：需要行级字节上限以约束超长单行内存占用）
+    this._stdoutPending = Buffer.alloc(0);
+    this._stdoutTruncating = false;
+    this._stdoutKept = null;
+    this._stdoutDroppedBytes = 0;
+    // 会话级诊断计数：exit 时随 session_exit 事件上报
+    this.truncatedLineCount = 0;
     // 启动后写入的诊断信息：解析到的可执行文件路径与启动方式。
     this.resolvedCommand = null;
     this.launchMode = null;
@@ -64,6 +73,9 @@ export class AgentRunner extends EventEmitter {
       env: this.buildChildEnv(),
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
+      // posix 下 detached 使子进程成为进程组组长（pgid=pid），killTree 才能整树终止；
+      // Windows 走 taskkill /T，不需要。
+      detached: process.platform !== 'win32',
     };
     if (mode === 'cmd-shell') {
       const comSpec = process.env.ComSpec || 'cmd.exe';
@@ -99,17 +111,77 @@ export class AgentRunner extends EventEmitter {
       this.emit('exit', { code, signal, error: null, stderrTail: this.stderrTail });
     });
 
-    const rl = readline.createInterface({ input: this.child.stdout });
-    rl.on('line', (line) => this.emit('line', line));
-    rl.on('close', () => {
-      this._stdoutDone = true;
-      this.emit('stdout-end');
-    });
+    // TASK-012：stdin 写入错误（EPIPE 等）必须显式暴露——静默悬挂会让命令"假成功"。
+    this.stdin.on('error', (err) => this.emit('stdin-error', err));
+
+    // stdout 手工分行：按字节缓冲、跨 chunk 的 UTF-8 在行边界统一解码；
+    // 单行超过 MAX_LINE_BYTES 即截断（丢弃后续字节直到换行，内存有界）。
+    this.child.stdout.on('data', (chunk) => this._handleStdoutChunk(chunk));
+    this.child.stdout.on('end', () => this._flushStdoutRemainder());
 
     // stderr 按 UTF-8 行流处理：多字节字符跨 chunk 边界也不会产生乱码。
     this.child.stderr.on('data', (chunk) => this.consumeStderrChunk(chunk));
     this.child.stderr.on('end', () => this.flushStderrRemainder());
     return this;
+  }
+
+  _handleStdoutChunk(chunk) {
+    if (this._stdoutTruncating) {
+      // 截断模式：丢弃字节直到换行，再按正常路径处理剩余部分
+      const nl = chunk.indexOf(NL);
+      if (nl === -1) {
+        this._stdoutDroppedBytes += chunk.length;
+        return;
+      }
+      this._stdoutDroppedBytes += nl;
+      this._flushTruncatedLine();
+      this._handleStdoutChunk(chunk.subarray(nl + 1));
+      return;
+    }
+    this._stdoutPending = this._stdoutPending.length
+      ? Buffer.concat([this._stdoutPending, chunk])
+      : chunk;
+    let nl = this._stdoutPending.indexOf(NL);
+    while (nl !== -1) {
+      this.emitStdoutLine(this._stdoutPending.subarray(0, nl), 0);
+      this._stdoutPending = this._stdoutPending.subarray(nl + 1);
+      nl = this._stdoutPending.indexOf(NL);
+    }
+    if (this._stdoutPending.length > MAX_LINE_BYTES) {
+      // 进入截断模式：保留前 MAX 字节，其余丢弃直到换行
+      this._stdoutTruncating = true;
+      this._stdoutKept = Buffer.from(this._stdoutPending.subarray(0, MAX_LINE_BYTES));
+      this._stdoutDroppedBytes = this._stdoutPending.length - MAX_LINE_BYTES;
+      this._stdoutPending = Buffer.alloc(0);
+    }
+  }
+
+  _flushTruncatedLine() {
+    this.emitStdoutLine(this._stdoutKept, this._stdoutDroppedBytes);
+    this._stdoutTruncating = false;
+    this._stdoutKept = null;
+    this._stdoutDroppedBytes = 0;
+  }
+
+  _flushStdoutRemainder() {
+    if (this._stdoutTruncating) {
+      this._flushTruncatedLine();
+    } else if (this._stdoutPending.length > 0) {
+      this.emitStdoutLine(this._stdoutPending, 0);
+      this._stdoutPending = Buffer.alloc(0);
+    }
+    this._stdoutDone = true;
+    this.emit('stdout-end');
+  }
+
+  emitStdoutLine(lineBuf, droppedBytes) {
+    const line = decodeUtf8(lineBuf).replace(/\r$/, '');
+    if (droppedBytes > 0) {
+      this.truncatedLineCount += 1;
+      this.emit('line', line, { truncated: true, droppedBytes });
+      return;
+    }
+    this.emit('line', line);
   }
 
   consumeStderrChunk(chunk) {
@@ -141,8 +213,13 @@ export class AgentRunner extends EventEmitter {
 
   sendRawLine(line) {
     if (!this.stdin || !this.stdin.writable) return false;
-    this.stdin.write(`${line.replace(/\r?\n$/, '')}\n`);
-    return true;
+    try {
+      this.stdin.write(`${line.replace(/\r?\n$/, '')}\n`);
+      return true;
+    } catch {
+      // 写入同步抛错（流已销毁等）→ 失败，由调用方决定 ack/事件语义
+      return false;
+    }
   }
 
   sendJson(obj) {
@@ -180,12 +257,41 @@ export class AgentRunner extends EventEmitter {
         killer.on('error', () => resolve());
         killer.on('exit', () => resolve());
       });
-    } else {
-      try { this.child.kill('SIGTERM'); } catch { /* ignore */ }
+      return;
     }
+    // posix：对进程组整树 SIGTERM，2s 宽限后 SIGKILL 升级，并等待真实退出
+    // （只 kill 直接子进程会漏掉孙进程，Rust 系 CLI 还可能忽略 SIGTERM）。
+    const signalGroup = (sig) => { try { process.kill(-this.child.pid, sig); } catch { /* 已退出 */ } };
+    signalGroup('SIGTERM');
+    await new Promise((resolve) => {
+      const timer = setTimeout(() => { signalGroup('SIGKILL'); resolve(); }, 2000);
+      this.child.once('exit', () => { clearTimeout(timer); resolve(); });
+      if (!this.alive) { clearTimeout(timer); resolve(); }
+    });
   }
 }
 
 function decodeUtf8(buffer) {
   return Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer);
+}
+
+// TASK-012：stderr 诊断脱敏——截断 + 去凭据形态内容后才允许作为错误诊断事件回流。
+// 匹配常见凭据形态（API key/token/Bearer/密码赋值），只替换值不保留原文。
+const CREDENTIAL_PATTERNS = [
+  [/sk-[A-Za-z0-9_-]{6,}/g, 'sk-***'],
+  [/gh[pousr]_[A-Za-z0-9]{6,}/g, 'gh_***'],
+  [/Bearer\s+[A-Za-z0-9._~+/=-]{6,}/gi, 'Bearer ***'],
+  [/(\b(?:api[_-]?key|token|secret|password|passwd|authorization)\b\s*[=:：]\s*)("[^"]*"|'[^']*'|\S+)/gi, '$1***'],
+];
+
+export function sanitizeDiagnosticText(raw, maxChars = 500) {
+  let text = typeof raw === 'string' ? raw : (() => {
+    try { return JSON.stringify(raw) ?? String(raw); } catch { return String(raw); }
+  })();
+  for (const [pattern, replacement] of CREDENTIAL_PATTERNS) {
+    text = text.replace(pattern, replacement);
+  }
+  text = text.replace(/\s+/g, ' ').trim();
+  if (text.length > maxChars) text = `${text.slice(0, maxChars)}…`;
+  return text;
 }
