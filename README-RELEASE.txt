@@ -18,8 +18,12 @@ miniproctor bridge 发行包
 手动安装（也可解压到任意目录后逐步执行）：
   1. node tools/setup-wizard.cjs   # 交互式配置（endpoint 模式无需任何密钥）
   2. node src/main.js doctor       # 自检
-  3. node src/main.js pair         # 生成 6 位配对码，到小程序输入完成绑定
-  4. node src/main.js run          # 启动（可另配语音识别：node tools/setup-asr.cjs）
+  3. node src/main.js workspace add <工作区路径>    # 授权手机可创建任务的目录
+  4. node src/main.js profiles register --agent-key <产品键> --command <CLI> --cwd <工作区路径>
+     # 在电脑上登记 Agent 配置；路径和命令不会发到手机
+  5. node src/main.js pair         # 生成 6 位配对码，到小程序输入完成绑定
+  6. node src/main.js run --no-initial-session  # 驻留接收手机任务，不启动默认 Agent
+  （可另配语音识别：node tools/setup-asr.cjs）
 
 发行完整性：
   node tools/verify-release.cjs --installed <安装目录>

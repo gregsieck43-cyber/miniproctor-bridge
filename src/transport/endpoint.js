@@ -55,6 +55,11 @@ export class EndpointTransport {
     return this._invoke('syncReport', this._authed({ token_hash: this.tokenHash, events }));
   }
 
+  async pushProfiles(profiles) {
+    if (!profiles?.length) return { ok: true, status: 200, data: { ok: true, profile_projection: { rejected: [] } } };
+    return this._invoke('syncReport', this._authed({ token_hash: this.tokenHash, events: [], profiles }));
+  }
+
   async pullCommands() {
     return this._invoke('pullCommands', this._authed({ token_hash: this.tokenHash }));
   }

@@ -49,6 +49,11 @@ export class CloudGatewayTransport {
     return this._invoke('syncReport', this._authed({ token_hash: this.tokenHash, events }));
   }
 
+  async pushProfiles(profiles) {
+    if (!profiles?.length) return { ok: true, status: 200, data: { ok: true, profile_projection: { rejected: [] } } };
+    return this._invoke('syncReport', this._authed({ token_hash: this.tokenHash, events: [], profiles }));
+  }
+
   async pullCommands() {
     return this._invoke('pullCommands', this._authed({ token_hash: this.tokenHash }));
   }
@@ -110,6 +115,11 @@ export class CloudGatewayTransport {
       });
       throw new TransportError(`[gateway] ${name} failed: errcode=${errcode}${bizCode ? ` ${bizCode}` : ''}`, {
         code, status, data: res ? res.data : null, retryable,
+      });
+    }
+    if (!res.data || typeof res.data !== 'object' || Array.isArray(res.data)) {
+      throw new TransportError(`[gateway] ${name} returned an empty/invalid body`, {
+        code: 'INVALID_RESPONSE', status: res.status, data: null, retryable: true,
       });
     }
     this.logger.debug?.(`[gateway] ${name} ok`, {

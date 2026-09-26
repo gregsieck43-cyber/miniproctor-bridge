@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc3",
-  "commit": "eb17faf44ee795852e363c9fee0d2a1bf42a80f5",
+  "version": "0.6.0-rc4",
+  "commit": "522223777bbee831546e09a9a7752f74fd7b9e5d",
   "files": [
     {
       "path": "config.example.json",
@@ -21,23 +21,23 @@
     },
     {
       "path": "installer/setup.ps1",
-      "sha256": "57ab670a19c54e23c390f6470b546f1b7f1e18cf2bfc0d62b2ea7ca102335e3f",
-      "bytes": 14365
+      "sha256": "416788e5139c83adde6ba4b15f17cf806bcf7c9c02f8503b1611cbd52d2c642c",
+      "bytes": 14746
     },
     {
       "path": "installer/setup.sh",
-      "sha256": "15642092b532fbffbf64936bdea043754a1c4d1ad6c1c6fe5e66843621e9acbb",
-      "bytes": 12069
+      "sha256": "7b465e6c00c8307537f12013632311b247af4d4a8f1224383f6ed417586d01eb",
+      "bytes": 12432
     },
     {
       "path": "package.json",
-      "sha256": "14fd173f89e880b8ccf8c8a8414755db4b9a4e4b08d81b6abc917028b4d73b13",
+      "sha256": "6006abf9e0fee8f61979c7135e09ba71e5cd23ff49249b882ae02fb0ada8497b",
       "bytes": 442
     },
     {
       "path": "README-RELEASE.txt",
-      "sha256": "dae300301dc468bdf82d6679ea26be22668113343afc9f9a863f066dcb6f8795",
-      "bytes": 2059
+      "sha256": "a3c8eaa57762378af57c0a2635a51b805021d7b0afd57818b662d0fd5dd54455",
+      "bytes": 2392
     },
     {
       "path": "src/adapters/aider.js",
@@ -365,6 +365,11 @@
       "bytes": 25788
     },
     {
+      "path": "src/agents/profile-sync.js",
+      "sha256": "4c09488ba946eaeb7ac32a23f613c8e400eb90bb4fe59311949480a2aee5f3f3",
+      "bytes": 3440
+    },
+    {
       "path": "src/cloud/device-keys.js",
       "sha256": "9e5e5bf6c6fa6fdf57dcaeb3512ef8f07cc7ee621bdc83286bc47e621a0bb69e",
       "bytes": 7108
@@ -446,8 +451,8 @@
     },
     {
       "path": "src/main.js",
-      "sha256": "c499fb1e23c422f065e3b828e901d69506ea7527c4008ab9f9f40ceded5ad42b",
-      "bytes": 42660
+      "sha256": "a257d6342ce066b92f24c56d1237f77a3bb6fd4f40d3d58022908a7c8f69257b",
+      "bytes": 43938
     },
     {
       "path": "src/pairing/pair.js",
@@ -461,13 +466,13 @@
     },
     {
       "path": "src/transport/cloud-gateway.js",
-      "sha256": "9dc0b221f6ede528dee0731b9b8ecb477bb60cf374d7d60957c424f1485080ff",
-      "bytes": 5446
+      "sha256": "286cf1776d35e1790a8796e7810098c191238302626c6798250f23fda7cac77b",
+      "bytes": 5974
     },
     {
       "path": "src/transport/endpoint.js",
-      "sha256": "833c8633fa674d9a768166428200437b9400afd5906b16f5e6fb634b22032bcf",
-      "bytes": 6417
+      "sha256": "45b69ecb4bb4ba237ef4f9342a13e0f2832d6557bba4f5f37b21dd36ec685be4",
+      "bytes": 6681
     },
     {
       "path": "src/transport/http-poll.js",
@@ -486,8 +491,8 @@
     },
     {
       "path": "tools/make-release.cjs",
-      "sha256": "2f08dcac07b0334a72e8e0417abd572c970b48f9aaeeb8c77043c77f8848584b",
-      "bytes": 15226
+      "sha256": "e2b4f72fdcc430011772b703967aac84f5c0c47c16d2458e9351a602a86461bc",
+      "bytes": 15554
     },
     {
       "path": "tools/mock-relay.mjs",

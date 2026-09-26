@@ -16,6 +16,7 @@ import { EndpointTransport } from './transport/endpoint.js';
 import { createPairingOffer, evaluatePairingStatus } from './pairing/pair.js';
 import { loadAgentConfig } from './lib/agent-config.js';
 import { ProfileStore, ProfileStoreError, PERMISSION_POLICY_MODES, PROFILE_REGIONS } from './agents/profile-store.js';
+import { ProfileSyncService } from './agents/profile-sync.js';
 import { AdapterFactory, SessionLaunchLedger } from './agents/adapter-factory.js';
 import { identifyRuntime, sanitizeSelfReport, SELF_REPORT_MAX_BYTES } from './agents/identify.js';
 import { resolveAgentKey, getCatalogEntry } from './agents/catalog.js';
@@ -36,6 +37,7 @@ const DEMO_AGENT = path.resolve(__dirname, '../demo/demo-agent.mjs');
 const USAGE = `usage: node src/main.js [doctor|pair|run|demo|workspace]
 
   run [options]                        启动 bridge daemon（初始会话 + 手机命令轮询）
+    --no-initial-session 不启动默认 Agent，只驻留接收手机任务（需要已登记 profile）
     --command <cmd>      覆盖 config 的 agent.command（CLI 显式覆盖时不再追加 config.agent.args）
     --arg <value>        追加 agent 参数（可重复）
     --agent-type <t>     claude-code|codex|generic（缺省按 command 名推断；决定能力协商）
@@ -192,6 +194,12 @@ async function runSession(args) {
   let command = config.agent.command;
   let maxRunMs = 0;
   let exitWhenIdle = args.includes('--exit-when-idle');
+  const noInitialSession = args.includes('--no-initial-session');
+  if (noInitialSession && exitWhenIdle) {
+    console.error('[run] --no-initial-session 与 --exit-when-idle 不可同时使用');
+    process.exitCode = 2;
+    return { ok: false, reason: 'incompatible-flags' };
+  }
   let agentTypeFlag = null;
   let cwdOverride = null;
   const agentArgs = [];
@@ -225,6 +233,7 @@ async function runSession(args) {
   // 双开/锁不可用（权限、磁盘）都明确拒绝启动：宁可不起，也不出现两实例同时
   // 执行同一批不可逆命令。
   let instanceLock = null;
+  let profileSync = null;
   try {
     instanceLock = acquireInstanceLock(config.bridge.dataDir);
   } catch (err) {
@@ -246,7 +255,6 @@ async function runSession(args) {
     }
 
     const state = loadDeviceState(config);
-    const sessionId = `s_${crypto.randomUUID()}`;
     const transport = makeTransport(config, {
       deviceId: state?.device_id || config.bridge.deviceName,
       tokenHash: state?.token_hash || null,
@@ -272,6 +280,9 @@ async function runSession(args) {
     // V12-11：单 supervisor 逐任务适配调度——本机 profile 存储（V12-08）→ AdapterFactory
     // 生成冻结启动 spec；launch ledger 记录 profile 会话（原生 ID 归档 + 重启对账恢复）。
     const profileStore = new ProfileStore({ dir: config.bridge.dataDir });
+    if (persistentQueues) {
+      profileSync = new ProfileSyncService({ profileStore, transport, logger: createLogger('profile-sync') });
+    }
     const launchLedger = new SessionLaunchLedger({ dir: config.bridge.dataDir });
     const adapterFactory = new AdapterFactory({ profileStore });
     // V12-13：写任务工作区互斥锁——同 realpath（盘符大小写/symlink/WSL 统一）只允许
@@ -302,7 +313,10 @@ async function runSession(args) {
       // TASK-011：授权撤销感知——pull 收到 unauthorized(binding-not-active/revoked) 时
       // SessionManager 停止轮询并回调这里；本地 device.json 改名归档（不删除：用户密钥
       // 资产，重新配对会生成新文件），outbox 存量由撤销后的 flush 按永久失败 dead-letter。
-      onRevoked: () => archiveDeviceState(config),
+      onRevoked: () => {
+        profileSync?.stop();
+        archiveDeviceState(config);
+      },
       onEvent: (sid, event) => {
         // TASK-019/E21：完整 event 不再 console.log 全文（正文可能含消息/diff/密钥形态文本）。
         // 默认只打摘要（type/session_id/字节数/标记，复用 TASK-022 log.js 脱敏管线写 stderr）；
@@ -333,34 +347,46 @@ async function runSession(args) {
       defaultSpec: { agentType, command, args: agentArgs },
     });
     outbox.start(1000); // 后台 pump：驱动退避重试
-    const session = manager.startSession({
-      sessionId,
-      agentType,
-      command,
-      args: agentArgs,
-      cwd: cwdOverride || config.agent.cwd,
-    });
-    // V12-13：初始会话同样占工作区锁——远程 create 与初始会话同目录双写也被拦截；
-    // 初始会话是用户本机显式操作（CLI run 即授权）：占锁失败只告警不拒绝启动。
-    const initialLock = workspaceLocks.acquire({
-      cwd: session.cwd,
-      sessionId,
-      profileId: null,
-      agentKey: agentType,
-    });
-    if (!initialLock.ok) {
-      console.warn(`[workspace-lock] 初始会话占锁未成功（reason=${initialLock.reason}）：该目录的远程 create 互斥可能不完整`);
+    if (profileSync) {
+      try {
+        await profileSync.start();
+      } catch (err) {
+        // 配置投影故障不吞掉命令/事件通道；定时器会按原 revision 幂等重试。
+        console.warn(`[profiles] initial sync failed (${err?.code || err?.message || 'unknown'}); scheduled retry`);
+      }
+    }
+    let session = null;
+    let initialExitInfo = null;
+    if (!noInitialSession) {
+      const sessionId = `s_${crypto.randomUUID()}`;
+      session = manager.startSession({
+        sessionId,
+        agentType,
+        command,
+        args: agentArgs,
+        cwd: cwdOverride || config.agent.cwd,
+      });
+      // V12-13：初始会话同样占工作区锁——远程 create 与初始会话同目录双写也被拦截；
+      // 初始会话是用户本机显式操作（CLI run 即授权）：占锁失败只告警不拒绝启动。
+      const initialLock = workspaceLocks.acquire({
+        cwd: session.cwd,
+        sessionId,
+        profileId: null,
+        agentKey: agentType,
+      });
+      if (!initialLock.ok) {
+        console.warn(`[workspace-lock] 初始会话占锁未成功（reason=${initialLock.reason}）：该目录的远程 create 互斥可能不完整`);
+      }
+      console.log(`[started] ${sessionId} agent=${agentType} ${command} ${agentArgs.join(' ')}`);
+      session.runner.once('exit', (info) => {
+        initialExitInfo = info;
+        // 初始会话退出只结束该会话，daemon 继续接受手机任务。
+        console.log(`[initial-session-exit] ${sessionId} status=${session.status} code=${info.code} signal=${info.signal || ''}${info.error ? ` error=${info.error.message || info.error}` : ''}`);
+      });
+    } else {
+      console.log('[started] profile-only daemon; waiting for phone create_session');
     }
     manager.startPolling();
-    console.log(`[started] ${sessionId} agent=${agentType} ${command} ${agentArgs.join(' ')}`);
-
-    let initialExitInfo = null;
-    session.runner.once('exit', (info) => {
-      initialExitInfo = info;
-      // E12 修复：初始会话退出只打日志（终态已由 session_exit 事件回流），daemon 继续运行。
-      // status 取会话终态（显式停止 → ended；崩溃/异常 → failed），与 session_exit 事件一致。
-      console.log(`[initial-session-exit] ${sessionId} status=${session.status} code=${info.code} signal=${info.signal || ''}${info.error ? ` error=${info.error.message || info.error}` : ''}`);
-    });
 
     // 优雅退出：SIGINT/SIGTERM / exit-when-idle / watchdog → stopAll（含退出排空期限）后退出
     let shuttingDown = false;
@@ -371,6 +397,7 @@ async function runSession(args) {
       if (shuttingDown) return;
       shuttingDown = true;
       if (keepAlive) clearInterval(keepAlive);
+      profileSync?.stop();
       console.warn(`[shutdown] ${reason} received, draining outbox (deadline ${manager.drainDeadlineMs}ms)…`);
       void (async () => {
         try {
@@ -416,6 +443,7 @@ async function runSession(args) {
     if (watchdog) clearTimeout(watchdog);
     return result;
   } finally {
+    profileSync?.stop();
     // 所有退出路径（优雅关停/异常/看门狗）都释放单实例锁；释放失败留下的锁文件
     // 由下次启动的陈旧检测接管（持有进程已不存在）。
     instanceLock.release();
@@ -530,9 +558,12 @@ async function statusCmd(args) {
       const res = await transport.pullCommands();
       out.binding = {
         checked: true,
-        active: res.ok === true,
-        generation: Number.isFinite(res.data?.binding_generation) ? res.data.binding_generation : null,
-        reason: res.ok ? 'pull-ok' : 'unexpected-response',
+        active: res.ok === true && Array.isArray(res.data?.commands) ? true : null,
+        generation: Number.isFinite(res.data?.binding_generation)
+          ? res.data.binding_generation
+          : Number.isFinite(res.data?.profile_meta?.binding_generation)
+            ? res.data.profile_meta.binding_generation : null,
+        reason: res.ok === true && Array.isArray(res.data?.commands) ? 'pull-ok' : 'unexpected-response',
       };
     } catch (err) {
       if (isRevocationError(err)) {
