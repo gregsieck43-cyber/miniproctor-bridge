@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "codex",
+  "display_name": "Codex CLI",
+  "aliases": ["codex-cli", "openai-codex"],
+  "logo_asset": "assets/agents/codex.png",
+  "lifecycle": "active",
+  "adapter_id": "codex",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": true,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "read": { "status": "verified", "evidence": "bridge/test/adapters/codex-adapter.test.js + bridge/test/codex-adapter.test.js（解析 fixture 对拍）+ bridge/test/approval-lifecycle.test.js（演示宿主往返）+ 0.155.1 真实启动帧实测（docs/release/v1.2/agents/codex.md）" },
+    "stop": { "status": "verified", "evidence": "bridge/test/runner.test.js / runner-windows.test.js（进程树终止）；0.155.1 实测网络阻塞时 CLI 不发错误帧，强杀为唯一恢复通道（roundtrip-2）" },
+    "create": { "status": "verified", "evidence": "bridge/test/approval-lifecycle.test.js（codex 携带 prompt 经 launch-args 真实 spawn）+ 0.155.1 真实启动帧实测 thread.started/turn.started（roundtrip-2，最终回复因 chatgpt.com 不可达未取得，挂 V03）" },
+    "append": { "status": "unavailable", "evidence": "官方无中途追加输入通道（stdin 追加为 <stdin> block，实测挂起，CLOSE-007；V12-A02 探针复测 stdin 未 EOF 同样挂起）" },
+    "resume": { "status": "unavailable", "evidence": "官方有 codex exec resume 子命令（noninteractive 文档），bridge 无实现路径（声明 false），未实测" },
+    "approve": { "status": "unavailable", "evidence": "审批策略回调未实现（E13：统一 Claude 输入帧不适用）" },
+    "fileChanges": { "status": "unavailable", "evidence": "官方 item 流含 file_change 条目（noninteractive 文档），bridge 声明层冻结 false 无映射路径，解析层如实落 codex_raw 显示（bridge/test/adapters/codex-adapter.test.js 畸形流用例）" },
+    "usage": { "status": "unavailable", "evidence": "官方 turn.completed 帧携带 usage（noninteractive 文档），bridge 声明层冻结 false，session_end.usage 恒空对象不伪造（§8.3，bridge/test/adapters/codex-adapter.test.js）；V03 回收时随声明层一并翻入" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A02-codex-noninteractive.md"
+}

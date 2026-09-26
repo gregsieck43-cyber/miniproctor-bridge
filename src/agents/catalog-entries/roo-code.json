@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "roo-code",
+  "display_name": "Roo Code",
+  "aliases": ["roo"],
+  "logo_asset": "assets/agents/roo-code.png",
+  "lifecycle": "deprecated",
+  "adapter_id": "generic",
+  "integration_mode": "manual-report",
+  "capabilities": {
+    "create": false,
+    "read": false,
+    "stop": false,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": null,
+  "verification": {
+    "create": { "status": "unavailable", "evidence": "官方扩展已停服（docs_ref 停服说明）；无适配器实现，不推荐新安装（§6 历史兼容登记）" },
+    "read": { "status": "unavailable", "evidence": "官方扩展已停服（docs_ref 停服说明）；无适配器实现，不推荐新安装（§6 历史兼容登记）" },
+    "stop": { "status": "unavailable", "evidence": "官方扩展已停服（docs_ref 停服说明）；无适配器实现，不推荐新安装（§6 历史兼容登记）" },
+    "append": { "status": "unavailable", "evidence": "官方扩展已停服（docs_ref 停服说明）；无适配器实现，不推荐新安装（§6 历史兼容登记）" },
+    "resume": { "status": "unavailable", "evidence": "官方扩展已停服（docs_ref 停服说明）；无适配器实现，不推荐新安装（§6 历史兼容登记）" },
+    "approve": { "status": "unavailable", "evidence": "官方扩展已停服（docs_ref 停服说明）；无适配器实现，不推荐新安装（§6 历史兼容登记）" },
+    "fileChanges": { "status": "unavailable", "evidence": "官方扩展已停服（docs_ref 停服说明）；无适配器实现，不推荐新安装（§6 历史兼容登记）" },
+    "usage": { "status": "unavailable", "evidence": "官方扩展已停服（docs_ref 停服说明）；无适配器实现，不推荐新安装（§6 历史兼容登记）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/HIST-roocode-sunset.md"
+}

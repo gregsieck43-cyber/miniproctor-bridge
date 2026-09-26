@@ -15,9 +15,15 @@ import { CloudGatewayTransport } from './transport/cloud-gateway.js';
 import { EndpointTransport } from './transport/endpoint.js';
 import { createPairingOffer, evaluatePairingStatus } from './pairing/pair.js';
 import { loadAgentConfig } from './lib/agent-config.js';
+import { ProfileStore, ProfileStoreError, PERMISSION_POLICY_MODES, PROFILE_REGIONS } from './agents/profile-store.js';
+import { AdapterFactory, SessionLaunchLedger } from './agents/adapter-factory.js';
+import { identifyRuntime, sanitizeSelfReport, SELF_REPORT_MAX_BYTES } from './agents/identify.js';
+import { resolveAgentKey, getCatalogEntry } from './agents/catalog.js';
 import { EventOutbox } from './lib/outbox.js';
 import { CommandInbox } from './lib/inbox.js';
+import { WorkspaceLockManager, WORKSPACE_LOCK_DIR_NAME } from './lib/workspace-lock.js';
 import { acquireInstanceLock, InstanceLockError, inspectInstanceLock } from './lib/instance-lock.js';
+import { isRevocationError } from './agent/session-manager.js';
 import { setEventPolicy } from './lib/events.js';
 import { createLogger } from './lib/log.js';
 import { writeDeviceStateFile } from './cloud/device-keys.js';
@@ -38,6 +44,15 @@ const USAGE = `usage: node src/main.js [doctor|pair|run|demo|workspace]
     --max-run-ms <ms>    看门狗：到期停止全部会话
     --relay-url <url> --relay-kind <kind> --device-id <id> --poll-ms <ms> --push-batch-ms <ms>
   workspace add <path>|list            维护授权工作区（远程 create_session 只允许落在列表内，D4）
+  status [--offline]                   只读状态：单实例锁 + 配对 + 服务端绑定真实读回
+                                       （device.json 存在 ≠ 绑定有效，§9；--offline 跳过网络往返）
+  profiles list [--all]                列出本机 Agent 配置实例（--all 含已停用；不含已删除）
+  profiles register --agent-key <key> --command <cmd>
+      [--display-name <n>] [--region cn|global|unknown] [--mode readonly|ask|allowlist]
+      [--cwd <path>] [--self-report-file <path>]
+                                       登记/幂等更新 profile（受控发现 + --version 探测，V12-08；
+                                       §9 自报 JSON 经白名单校验后仅作来源记录，V12-14）
+  profiles doctor [--profile <id>]     逐 profile 复检可执行/版本/工作区并更新 health
   doctor [--no-check-agent]            环境自检
   pair [--relay-url ...]               配对
   demo                                 本机 mock Agent 演示`;
@@ -48,6 +63,8 @@ export async function main(argv = process.argv.slice(2)) {
   if (command === 'pair') return pair(rest);
   if (command === 'run') return runSession(rest);
   if (command === 'workspace') return workspaceCmd(rest);
+  if (command === 'status') return statusCmd(rest);
+  if (command === 'profiles') return profilesCmd(rest);
   if (command === 'demo') return runSession(['--command', process.execPath, '--arg', DEMO_AGENT, '--relay-url', 'http://127.0.0.1:8790', '--max-run-ms', '10000', '--exit-when-idle']);
   console.error(`unknown command: ${command}`);
   console.error(USAGE);
@@ -252,6 +269,16 @@ async function runSession(args) {
       console.log(`[queues] persistent outbox/inbox at ${config.bridge.dataDir} (outbox pending=${outbox.stats().pending}, inbox=${inbox.stats().total})`);
     }
     const auditFile = path.join(config.bridge.dataDir, 'audit.log');
+    // V12-11：单 supervisor 逐任务适配调度——本机 profile 存储（V12-08）→ AdapterFactory
+    // 生成冻结启动 spec；launch ledger 记录 profile 会话（原生 ID 归档 + 重启对账恢复）。
+    const profileStore = new ProfileStore({ dir: config.bridge.dataDir });
+    const launchLedger = new SessionLaunchLedger({ dir: config.bridge.dataDir });
+    const adapterFactory = new AdapterFactory({ profileStore });
+    // V12-13：写任务工作区互斥锁——同 realpath（盘符大小写/symlink/WSL 统一）只允许
+    // 一个任务；崩溃残留锁在 SessionManager 构造对账中回收（不抢活锁）。
+    const workspaceLocks = new WorkspaceLockManager({
+      dir: path.join(config.bridge.dataDir, WORKSPACE_LOCK_DIR_NAME),
+    });
     const manager = new SessionManager({
       transport,
       pollIntervalMs: config.bridge.pollIntervalMs,
@@ -265,6 +292,13 @@ async function runSession(args) {
       workspaces: Array.isArray(config.bridge.workspaces) ? config.bridge.workspaces : [],
       maxSessions: Number(config.bridge.maxSessions) || 8,
       auditFile,
+      // V12-11：profile 路由（create_session 携带 agent_profile_id 时按冻结 spec 执行，
+      // 绝不 fallback defaultSpec，§8.2/N09）+ 恢复记录（构造时重启对账）
+      adapterFactory,
+      launchLedger,
+      // V12-13：写任务工作区互斥 + 每 profile 并发上限（§8.3；保守默认 2，2/4/8 实测挂 T22）
+      workspaceLocks,
+      maxSessionsPerProfile: Number(config.bridge.maxSessionsPerProfile) || 2,
       // TASK-011：授权撤销感知——pull 收到 unauthorized(binding-not-active/revoked) 时
       // SessionManager 停止轮询并回调这里；本地 device.json 改名归档（不删除：用户密钥
       // 资产，重新配对会生成新文件），outbox 存量由撤销后的 flush 按永久失败 dead-letter。
@@ -306,6 +340,17 @@ async function runSession(args) {
       args: agentArgs,
       cwd: cwdOverride || config.agent.cwd,
     });
+    // V12-13：初始会话同样占工作区锁——远程 create 与初始会话同目录双写也被拦截；
+    // 初始会话是用户本机显式操作（CLI run 即授权）：占锁失败只告警不拒绝启动。
+    const initialLock = workspaceLocks.acquire({
+      cwd: session.cwd,
+      sessionId,
+      profileId: null,
+      agentKey: agentType,
+    });
+    if (!initialLock.ok) {
+      console.warn(`[workspace-lock] 初始会话占锁未成功（reason=${initialLock.reason}）：该目录的远程 create 互斥可能不完整`);
+    }
     manager.startPolling();
     console.log(`[started] ${sessionId} agent=${agentType} ${command} ${agentArgs.join(' ')}`);
 
@@ -435,6 +480,282 @@ async function workspaceCmd(args) {
 
 function statePath(config) {
   return path.join(config.bridge.dataDir, 'device.json');
+}
+
+/**
+ * status 子命令（V12-14，§9）：只读状态——单实例锁 + 本地配对 + 服务端绑定真实读回。
+ *
+ * 为什么要真实读回（§9 原文）：device.json 存在不等于绑定有效——本地文件可能是撤销前的
+ * 陈旧身份。这里做一次真实 pullCommands 往返（与 run 心跳同一条通道、同一种鉴权），
+ * 按响应分类：ok → 绑定有效；unauthorized + revoked/binding-not-active → 已撤销；
+ * 其他网络/服务端错误 → active=null（结果未知，诚实呈现，不猜）。
+ *
+ * 用途：
+ *   1. 安装提示词的幂等检查（取代「扫描任意 main.js/run 进程」的宽泛进程探测——
+ *      §9：安装进程识别用自己数据目录的锁/实例ID）；
+ *   2. 配对幂等检查不再只看 device.json 是否存在；
+ *   3. 新旧安装路径 / 权限 / 绑定错误可诊断。
+ * 不修改任何文件；一次 pull 会刷新服务端 last_seen_at（与 run 心跳同语义，无副作用）。
+ */
+async function statusCmd(args) {
+  const offline = args.includes('--offline');
+  const config = loadConfig();
+  const state = loadDeviceState(config);
+  const lockStatus = inspectInstanceLock(config.bridge.dataDir);
+  const skipRoundTripReason = !state ? 'no-device-state'
+    : offline ? 'offline-flag'
+      : config.relay.kind === 'wss' ? 'wss-status-not-supported'
+        : null;
+  const out = {
+    data_dir: config.bridge.dataDir,
+    paired: Boolean(state),
+    device_id: state?.device_id || null,
+    instance_lock: lockStatus,
+    binding: {
+      checked: false,
+      active: null,
+      generation: null,
+      reason: skipRoundTripReason,
+    },
+  };
+  if (skipRoundTripReason === null) {
+    try {
+      // 与 run 心跳同一条通道、同一种鉴权：一次真实 pullCommands 往返即绑定读回
+      //（云端 pullCommands 成功响应携带 binding_generation，一并读回展示，§9）
+      const transport = makeTransport(config, {
+        deviceId: state.device_id,
+        tokenHash: state.token_hash || null,
+        privateKey: state.private_key || null,
+      });
+      const res = await transport.pullCommands();
+      out.binding = {
+        checked: true,
+        active: res.ok === true,
+        generation: Number.isFinite(res.data?.binding_generation) ? res.data.binding_generation : null,
+        reason: res.ok ? 'pull-ok' : 'unexpected-response',
+      };
+    } catch (err) {
+      if (isRevocationError(err)) {
+        // 已撤销：明确 active=false（本地 device.json 是陈旧身份，需重新配对）
+        out.binding = { checked: true, active: false, generation: null, reason: 'binding-revoked' };
+      } else {
+        // 网络/服务端/凭据错误：绑定有效性未知——不伪造成功也不误判撤销
+        out.binding = { checked: true, active: null, generation: null, reason: String(err?.code || err?.message || 'transport-error').slice(0, 120) };
+      }
+    }
+  }
+  console.log(JSON.stringify(out, null, 2));
+  return { ok: true, ...out };
+}
+
+/**
+ * profiles 子命令（V12-08）：本机 Agent 配置实例的 list / register / doctor。
+ * 输出与 doctor/workspace 一致走 JSON；错误路径显式设置退出码（脚本可判定，P3-I 口径）。
+ * 安全边界：register 只接受本机 CLI 参数——手机端任意 command/args/env/path 一律不在此通道
+ * （§7.1）；unknown agent_key 一律拒绝，绝不回退 claude-code（T12）。
+ */
+async function profilesCmd(args) {
+  const [action = 'list', ...rest] = args;
+  const config = loadConfig();
+  const store = new ProfileStore({ dir: config.bridge.dataDir });
+  try {
+    if (action === 'list') {
+      const includeDisabled = rest.includes('--all');
+      const profiles = store.list({ includeDisabled });
+      const rows = profiles.map((p) => ({
+        profile_id: p.profile_id,
+        agent_key: p.agent_key,
+        display_name: p.display_name,
+        revision: p.revision,
+        status: p.status,
+        region: p.region,
+        adapter_version: p.adapter_version,
+        health: p.health?.status ?? 'unknown',
+        workspaces: Array.isArray(p.workspace_allowlist) ? p.workspace_allowlist.length : 0,
+      }));
+      const out = { profiles: rows };
+      console.log(JSON.stringify(out, null, 2));
+      return { ok: true, ...out };
+    }
+
+    if (action === 'register') {
+      const flag = (name) => {
+        const idx = rest.indexOf(name);
+        return idx >= 0 ? rest[idx + 1] : undefined;
+      };
+      const agentKeyInput = flag('--agent-key');
+      const commandInput = flag('--command');
+      if (!agentKeyInput || !commandInput) {
+        console.error('usage: node src/main.js profiles register --agent-key <key> --command <cmd> [--display-name <n>] [--region <r>] [--mode <m>] [--cwd <path>] [--self-report-file <path>]');
+        process.exitCode = 2;
+        return { ok: false, reason: 'missing-required-flag' };
+      }
+      // 目录解析：unknown 一律拒绝（识别优先级最低为 unknown，不猜 Claude）
+      const agentKey = resolveAgentKey(agentKeyInput);
+      if (!agentKey) {
+        console.error(`[profiles] 未知 agent_key：${agentKeyInput}（目录中不存在该产品；请核对 xcx/bridge/src/agents/catalog-entries/）`);
+        process.exitCode = 1;
+        return { ok: false, reason: 'unknown-agent-key' };
+      }
+      const entry = getCatalogEntry(agentKey);
+      if (entry.lifecycle === 'deprecated') {
+        console.error(`[profiles] ${agentKey} 已停服（lifecycle=deprecated），不推荐新安装（见 ${entry.docs_ref}）`);
+        process.exitCode = 1;
+        return { ok: false, reason: 'agent-deprecated' };
+      }
+      // 受控发现 + --version 探测（只走 PATH/用户指定路径，带超时与输出上限；§7.1）
+      // V12-14（§9）：自报 JSON（installer_identity/runtime_candidate）属不可信输入——
+      // 先白名单化再交给 identifyRuntime（只用于选择探测参数与记录来源，绝不升级身份）。
+      // 文件大小受 SELF_REPORT_MAX_BYTES 约束；提供但非法 → 明确告警并不记录（unknown 不编造），
+      // 不阻塞登记本身（agent_key 永远来自本机校验过的 --agent-key）。
+      let selfReportInput = null;
+      const selfReportFile = flag('--self-report-file');
+      const selfReportInline = flag('--self-report');
+      if (selfReportFile !== undefined && selfReportInline !== undefined) {
+        console.error('[profiles] --self-report-file 与 --self-report 只能二选一');
+        process.exitCode = 2;
+        return { ok: false, reason: 'self-report-ambiguous' };
+      }
+      if (selfReportFile !== undefined) {
+        try {
+          const stat = fs.statSync(selfReportFile);
+          if (stat.size > SELF_REPORT_MAX_BYTES) {
+            console.warn(`[profiles] 警告：自报文件超过 ${SELF_REPORT_MAX_BYTES} 字节上限，已忽略（installer_identity 将记为 null）`);
+          } else {
+            selfReportInput = fs.readFileSync(selfReportFile, 'utf8');
+          }
+        } catch (err) {
+          console.warn(`[profiles] 警告：自报文件不可读（${err?.message || err}），已忽略（installer_identity 将记为 null）`);
+        }
+      } else if (selfReportInline !== undefined) {
+        selfReportInput = selfReportInline;
+      }
+      let sanitizedReport = null;
+      if (selfReportInput !== null) {
+        const sanitized = sanitizeSelfReport(selfReportInput);
+        if (sanitized.ok) {
+          sanitizedReport = sanitized.self_report;
+        } else {
+          // 畸形/超限/未知 schema：不阻塞登记，但绝不编造身份字段（§9「unknown 不编造」）
+          console.warn(`[profiles] 警告：自报 JSON 未通过白名单校验（${sanitized.reason}），本次登记不记录 installer_identity/self_report`);
+        }
+      }
+      const identification = await identifyRuntime({ command: commandInput, agentKey, selfReport: sanitizedReport });
+      if (identification.verdict === 'suspicious') {
+        console.error(`[profiles] 拒绝登记：解析出的二进制存在疑点 ${JSON.stringify({ resolved_path: identification.runtime.resolved_path, reasons: identification.reasons })}`);
+        process.exitCode = 1;
+        return { ok: false, reason: 'suspicious-binary', identification };
+      }
+      if (identification.verdict === 'unknown') {
+        console.warn(`[profiles] 警告：版本探测未通过（${identification.reasons.join('; ')}），profile 将以 health=unreachable 登记；可用 profiles doctor 复检`);
+      }
+      const regionInput = flag('--region') ?? 'unknown';
+      if (!PROFILE_REGIONS.includes(regionInput)) {
+        console.error(`[profiles] --region 必须是 ${PROFILE_REGIONS.join('|')} 之一`);
+        process.exitCode = 2;
+        return { ok: false, reason: 'invalid-region' };
+      }
+      const modeInput = flag('--mode') ?? 'ask';
+      if (!PERMISSION_POLICY_MODES.includes(modeInput)) {
+        console.error(`[profiles] --mode 必须是 ${PERMISSION_POLICY_MODES.join('|')} 之一（无自动批准形态）`);
+        process.exitCode = 2;
+        return { ok: false, reason: 'invalid-permission-policy' };
+      }
+      const cwdInput = flag('--cwd');
+      // V12-14：自报身份仅作来源记录（§7.1 第 1/2 种身份严格分离）——不参与运行身份，
+      // 不改变 display_name/权限；display_name 仍以 CLI 显式值 > 目录默认值。
+      const selfReportRecord = sanitizedReport
+        ? { ...sanitizedReport, captured_at: Date.now(), identify_verdict: identification.verdict }
+        : undefined;
+      const result = store.register({
+        agent_key: agentKey,
+        command: commandInput,
+        resolved_path: identification.runtime.resolved_path,
+        display_name: flag('--display-name') ?? entry.display_name,
+        region: regionInput,
+        adapter_version: identification.runtime.version_line,
+        workspace_allowlist: cwdInput ? [cwdInput] : [],
+        permission_policy: { mode: modeInput },
+        health: identification.verdict === 'probe-ok'
+          ? { status: 'ok', last_checked_at: Date.now(), detail: `probe-ok: ${identification.runtime.version_line ?? ''}`.trim() }
+          : { status: 'unreachable', last_checked_at: Date.now(), detail: identification.reasons.join('; ').slice(0, 200) },
+        installer_identity: sanitizedReport ? sanitizedReport.installer_identity : undefined,
+        self_report: selfReportRecord,
+      });
+      console.log(`[profiles] ${result.created ? 'created' : 'updated'} profile`, JSON.stringify({
+        profile_id: result.profile.profile_id,
+        agent_key: result.profile.agent_key,
+        revision: result.profile.revision,
+        health: result.profile.health.status,
+      }));
+      return { ok: true, ...result };
+    }
+
+    if (action === 'doctor') {
+      const idx = rest.indexOf('--profile');
+      const targetId = idx >= 0 ? rest[idx + 1] : null;
+      const candidates = targetId
+        ? [store.get(targetId)].filter(Boolean)
+        : store.list({ includeDisabled: true });
+      if (targetId && candidates.length === 0) {
+        console.error(`[profiles] profile 不存在：${targetId}`);
+        process.exitCode = 1;
+        return { ok: false, reason: 'profile-not-found' };
+      }
+      const rows = [];
+      for (const p of candidates) {
+        // 复检 = 重新受控发现 + 版本探测 + 工作区存在性（纯本机，无网络、无提权）
+        const identification = await identifyRuntime({ command: p.executable_ref.command, agentKey: p.agent_key });
+        const workspaceIssues = [];
+        for (const ws of p.workspace_allowlist) {
+          try {
+            if (!fs.statSync(ws).isDirectory()) workspaceIssues.push(`not-directory:${ws}`);
+          } catch {
+            workspaceIssues.push(`missing:${ws}`);
+          }
+        }
+        const catalogEntry = getCatalogEntry(p.agent_key);
+        let health;
+        if (identification.verdict === 'suspicious') {
+          health = { status: 'degraded', last_checked_at: Date.now(), detail: `suspicious:${identification.runtime.suspicious.join('+')}` };
+        } else if (workspaceIssues.length > 0) {
+          health = { status: 'degraded', last_checked_at: Date.now(), detail: `workspace:${workspaceIssues.join(';').slice(0, 160)}` };
+        } else if (identification.verdict === 'probe-ok') {
+          health = { status: 'ok', last_checked_at: Date.now(), detail: `probe-ok: ${identification.runtime.version_line ?? ''}`.trim() };
+        } else {
+          health = { status: 'unreachable', last_checked_at: Date.now(), detail: identification.reasons.join('; ').slice(0, 200) };
+        }
+        const updated = store.update(p.profile_id, { health });
+        rows.push({
+          profile_id: p.profile_id,
+          agent_key: p.agent_key,
+          lifecycle: catalogEntry?.lifecycle ?? 'unknown',
+          verdict: identification.verdict,
+          resolved_path: identification.runtime.resolved_path,
+          version_line: identification.runtime.version_line,
+          workspaces: { total: p.workspace_allowlist.length, issues: workspaceIssues },
+          health: { status: updated.health.status, detail: updated.health.detail },
+          revision: updated.revision,
+        });
+      }
+      const out = { profiles: rows, recovered_from_backup: store.recoveredFromBackup() };
+      console.log(JSON.stringify(out, null, 2));
+      const degraded = rows.some((r) => r.health.status !== 'ok');
+      if (degraded) process.exitCode = 1; // 有不健康项：退出码 1（脚本可判定），报告仍完整输出
+      return { ok: !degraded, ...out };
+    }
+
+    console.error('usage: node src/main.js profiles [list [--all]|register ...|doctor [--profile <id>]]');
+    process.exitCode = 2;
+    return { ok: false, reason: 'unknown-action' };
+  } catch (err) {
+    if (err instanceof ProfileStoreError) {
+      console.error(`[profiles] ${err.message}`);
+      process.exitCode = 1;
+      return { ok: false, reason: err.code };
+    }
+    throw err;
+  }
 }
 
 /**

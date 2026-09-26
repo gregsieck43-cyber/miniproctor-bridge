@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "aider",
+  "display_name": "Aider",
+  "aliases": [],
+  "logo_asset": "assets/agents/aider.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": false,
+    "stop": false,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": null,
+  "verification": {
+    "create": { "status": "pending", "evidence": "解析器 fixture 对拍 + 启动参数安全模板（bridge/test/adapters/aider-adapter.test.js）；真实 CLI 往返未取证（本机未安装 aider，V12-A09 探测 2026-09-26），工厂 verified create 门槛未过" },
+    "read": { "status": "pending", "evidence": "文本行经 generic 兜底呈现 + 畸形输入隔离 fixture（bridge/test/adapters/aider-adapter.test.js）；真实 CLI 往返未取证（本机未安装 aider，V12-A09 探测 2026-09-26）" },
+    "stop": { "status": "pending", "evidence": "进程树终止为 generic 既有能力（runner*.test.js）；aider 真实进程未实测，V12-A09 探测 2026-09-26" },
+    "append": { "status": "unavailable", "evidence": "官方 CLI 一次性任务（--message）处理回复即退出，无会话中途追加输入通道（A09 快照，声明 false）" },
+    "resume": { "status": "unavailable", "evidence": "无实现路径（声明 false）" },
+    "approve": { "status": "unavailable", "evidence": "官方快照无审批回写协议文档（--yes 自动放行被禁作默认，声明 false）" },
+    "fileChanges": { "status": "unavailable", "evidence": "官方快照无结构化文件变更事件文档，文本型产品不伪造工具事件（声明 false）" },
+    "usage": { "status": "unavailable", "evidence": "官方快照无用量统计文档，无统计不伪造（声明 false）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A09-aider-scripting.md"
+}

@@ -85,17 +85,38 @@ export class TransportError extends Error {
 export function isPermanentCode(code) {
   const c = String(code || '');
   if (!c) return false;
+  if (RETRYABLE_ERROR_CODES.has(c)) return false;
   if (PERMANENT_ERROR_CODES.has(c)) return true;
   return c.startsWith('invalid-') || c.startsWith('schema-');
 }
 
 /**
+ * V1-003：云侧分类化故障响应的「可重试优先于永久表」判定。
+ * 云端（_shared/lib-errors.js dbUnavailable）对 DB 读写故障返回分类响应
+ * { error:'DB_UNAVAILABLE', code:'DB_UNAVAILABLE', retryable:true }——短暂云故障
+ * 绝不能进死信（R14：伪装成 unauthorized 才是旧缺陷；分类码本身也不得被任何
+ * 未来误登记进永久表后静默丢事件）。INTERNAL 同理可重试。
+ * 与 protocol/schema.cjs CLOUD_ERROR_RETRYABLE 同源（schema 分类 retryable=false
+ * 的 AUTH_REVOKED/UNBOUND 等不在本表，仍走永久表判定）。
+ */
+export const RETRYABLE_ERROR_CODES = Object.freeze(new Set([
+  'DB_UNAVAILABLE',
+  'INTERNAL',
+]));
+
+/**
  * 传输失败是否永久（不再重试）：
- *  - 响应 error 码命中永久表 → 永久；
+ *  - 响应显式 retryable:true → 可重试（V1-003 分类响应，优先于一切码表）；
+ *  - 响应 error 码命中可重试分类表 → 可重试；命中永久表 → 永久；
  *  - HTTP 4xx（除 429 限流）→ 永久；
  *  - 网络/超时/非法响应/5xx/HTTP200+瞬时业务错 → 可重试。
  */
 export function isPermanentFailure({ status = 0, data = null } = {}) {
+  if (data && typeof data === 'object') {
+    if (data.retryable === true) return false;
+    const cls = typeof data.code === 'string' ? data.code : null;
+    if (cls && RETRYABLE_ERROR_CODES.has(cls)) return false;
+  }
   const code = data && typeof data === 'object' ? data.error : null;
   if (typeof code === 'string' && isPermanentCode(code)) return true;
   if (Number.isInteger(status) && status >= 400 && status < 500 && status !== 429) return true;
@@ -317,7 +338,15 @@ export class EventOutbox {
     }
   }
 
-  /** 同步认领到期 item（从 _items 摘除入 _inFlight，防并发双发）；按 id 序 = 入队序。 */
+  /** 同步认领到期 item（从 _items 摘除入 _inFlight，防并发双发）。
+   * V12-18：两级认领——critical（审批/错误/ACK）先认领，普通事件按入队序补足剩余
+   * 事件额度；同一优先级内部保持入队序（id 序）。协议依据：event-protocol.md §11
+   * 游标契约（(server_received_at, event_id) 稳定排序）使发送端次序与客户端读取解耦，
+   * syncReport 逐事件 duplicate 幂等 + 投影 last_seq/status_seq 水位单调——critical
+   * 先发不造成漏读或水位回退。动机：一方任务洪泛时，关键审批/ACK 不得排在 ≤5000
+   * 条普通积压之后逐批排队（§15「一方洪泛不阻塞另一方关键审批/ACK」预算）；
+   * 优先级作用域由「仅重试间隔」扩展为「重试间隔 + 认领次序」，不绕过 outbox
+   * 持久化与逐事件确认。 */
   _claimDue(now) {
     // 卡死发送回收：认领超过 60s（远大于 transport 自身超时）视为悬挂，放回待认领
     for (const item of this._inFlight) {
@@ -329,27 +358,34 @@ export class EventOutbox {
     const events = [];
     const acks = [];
     const sorted = [...this._items.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
+    // 第一遍：critical 事件与 ACK 优先认领（额度不变：事件 ≤maxBatch、ACK ≤maxAcksPerCycle；
+    // 超额 item 本轮不认领，留在 _items 等下一轮，不设 claimed_at）
     for (const item of sorted) {
+      if (item.next_attempt_at > now) continue;
+      if (item.kind === 'ack') {
+        if (acks.length >= this.maxAcksPerCycle) continue;
+        this._items.delete(item.id);
+        item.claimed_at = now;
+        this._inFlight.add(item);
+        acks.push(item);
+      } else if (item.priority === 'critical' && events.length < this.maxBatch) {
+        this._items.delete(item.id);
+        item.claimed_at = now;
+        this._inFlight.add(item);
+        events.push(item);
+      }
+    }
+    // 第二遍：普通事件按入队序补足剩余事件额度（critical 已认领的额度不回吐）
+    for (const item of sorted) {
+      if (events.length >= this.maxBatch) break;
+      if (item.kind !== 'event' || item.priority === 'critical') continue;
       if (item.next_attempt_at > now) continue;
       this._items.delete(item.id);
       item.claimed_at = now;
       this._inFlight.add(item);
-      if (item.kind === 'ack') {
-        if (acks.length < this.maxAcksPerCycle) acks.push(item);
-        else this._release(item);
-      } else if (events.length < this.maxBatch) {
-        events.push(item);
-      } else {
-        this._release(item);
-      }
+      events.push(item);
     }
     return { events, acks };
-  }
-
-  /** 认领回收：卡死回收分支把 item 放回 _items（保持原退避计划）。 */
-  _release(item) {
-    this._inFlight.delete(item);
-    this._items.set(item.id, item);
   }
 
   _earliestNextAttempt() {
@@ -361,8 +397,12 @@ export class EventOutbox {
   }
 
   async _sendDue({ events, acks }) {
-    if (events.length) await this._sendEventBatch(events);
+    // V12-18：ACK 先于事件批发送——命令结果确认（含审批决议 ACK）直接驱动云端状态
+    // 收敛（审批 applied/denied 可见、新建任务 sid 回填），不应排在同轮 ≤200 条事件
+    // 的传输等待之后（§15「提交控制到明确接纳 p95≤5s」与「关键审批 ACK 不被洪泛
+    // 阻塞」预算）。仅调整同一 outbox 内两类 item 的发送次序，确认/重试语义不变。
     for (const item of acks) await this._sendAck(item);
+    if (events.length) await this._sendEventBatch(events);
   }
 
   /**

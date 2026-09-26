@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "amp",
+  "display_name": "Amp",
+  "aliases": [],
+  "logo_asset": "assets/agents/amp.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": true,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": { "status": "pending", "evidence": "官方 execute 模式（amp -x \"<prompt>\" 发消息→等回合结束→打印最终消息→退出，A11 快照）+ runner 通用 spawn 路径；CLI 本机未安装，真实往返未取证（V12-A11，2026-09-25）" },
+    "read": { "status": "pending", "evidence": "解析器 bridge/src/adapters/amp.js（execute stdout 纯文本行→agent_message）+ fixture 对拍 bridge/test/adapters/amp-adapter.test.js（官方示例语义构造，synthetic）；CLI 未安装，真实输出未取证" },
+    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Amp 实机 stop→子进程退出未取证（CLI 未安装）" },
+    "append": { "status": "unavailable", "evidence": "execute 模式为单次运行（发消息→回合结束→退出），官方无中途追加输入通道（A11 快照，V12-A11）" },
+    "resume": { "status": "unavailable", "evidence": "execute 模式无会话恢复旗标证据，未实测能力一律 false（A11 快照，V12-A11）" },
+    "approve": { "status": "unavailable", "evidence": "execute 模式无审批回写通道证据（A11 快照，V12-A11）" },
+    "fileChanges": { "status": "unavailable", "evidence": "无文件变更输出证据，不伪造工具事件（A11 快照，V12-A11）" },
+    "usage": { "status": "unavailable", "evidence": "无 token/费用统计输出证据，无统计不伪造（§8.3，A11 快照，V12-A11）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A11-amp-cli-execute-mode.md"
+}

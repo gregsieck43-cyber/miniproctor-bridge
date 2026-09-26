@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "kiro-cli",
+  "display_name": "Kiro CLI",
+  "aliases": [],
+  "logo_asset": "assets/agents/kiro-cli.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": false,
+    "stop": false,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": null,
+  "verification": {
+    "create": { "status": "pending", "evidence": "解析器+fixture 就绪（bridge/test/adapters/kiro-cli-adapter.test.js + test/fixtures/kiro-cli/）；真实 CLI 往返未取证（2026-09-26 本机 command -v kiro-cli 未安装，且需 KIRO_API_KEY）；capabilities.js 无声明层行（V12 简报禁改），AdapterFactory 现阶段 fail-closed 拒绝实例化。文档化初始 prompt 通道为 launch-args（--no-interactive 必须携带位置 prompt），create 验证前不开放" },
+    "read": { "status": "pending", "evidence": "仅解析 fixture（文本行→agent_message，bridge/test/adapters/kiro-cli-adapter.test.js + test/fixtures/kiro-cli/text-sample.txt）；官方快照仅记载文本输出、无结构化帧格式（docs_ref A13），解析走文本路径不伪造工具事件；真实 CLI 往返未取证" },
+    "stop": { "status": "pending", "evidence": "bridge runner 进程树终止为公共能力（test/runner*.test.js）；真实 CLI 下受控停止未验证（kiro-cli 未安装）" },
+    "append": { "status": "unavailable", "evidence": "官方 Limitations 明确「No mid-session user input is possible」（docs_ref A13）" },
+    "resume": { "status": "unavailable", "evidence": "官方快照未记载 headless 会话恢复通道；无实现路径" },
+    "approve": { "status": "unavailable", "evidence": "--trust-all-tools/--trust-tools 为预先放行而非双向审批通道（docs_ref A13）；桥接默认不追加 --trust-all-tools，headless 下无批准交互" },
+    "fileChanges": { "status": "unavailable", "evidence": "官方快照未记载文件变更帧；不伪造工具事件" },
+    "usage": { "status": "unavailable", "evidence": "官方快照未记载 token 统计输出；无统计不伪造（§8.3）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A13-kiro-cli-headless.md"
+}

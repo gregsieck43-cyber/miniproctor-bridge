@@ -18,6 +18,7 @@
 import { appendAuthFields } from '../cloud/device-keys.js';
 import { canonical } from '../lib/canonical.js';
 import { TransportError, isPermanentFailure } from '../lib/outbox.js';
+import { readJsonBodyCapped, RESPONSE_BODY_MAX_BYTES } from './body-limits.js';
 
 export class EndpointTransport {
   /**
@@ -87,36 +88,53 @@ export class EndpointTransport {
   async _invoke(name, data) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    let res;
+    // V1-014：计时器在 body 读取完成后才清理（外层 finally）——超时信号覆盖
+    // 「连接 → headers → body → 解析」全程（R12：此前 body 等待期无期限可永久挂起）。
     try {
-      res = await (this._fetchImpl || fetch)(`${this.baseUrl}/${name}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(data),
-        signal: controller.signal,
-      });
-    } catch (e) {
-      throw new TransportError(`[endpoint] ${name} network failure: ${e.message}`, {
-        code: 'UPSTREAM_UNAVAILABLE', status: 0, data: null, retryable: true,
-      });
+      let res;
+      try {
+        res = await (this._fetchImpl || fetch)(`${this.baseUrl}/${name}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: controller.signal,
+        });
+      } catch (e) {
+        throw new TransportError(`[endpoint] ${name} network failure: ${e.message}`, {
+          code: 'UPSTREAM_UNAVAILABLE', status: 0, data: null, retryable: true,
+        });
+      }
+      let json;
+      try {
+        json = await readJsonBodyCapped(res, RESPONSE_BODY_MAX_BYTES, { signal: controller.signal });
+      } catch (e) {
+        if (e && e.code === 'response-too-large') {
+          throw new TransportError(`[endpoint] ${name} ${e.message}`, {
+            code: 'RESPONSE_TOO_LARGE', status: res.status, data: null, retryable: true,
+          });
+        }
+        // body 阶段超时（AbortError）或流读取失败：按网络失败归类可重试
+        throw new TransportError(`[endpoint] ${name} body read failure: ${e.message}`, {
+          code: 'UPSTREAM_UNAVAILABLE', status: 0, data: null, retryable: true,
+        });
+      }
+      if (!res.ok || json === null || json.ok === false) {
+        // 任何空/非法响应一律视失败：ok:false 业务失败保留 data 供逐事件分类
+        const bizCode = json && typeof json === 'object' ? json.error : null;
+        const retryable = !isPermanentFailure({ status: res.status, data: json });
+        throw new TransportError(
+          `[endpoint] ${name} failed: HTTP ${res.status}${bizCode ? ` ${bizCode}` : ' (invalid/empty body)'}`,
+          {
+            code: bizCode || (!res.ok ? `HTTP_${res.status}` : 'INVALID_RESPONSE'),
+            status: res.status,
+            data: json,
+            retryable,
+          },
+        );
+      }
+      return { ok: true, status: res.status, data: json };
     } finally {
       clearTimeout(timer);
     }
-    const json = await res.json().catch(() => null);
-    if (!res.ok || json === null || json.ok === false) {
-      // 任何空/非法响应一律视失败：ok:false 业务失败保留 data 供逐事件分类
-      const bizCode = json && typeof json === 'object' ? json.error : null;
-      const retryable = !isPermanentFailure({ status: res.status, data: json });
-      throw new TransportError(
-        `[endpoint] ${name} failed: HTTP ${res.status}${bizCode ? ` ${bizCode}` : ' (invalid/empty body)'}`,
-        {
-          code: bizCode || (!res.ok ? `HTTP_${res.status}` : 'INVALID_RESPONSE'),
-          status: res.status,
-          data: json,
-          retryable,
-        },
-      );
-    }
-    return { ok: true, status: res.status, data: json };
   }
 }

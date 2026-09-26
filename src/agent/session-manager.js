@@ -5,9 +5,10 @@ import { SessionSequencer, createEvent, sanitizePreview } from '../lib/events.js
 import { EventOutbox } from '../lib/outbox.js';
 import { CommandInbox } from '../lib/inbox.js';
 import { lineToEvent } from '../adapters/generic.js';
-import { capabilitiesFor, authorizeWorkspace } from '../adapters/capabilities.js';
+import { capabilitiesFor, openCapabilitiesFor, authorizeWorkspace } from '../adapters/capabilities.js';
 import { appendAuditLine } from '../lib/audit.js';
 import { loadUiOverrides } from '../lib/agent-config.js';
+import { ProfileRouteError } from '../agents/adapter-factory.js';
 
 // confirm_required / error 必须即时直推，不参与批量缓冲。
 // TASK-006 后：直推 = outbox critical 优先级（首包同步发起，失败退避重试），
@@ -17,6 +18,15 @@ export const CRITICAL_EVENT_TYPES = Object.freeze(new Set(['confirm_required', '
 export const CRITICAL_CUSTOM_TYPES = Object.freeze(new Set(['approval_result']));
 // 批量缓冲上限：满即 flush，不再等 pushBatchMs。
 export const PUSH_BATCH_MAX_EVENTS = 200;
+// V1-019②：分级队列预算——critical（审批/错误/ACK）在 outbox 普通上限之外的预留容量。
+// 预留也耗尽时如实拒绝（返回 false + 告警 + 审计），关键事件不能在无法持久化时假装接纳。
+export const CRITICAL_BACKLOG_RESERVE = 500;
+// V1-019②：批量缓冲（未落盘内存区）上限——超出丢弃最旧普通事件并计数（transport
+// 长时间不可用时不允许 eventBuffer 无界增长耗尽内存）。
+export const EVENT_BUFFER_MAX = 2000;
+// V1-019①：单会话 output_truncated 事件上限——截断洪峰（失控子进程刷超长行）下
+// 截断事件本身也必须有界；超出的截断只计数，随 session_exit.truncation_events_suppressed 汇总。
+export const MAX_TRUNCATION_EVENTS = 50;
 const MAX_BACKOFF_EXPONENT = 10; // 防 2^n 溢出，30s 封顶由 maxBackoffMs 保证
 
 const APPROVAL_RESULT_TEXT = Object.freeze({
@@ -68,12 +78,27 @@ export class ManagedSession {
     // TASK-008：审批 deadline（毫秒）与本机超时动作（config.bridge.permissionTimeoutAction）
     deadlineMs = 10 * 60 * 1000,
     permissionTimeoutAction = 'deny',
+    // V12-11：profile 路由元数据（legacy/初始会话为 null；创建时冻结，profile 热改不影响运行中会话）
+    profileId = null,
+    profileRevision = null,
+    agentKey = null,
+    adapterVersion = null,
+    capabilitySnapshot = null,
   }) {
     this.sessionId = sessionId;
     this.agentType = agentType;
     this.cwd = cwd || process.cwd();
     this.command = command;
     this.correlationId = correlationId; // create_session 命令关联键，随 session_meta 回流（TASK-007）
+    // V12-11：profile 路由元数据（冻结快照；ACK/session_meta 回传实际执行者）
+    this.profileId = profileId;
+    this.profileRevision = profileRevision;
+    this.agentKey = agentKey;
+    this.adapterVersion = adapterVersion;
+    this.capabilitySnapshot = capabilitySnapshot;
+    // V12-11：Agent 原生会话 ID（claude system/init 的 session_id；codex thread.started 的
+    // thread_id）——按 profile 命名空间归档到 launch ledger（见 SessionManager.startSession）。
+    this.nativeSessionRef = null;
     // TASK-012：能力声明（adapter 级真实能力；session-manager 据此拒绝不支持的操作）
     this.capabilities = capabilitiesFor(agentType);
     this.sequencer = new SessionSequencer();
@@ -90,11 +115,18 @@ export class ManagedSession {
     this._onEvent = null;
     this._sink = null;
     this._onExit = null;
+    // V12-11：原生会话 ID 归档回调（SessionManager 注入 → launch ledger profile 命名空间）
+    this._onNativeSessionRef = null;
     this._exitHandled = false;
     // 用户/系统显式停止：进程终止应归因为 ended（stopped），非崩溃
     this._stopRequested = false;
     // 最近一次 respondAction 失败原因（供 approval_result / 错误事件归因）
     this.lastResponseError = null;
+    // V1-019①：截断事件预算（见 MAX_TRUNCATION_EVENTS）——已发送 / 被抑制计数
+    this._truncationEventsSent = 0;
+    this._truncationEventsSuppressed = 0;
+    // V12-11：适配器解析崩溃计数（会话级隔离观测；见 handleAdapterParseError）
+    this.adapterParseErrorCount = 0;
   }
 
   start({ transport, onEvent, pushEvent, onExit } = {}) {
@@ -104,8 +136,16 @@ export class ManagedSession {
       : (event) => { transport?.pushEvents([event]).catch(() => {}); };
     this._onExit = typeof onExit === 'function' ? onExit : null;
     this.runner.on('line', (line, meta) => {
-      this.trackControlRequest(line);
-      const events = lineToEvent(line, { sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer });
+      // V12-11：适配器解析崩溃只隔离目标任务（§8.3）——trackLineState/mapLineToEvents 的
+      // 任何异常都折为本会话 error 事件 + 计数，绝不外抛（外抛会让 supervisor 连坐全部任务）。
+      let events;
+      try {
+        this.trackLineState(line);
+        events = this.mapLineToEvents(line);
+      } catch (err) {
+        this.handleAdapterParseError(err);
+        return;
+      }
       for (const event of events) {
         // TASK-008：confirm_required 注入 deadline（绝对毫秒，云端 approvals.deadline 同源）
         // 并登记本机定时器——到期默认 deny 真实到达 Agent。
@@ -113,9 +153,15 @@ export class ManagedSession {
           event.payload.deadline = Date.now() + this.deadlineMs;
           this.armDeadlineTimer(event.payload.request_id);
         }
-        // TASK-012：超长行截断标记——不再把 256KB 截断文本映射为完整事件（结构上限）
+        // TASK-012：超长行截断标记——不再把 256KB 截断文本映射为完整事件（结构上限）。
+        // V1-019①：截断事件本身也有预算（洪峰下事件通道不被截断风暴打爆）。
         if (meta && meta.truncated) {
-          this.pushEventNow(this.truncationEvent(meta));
+          if (this._truncationEventsSent < MAX_TRUNCATION_EVENTS) {
+            this._truncationEventsSent += 1;
+            this.pushEventNow(this.truncationEvent(meta));
+          } else {
+            this._truncationEventsSuppressed += 1;
+          }
           continue;
         }
         this.pushEventNow(event);
@@ -180,8 +226,19 @@ export class ManagedSession {
           // TASK-007：create_session 来源的会话携带关联键（命令 correlation_id/_command_id），
           // 手机端可据此把「新建任务」请求与新会话关联（消费方接入属 TASK-016）
           correlation_id: this.correlationId || null,
-          // TASK-012：能力协商——前端以此禁用不支持操作的按钮（矩阵 §2）
-          capabilities: { ...this.capabilities },
+          // TASK-012：能力协商——前端以此禁用不支持操作的按钮（矩阵 §2）。
+          // V12-09：对外宣称取开放视图（声明 ∩ 验证，未经真实验证的能力不得开放）；
+          // 执行门禁仍按声明层（this.capabilities，capabilitiesFor）。
+          capabilities: openCapabilitiesFor(this.agentType),
+          // V12-11：profile 路由来源（创建时冻结；legacy/初始会话为 null——
+          // 云端 sessions 投影 v0.3 字段，schema.cjs SESSION_SCHEMA 同名同形）。
+          ...(this.profileId ? {
+            profile_id: this.profileId,
+            profile_revision: this.profileRevision,
+            agent_key: this.agentKey,
+            ...(this.adapterVersion ? { adapter_version: this.adapterVersion } : {}),
+            capability_snapshot: this.capabilitySnapshot || openCapabilitiesFor(this.agentType),
+          } : {}),
           // TASK-029：Layer 3 声明式 UI（已白名单裁剪，≤4KB；协议 docs/agents-ui-protocol.md v0.2-draft）
           ...(uiOverrides ? { ui_overrides: uiOverrides } : {}),
         },
@@ -234,6 +291,9 @@ export class ManagedSession {
         code: info?.code ?? null,
         signal: info?.signal ?? null,
         truncated_lines: this.runner.truncatedLineCount || 0,
+        // V1-019①：stderr 截断行数与被预算抑制的截断事件数（截断证据完整可审计）
+        stderr_truncated_lines: this.runner.stderrTruncatedLineCount || 0,
+        truncation_events_suppressed: this._truncationEventsSuppressed || 0,
       },
     };
     if (info?.error) payload.data.error = sanitizeDiagnosticText(info.error?.message || info.error, 300);
@@ -251,15 +311,67 @@ export class ManagedSession {
     this._onExit?.(info, event);
   }
 
-  /** 嗅探 stdout 行：control_request 的原始 input 记入 pendingInputs。 */
-  trackControlRequest(line) {
+  /**
+   * 嗅探 stdout 行（每行只 parse 一次）：
+   *   - control_request 的原始 input 记入 pendingInputs（审批回流回填用，TASK-008）；
+   *   - Agent 原生会话 ID（V12-11）：claude system/init 的 session_id、codex thread.started
+     的 thread_id → nativeSessionRef（≤128 字符），变化时经 _onNativeSessionRef 归档
+     到 profile 命名空间（launch ledger）。
+   */
+  trackLineState(line) {
     try {
       const raw = JSON.parse(line);
-      if (raw && raw.type === 'control_request' && typeof raw.request_id === 'string') {
+      if (!raw || typeof raw !== 'object') return;
+      if (raw.type === 'control_request' && typeof raw.request_id === 'string') {
         this.pendingInputs.set(raw.request_id, raw.request?.input ?? {});
+        return;
+      }
+      if (raw.type === 'system' && raw.subtype === 'init' && typeof raw.session_id === 'string' && raw.session_id) {
+        this.setNativeSessionRef(raw.session_id);
+        return;
+      }
+      if (raw.type === 'thread.started' && typeof raw.thread_id === 'string' && raw.thread_id) {
+        this.setNativeSessionRef(raw.thread_id);
       }
     } catch {
       // 非 JSON 行（或半行/截断行）忽略
+    }
+  }
+
+  /** 原生会话 ID 登记（截断 128，NATIVE_SESSION_REF 上限）；首次登记时通知归档回调。 */
+  setNativeSessionRef(ref) {
+    const next = String(ref).slice(0, 128);
+    if (this.nativeSessionRef === next) return;
+    this.nativeSessionRef = next;
+    this._onNativeSessionRef?.(next);
+  }
+
+  /** 适配器分发（session ↔ adapters 唯一接线点经 generic.js lineToEvent）。 */
+  mapLineToEvents(line) {
+    return lineToEvent(line, { sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer });
+  }
+
+  /**
+   * V12-11：单个适配器解析崩溃的会话级隔离（§8.3「解析崩溃只影响其任务」）——
+   * 折为本会话 error 事件（脱敏摘要）+ 计数，supervisor/其他 Agent/审批不受影响。
+   */
+  handleAdapterParseError(err) {
+    this.adapterParseErrorCount = (this.adapterParseErrorCount || 0) + 1;
+    try {
+      this.pushEventNow(createEvent({
+        sessionId: this.sessionId,
+        agentType: this.agentType,
+        sequencer: this.sequencer,
+        eventType: 'error',
+        payload: {
+          message: `适配器解析该输出帧失败（已隔离，不影响其他任务）：${sanitizeDiagnosticText(err?.message || err, 200)}`,
+          code: 'adapter-parse-error',
+          severity: 'warning',
+          recoverable: true,
+        },
+      }));
+    } catch {
+      // 事件构造失败也不能外抛——隔离兜底
     }
   }
 
@@ -385,6 +497,13 @@ export class SessionManager {
    * @param {string|null} [opts.auditFile] 本机审计日志文件（JSON Lines；TASK-012）
    * @param {Function} [opts.onSessionEnded] 会话退出回调（sessionId, exitInfo）——daemon 空闲退出判定用
    * @param {Function} [opts.onRevoked] 授权撤销回调（TASK-011）——main.js 归档 device.json 用
+   * @param {AdapterFactory|null} [opts.adapterFactory] V12-11：profile 路由的冻结 spec 来源；
+   *   null = 不支持 profile 路由（携带 agent_profile_id 的 create_session 明确失败，绝不 fallback defaultSpec）
+   * @param {SessionLaunchLedger|null} [opts.launchLedger] V12-11：profile 恢复记录（重启对账 + 原生 ID 归档）
+   * @param {WorkspaceLockManager|null} [opts.workspaceLocks] V12-13：写任务工作区互斥锁
+   *   （同 realpath 只允许一个任务；null = 不加锁，仅建议 CLI 纯本机用法）
+   * @param {number} [opts.maxSessionsPerProfile] V12-13：单 profile 并发上限（默认 2，
+   *   §8.3「先保守设置并发」；2/4/8 实测挂 T22，实测后可上调）
    */
   constructor({
     transport,
@@ -393,6 +512,10 @@ export class SessionManager {
     maxBackoffMs = 30000,
     onEvent,
     defaultSpec,
+    adapterFactory = null,
+    launchLedger = null,
+    workspaceLocks = null,
+    maxSessionsPerProfile = 2,
     outboxDir = null,
     inboxDir = null,
     outbox = null,
@@ -412,12 +535,22 @@ export class SessionManager {
     this.pushBatchMs = Math.max(0, Number(pushBatchMs) || 0);
     this.maxBackoffMs = Math.max(pollIntervalMs || 3000, Number(maxBackoffMs) || 30000);
     this.onEvent = onEvent;
-    // create_session 命令的启动规格（command/args 来自本机 config，手机端只提供 cwd+prompt）
+    // create_session 命令的启动规格（command/args 来自本机 config，手机端只提供 cwd+prompt）。
+    // V12-11：仅 legacy（不带 profile 字段）命令与 CLI 初始会话使用；profile 路由见 adapterFactory。
     this.defaultSpec = defaultSpec || null;
+    // V12-11：profile 路由（N09 修复）。携带 agent_profile_id 的 create_session 按该 profile 的
+    // 冻结 spec 执行；工厂缺失时明确拒绝，绝不回退 defaultSpec（§8.2）。
+    this.adapterFactory = adapterFactory || null;
+    this.launchLedger = launchLedger || null;
+    // V12-13：写任务工作区互斥锁（同 realpath 双写拦截；冲突显式反馈 holder 信息）
+    this.workspaceLocks = workspaceLocks || null;
     this.permissionTimeoutMs = Math.max(0, Number(permissionTimeoutMs) || 0);
     this.permissionTimeoutAction = permissionTimeoutAction === 'approve' ? 'approve' : 'deny';
     this.workspaces = Array.isArray(workspaces) ? workspaces.map((w) => String(w)) : [];
     this.maxSessions = Math.max(1, Number(maxSessions) || 8);
+    // V12-13：每 profile 并发上限（§8.3「总运行上限与每 profile 上限分开」；
+    // 默认 2 保守值——产品宣称并发不等于实测值，2/4/8 实测挂 T22）
+    this.maxSessionsPerProfile = Math.max(1, Number(maxSessionsPerProfile) || 2);
     this.auditFile = auditFile;
     this.onSessionEnded = onSessionEnded;
     this.onRevoked = typeof onRevoked === 'function' ? onRevoked : null;
@@ -430,6 +563,12 @@ export class SessionManager {
     this.eventBuffer = [];
     this.pushTimer = null;
     this.flushInFlight = false;
+    // V1-019②：队列预算观测（普通缓冲丢弃 / critical 超预算拒绝 / 持久化失败次数）
+    this.bufferDropped = 0;
+    this.criticalBacklogRejected = 0;
+    this.normalBacklogRejected = 0;
+    this.durabilityLossCount = 0;
+    this._backlogWarned = false;
     // TASK-006/007：持久（或内存）outbox/inbox。所有上行（事件/ACK）先入 outbox
     // 再发送：transport 失败（TransportError）不再静默丢事件，统一退避重试。
     this.outbox = outbox || new EventOutbox({ dir: outboxDir, transport });
@@ -440,9 +579,40 @@ export class SessionManager {
     // 落盘成功后不会重复入队。内存模式（inbox.dir=null）无恢复对象，跳过。
     if (this.inbox.dir) {
       try {
+        // V1-015①：崩溃于 executing 的命令在启动即呈现 unknown 并补 ACK（不等云端重派）
+        this.recoverCrashedExecutingAcks();
         this.recoverPendingAcks();
       } catch (err) {
         console.warn('[session-manager] pending-ack recovery failed:', err?.message || err);
+      }
+    }
+    // V12-11：重启对账（profile 恢复记录）——上次运行的 profile 会话台账按 pid 存活性收敛；
+    // 已死补 closed，仍存活记孤儿（只告警不自动终止；自动清理挂 V15 专项边界测试）。
+    if (this.launchLedger) {
+      try {
+        const recon = this.launchLedger.reconcile();
+        if (recon.orphaned > 0) {
+          console.warn(`[session-manager] 重启对账：${recon.orphaned}/${recon.total} 个 profile 会话进程在上次运行后仍存活（孤儿已登记，不自动终止；停止需按会话命令或人工处理）`);
+        } else if (recon.closed > 0) {
+          console.log(`[session-manager] 重启对账：${recon.closed}/${recon.total} 条历史会话记录确认进程已退出（closed）`);
+        }
+      } catch (err) {
+        console.warn('[session-manager] launch-ledger reconcile failed:', err?.message || err);
+      }
+    }
+    // V12-13：工作区锁崩溃恢复——持有者已死/损坏的锁自动回收（不抢活锁：活锁持有者
+    // pid 必存活，保守保留并告警人工裁决），保证故障后锁可回收、新任务不被永久卡死。
+    if (this.workspaceLocks) {
+      try {
+        const rec = this.workspaceLocks.reconcile();
+        if (rec.reclaimed > 0) {
+          console.warn(`[session-manager] 工作区锁对账：回收 ${rec.reclaimed}/${rec.total} 把无主锁（崩溃残留）`);
+        }
+        if (rec.kept > 0) {
+          console.warn(`[session-manager] 工作区锁对账：${rec.kept}/${rec.total} 把锁持有者仍存活，保守保留（详见 workspace-lock 日志）`);
+        }
+      } catch (err) {
+        console.warn('[session-manager] workspace-lock reconcile failed:', err?.message || err);
       }
     }
   }
@@ -468,6 +638,39 @@ export class SessionManager {
     return recovered;
   }
 
+  /**
+   * V1-015①：崩溃于 executing 的命令恢复（启动即呈现，不等云端租约重派）。
+   * executing 记录 = 上次进程在执行中中断，结果未知：统一升级为 unknown 信封
+   * （不丢执行记录、不重执行）并补发如实 ACK。先于 recoverPendingAcks 执行，
+   * 两段恢复经 markAckEnqueued 幂等去重（失败记录仍由后一段兜底重入队）。
+   */
+  recoverCrashedExecutingAcks() {
+    let recovered = 0;
+    for (const record of this.inbox.executingRecords()) {
+      try {
+        const claim = this.inbox.claim({ command_id: record.command_id });
+        if (claim.action !== 'recover-unknown') continue;
+        if (this.enqueueRecordedAck(claim.record, this.baseAckPayloadFromRecord(claim.record))) {
+          recovered += 1;
+        }
+      } catch (err) {
+        console.warn(`[session-manager] crash-executing recovery failed for ${record.command_id}: ${err?.message || err}`);
+      }
+    }
+    if (recovered > 0) {
+      console.log(`[session-manager] recovered ${recovered} interrupted-executing command(s) as unknown at startup (execution record kept, no re-execution)`);
+    }
+    return recovered;
+  }
+
+  /** 从持久化记录构建 ACK 基础字段（启动恢复场景：无云端命令，只有信封字段）。 */
+  baseAckPayloadFromRecord(record) {
+    return {
+      command_id: String(record?.command_id || ''),
+      ...(record?.correlation_id ? { correlation_id: record.correlation_id } : {}),
+    };
+  }
+
   startSession(spec) {
     const sessionId = spec.sessionId || `s_${crypto.randomUUID()}`;
     if (this.sessions.has(sessionId)) throw new Error(`duplicate session_id: ${sessionId}`);
@@ -478,6 +681,10 @@ export class SessionManager {
       permissionTimeoutAction: this.permissionTimeoutAction,
     });
     this.sessions.set(sessionId, session);
+    // V12-11：原生会话 ID 到达 → 归档到 profile 命名空间（launch ledger；仅 profile 会话）
+    session._onNativeSessionRef = (ref) => {
+      if (session.profileId) this.launchLedger?.recordNativeSessionRef(sessionId, ref);
+    };
     session.start({
       transport: this.transport,
       onEvent: (event) => this.onEvent?.(sessionId, event),
@@ -485,6 +692,10 @@ export class SessionManager {
       // TASK-012：会话退出即时清理（map 移除 + onSessionEnded 回调供 daemon 空闲判定）
       onExit: () => {
         this.sessions.delete(sessionId);
+        // V12-11：profile 会话退出即闭环台账（运行期自洽，重启对账只处理崩溃残留）
+        if (session.profileId) this.launchLedger?.recordClosed(sessionId, 'exited');
+        // V12-13：会话退出即释放其工作区锁（stop/自然退出都只释放目标会话自己的锁）
+        this.workspaceLocks?.release(sessionId);
         this.onSessionEnded?.(sessionId, session.exitInfo);
       },
     });
@@ -496,7 +707,7 @@ export class SessionManager {
     if (!this.transport) return false;
     if (isCriticalEvent(event)) return this.sendEventsNow([event]);
     if (this.pushBatchMs <= 0) return this.sendEventsNow([event]);
-    this.eventBuffer.push(event);
+    this._pushBuffered(event);
     if (this.eventBuffer.length >= PUSH_BATCH_MAX_EVENTS) {
       void this.flushEvents();
       return true;
@@ -509,43 +720,129 @@ export class SessionManager {
   }
 
   /**
+   * V1-019②：批量缓冲（未落盘内存区）上限——超出丢弃最旧普通事件并计数。
+   * transport 长时间不可用时 eventBuffer 不允许无界增长（每层内存都有上界）；
+   * critical 事件不走此缓冲（直推 outbox，受 CRITICAL_BACKLOG_RESERVE 约束）。
+   */
+  _pushBuffered(event) {
+    this.eventBuffer.push(event);
+    if (this.eventBuffer.length > EVENT_BUFFER_MAX) {
+      const excess = this.eventBuffer.length - EVENT_BUFFER_MAX;
+      this.eventBuffer.splice(0, excess);
+      this.bufferDropped += excess;
+      if (!this._bufferDropWarned) {
+        this._bufferDropWarned = true;
+        console.warn(`[session-manager] event buffer overflow (> ${EVENT_BUFFER_MAX})，丢弃最旧普通事件（transport 长时间不可用？）累计 ${this.bufferDropped}`);
+      }
+    }
+  }
+
+  /**
+   * V1-019②：分级队列预算闸门——critical 事件在 outbox 普通上限之外有预留容量；
+   * 预留也耗尽时如实拒绝（不假装接纳），拒绝可见（计数 + 审计 + 告警，均限次防刷屏）。
+   * @returns {boolean} 是否放行
+   */
+  _queueBudgetAllows(count, critical) {
+    let stats = null;
+    try { stats = this.outbox.stats(); } catch { return true; } // stats 不可用不误拦（入队自身仍有上限与异常兜底）
+    const pending = Number(stats?.pending) || 0;
+    const ceiling = (Number(this.outbox.maxItems) || 0) + (critical ? CRITICAL_BACKLOG_RESERVE : 0);
+    if (pending + count <= ceiling) {
+      if (pending < ceiling / 2) this._backlogWarned = false; // 队列排空后恢复告警资格
+      return true;
+    }
+    if (critical) {
+      this.criticalBacklogRejected += count;
+      if (!this._backlogWarned) {
+        this._backlogWarned = true;
+        console.warn(`[session-manager] critical 队列预算耗尽（pending=${pending} ≥ ceiling=${ceiling}）：关键事件如实拒绝接纳（不假装入队）`);
+      }
+      appendAuditLine(this.auditFile, {
+        event: 'critical-event-backlog-rejected',
+        count,
+        pending,
+        ceiling,
+      });
+    } else {
+      this.normalBacklogRejected += count;
+      if (!this._backlogWarned) {
+        this._backlogWarned = true;
+        console.warn(`[session-manager] 普通事件队列积压达上限（pending=${pending} ≥ ceiling=${ceiling}）：停止接纳（安全停收）`);
+      }
+    }
+    return false;
+  }
+
+  /**
    * 即时发送：事件先落 outbox（失败可重试，E06 修复），首包在本次调用栈内同步发起
    * （保持 critical 事件「即时直推」语义），传输失败由 outbox 退避重试。
+   * V1-019②④：入队前过队列预算闸门；outbox 落盘抛错（磁盘满/权限）= 持久化失败，
+   * 事件如实拒绝（返回 false）并进入 fail-closed（停止命令轮询），绝不假装接纳。
    */
   sendEventsNow(events) {
     if (!events?.length || !this.transport) return false;
     const critical = events.some(isCriticalEvent);
+    if (!this._queueBudgetAllows(events.length, critical)) return false;
     try {
       this.outbox.enqueueMany(events, { priority: critical ? 'critical' : 'normal' });
     } catch (err) {
-      console.warn('[session-manager] outbox enqueue failed:', err?.message || err);
+      this.handleDurabilityLoss('outbox-enqueue', err);
       return false;
     }
     void this.outbox.flush();
     return true;
   }
 
-  /** 冲刷当前缓冲区一批（≤200 条）入 outbox 并尽力发送；失败项由 outbox 退避重试。 */
+  /** 冲刷当前缓冲区一批（≤200 条）入 outbox 并尽力发送；失败项由 outbox 退避重试。
+   * V12-18：①入队前先过队列预算闸门（与即时直推路径同守 V1-019② 预算，闸门拒绝时
+   * 缓冲原样保留，不再逐条触发 outbox 层丢弃计数/告警刷屏）；②丢失唤醒修复——
+   * flushInFlight 期间跳过的调用与已消费的 pushTimer 曾导致洪泛结束后缓冲滞留
+   * （实测 1200 条洪泛后 ~1000 条卡在缓冲直到 stopAll），现每次 flush 收尾若仍有
+   * 存量则按批量节奏续排（零进展轮次指数退避至 1s，防 outbox 满时热循环重试）。 */
   async flushEvents() {
     if (!this.transport || this.flushInFlight) return false;
-    const batch = this.eventBuffer.splice(0, PUSH_BATCH_MAX_EVENTS);
-    if (!batch.length) return false;
     this.flushInFlight = true;
+    let enqueued = 0;
     try {
-      let enqueued = 0;
+      const batch = this.eventBuffer.splice(0, PUSH_BATCH_MAX_EVENTS);
+      if (!batch.length) return false;
+      if (!this._queueBudgetAllows(batch.length, false)) {
+        // V12-18：批量路径与即时直推路径同守 V1-019② 队列预算闸门——闸门按轮拒绝
+        // （限次告警 + normalBacklogRejected 计数），缓冲原样放回；不再逐条触发
+        // outbox 层丢弃计数/告警刷屏（此前满载洪泛实测刷出 ~90 万行逐条告警）。
+        this.eventBuffer.unshift(...batch);
+        return false;
+      }
       try {
         enqueued = this.outbox.enqueueMany(batch, { priority: 'normal' });
       } catch (err) {
-        console.warn('[session-manager] outbox enqueue failed:', err?.message || err);
+        // V1-019④：批量路径的落盘失败同样是持久化失败 → fail-closed（未接纳事件留在缓冲）
+        this.handleDurabilityLoss('outbox-enqueue', err);
       }
       if (enqueued < batch.length) {
         // 入队失败（磁盘异常/积压上限）的尾部回塞队首；已入队部分由 outbox 负责送达
         this.eventBuffer.unshift(...batch.slice(enqueued));
+        // V1-019②：回塞后同样执行缓冲上限（丢最旧并计数）
+        if (this.eventBuffer.length > EVENT_BUFFER_MAX) {
+          const excess = this.eventBuffer.length - EVENT_BUFFER_MAX;
+          this.eventBuffer.splice(0, excess);
+          this.bufferDropped += excess;
+        }
       }
       if (enqueued > 0) await this.outbox.flush();
       return enqueued > 0;
     } finally {
       this.flushInFlight = false;
+      // V12-18 丢失唤醒修复：flushInFlight 期间跳过的调用与已消费的 pushTimer 曾导致
+      // 洪泛结束后缓冲滞留到 stopAll（慢网实测 1200 条洪泛后 ~1000 条卡在缓冲）。
+      // 每次收尾若仍有存量则续排：有进展立即，零进展（闸门拒绝/入队失败）按批量节奏
+      // 指数退避至 1s——outbox 恢复后 ≤1s 内续排缓冲，且不在满载期热循环重试。
+      if (this.eventBuffer.length > 0 && !this.pushTimer) {
+        const delay = enqueued > 0 ? 0 : Math.min((this._trailDelayMs || this.pushBatchMs || 50) * 2, 1000);
+        this._trailDelayMs = delay;
+        this.pushTimer = setTimeout(() => { this.pushTimer = null; void this.flushEvents(); }, delay);
+        this.pushTimer.unref?.();
+      }
     }
   }
 
@@ -662,11 +959,26 @@ export class SessionManager {
       return this.abortNotExecuted(base, 'inbox-executing-persist-failed', err);
     }
 
+    // V12-11：执行前先定位目标会话（仅显式 session_id 路由——无 sid 命令如 create/ping
+    // 不附着任何既有会话的 profile 元数据），其元数据供 ACK 回传实际执行者；
+    // stop 等路径会在执行中把会话移出 map，必须先取。
+    const targetSession = typeof command?.session_id === 'string' && command.session_id
+      ? (this.sessions.get(command.session_id) || null)
+      : null;
+    const targetProfile = (targetSession && targetSession.profileId)
+      ? {
+        agent_profile_id: targetSession.profileId,
+        agent_profile_revision: targetSession.profileRevision,
+        ...(targetSession.agentKey ? { agent_key: targetSession.agentKey } : {}),
+      }
+      : null;
+
     let result = 'failed';
     let error = '';
     let resultSessionId = null;
+    let outcome = null;
     try {
-      const outcome = await this.executeCommand(command);
+      outcome = await this.executeCommand(command);
       if (outcome && typeof outcome === 'object') {
         result = outcome.ok === false ? 'failed' : 'succeeded';
         if (outcome.error) error = String(outcome.error);
@@ -681,6 +993,16 @@ export class SessionManager {
       error = `bridge execution error: ${err?.message || err}`;
     }
 
+    // V12-11：ACK 回传实际执行的 profile（§14.3 与云端比对，'profile-ack-mismatch'）。
+    // 来源优先级：命令结果对象（create_session 直接携带）> 执行前定位到的目标会话元数据。
+    const executedProfile = outcome && typeof outcome === 'object' && outcome.agent_profile_id
+      ? {
+        agent_profile_id: String(outcome.agent_profile_id),
+        agent_profile_revision: Number.isInteger(outcome.agent_profile_revision) ? outcome.agent_profile_revision : null,
+        ...(outcome.agent_key ? { agent_key: String(outcome.agent_key) } : {}),
+      }
+      : targetProfile;
+
     // 完整结果信封一次落盘（含 result_session_id/correlation/request_id/完成时间）
     const envelope = {
       result,
@@ -689,6 +1011,8 @@ export class SessionManager {
       command_type: command?.command_type ?? null,
       correlation_id: command?.correlation_id ?? null,
       request_id: command?.payload?.request_id ?? null,
+      // V12-11：实际执行 profile 进信封——租约重放/重启恢复重建的 ACK 携带同一份（R07 一致性）
+      ...(executedProfile ? executedProfile : {}),
     };
     try {
       this.inbox.markResult(commandId, envelope);
@@ -722,11 +1046,20 @@ export class SessionManager {
     const result = overrides.result !== undefined ? overrides.result : (record.result || 'unknown');
     const errorText = overrides.error !== undefined ? overrides.error : record.error;
     const sessionId = overrides.session_id !== undefined ? overrides.session_id : record.result_session_id;
+    // V12-11：实际执行 profile 随信封重建（租约重放/重启恢复与首次 ACK 一致，R07）
+    const profileFields = record.agent_profile_id
+      ? {
+        agent_profile_id: record.agent_profile_id,
+        ...(Number.isInteger(record.agent_profile_revision) ? { agent_profile_revision: record.agent_profile_revision } : {}),
+        ...(record.agent_key ? { agent_key: record.agent_key } : {}),
+      }
+      : {};
     const payload = {
       ...base,
       result,
       ...(errorText ? { error: errorText } : {}),
       ...(sessionId ? { session_id: sessionId } : {}),
+      ...profileFields,
     };
     try {
       if (!this.outbox.enqueueAck(payload)) return false;
@@ -837,14 +1170,32 @@ export class SessionManager {
 
   /** 持久化不可用（磁盘满/权限）：停止命令轮询（进程保持存活），等待人工恢复磁盘后重启。 */
   handleDurabilityLoss(reason, err, commandId = null) {
+    const first = !this.durabilityDegraded;
     this.durabilityDegraded = true;
-    console.error(`[fail-closed] 本地持久化失败（${reason}${commandId ? `, command_id=${commandId}` : ''}）: ${err?.message || err}`);
-    console.error('[fail-closed] 已停止命令轮询：磁盘/权限恢复前不再执行任何命令（防止不可逆命令在结果不可记录状态下执行）；已持久化的结果将在重启后恢复 ACK。');
+    this.durabilityLossCount += 1;
+    // V1-019：磁盘持续不可用时只告警一次（fail-closed 状态不变，日志不刷屏）
+    if (first) {
+      console.error(`[fail-closed] 本地持久化失败（${reason}${commandId ? `, command_id=${commandId}` : ''}）: ${err?.message || err}`);
+      console.error('[fail-closed] 已停止命令轮询：磁盘/权限恢复前不再执行任何命令（防止不可逆命令在结果不可记录状态下执行）；已持久化的结果将在重启后恢复 ACK。');
+    }
     this.pollingEnabled = false;
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
+  }
+
+  /**
+   * 命令 → 目标会话解析（executeCommand 与 handlePulledCommand 的 ACK 元数据共用同一规则）：
+   *   - 显式 session_id 只按显式路由（E08/TASK-003：未知 sid 绝不回退唯一会话）；
+   *   - 兼容保留：未携带 session_id 的历史命令在本机仅一个会话时仍路由到它
+   *     （TASK-007 命令契约落地后移除）。
+   */
+  resolveTargetSession(command) {
+    const sid = typeof command?.session_id === 'string' ? command.session_id : '';
+    if (sid) return this.sessions.get(sid) || null;
+    if (this.sessions.size === 1) return this.sessions.values().next().value;
+    return null;
   }
 
   async executeCommand(command) {
@@ -854,10 +1205,7 @@ export class SessionManager {
     // 兼容保留：未携带 session_id 的历史命令（旧云端/旧手机版本）在本机仅一个会话时
     // 仍路由到它；TASK-007 命令契约（强制 client_request_id+session 语义）落地后移除。
     const sid = typeof command?.session_id === 'string' ? command.session_id : '';
-    let session = sid ? (this.sessions.get(sid) || null) : null;
-    if (!session && !sid && this.sessions.size === 1) {
-      session = this.sessions.values().next().value;
-    }
+    const session = sid ? (this.sessions.get(sid) || null) : this.resolveTargetSession(command);
     if (!session && type !== 'create_session') {
       if (sid) {
         console.warn(`[session-manager] 拒绝命令 ${type || 'unknown'}：未知 session_id=${sid}`);
@@ -867,15 +1215,23 @@ export class SessionManager {
     }
     switch (type) {
       case 'send_text':
-        if (!session.capabilities.send) return this.rejectCapability(session, command, 'send');
+        // V12-09：能力键更名 send → append（追加输入；初始输入由 initialPromptChannel 表达）
+        if (!session.capabilities.append) return this.rejectCapability(session, command, 'append');
         return session.sendText(command.payload?.content || '');
       case 'respond_action':
         if (!session.capabilities.approve) return this.rejectCapability(session, command, 'approve');
         return this.forwardDecision(session, command);
-      case 'stop_session':
+      case 'stop_session': {
         if (!session.capabilities.stop) return this.rejectCapability(session, command, 'stop');
-        await session.stop();
-        return true;
+        // V1-015③：接纳（命令已受理）与实际退出分开——runner.stop() 等待真实退出并
+        // 返回证据（exited/code/signal/taskkill 退出码）；退出证据随 session_stop_result
+        // 事件回流；进程未确认退出时 ACK 如实 failed（不假装停止成功）。
+        const stopResult = await session.stop();
+        this.emitStopResult(session, stopResult);
+        if (stopResult?.exited) return true;
+        const tk = stopResult?.taskkill_exit_code != null ? `, taskkill_exit=${stopResult.taskkill_exit_code}` : '';
+        return { ok: false, error: `stop-not-confirmed: process still alive after stop (reason=${stopResult?.reason || 'unknown'}${tk})` };
+      }
       case 'ping':
         // 心跳探测：本机在线即成功（无需会话）
         return true;
@@ -958,6 +1314,37 @@ export class SessionManager {
     return false;
   }
 
+  /**
+   * V1-015③：stop_session 的退出证据事件（custom/session_stop_result）——
+   * 「停止命令已接纳」与「进程确实已退出」在事件载荷中分开表达；
+   * 手机端据此区分「已受理」与「已生效」，不猜测。
+   */
+  emitStopResult(session, stopResult) {
+    try {
+      const exited = stopResult?.exited === true;
+      const event = createEvent({
+        sessionId: session.sessionId,
+        agentType: session.agentType,
+        sequencer: session.sequencer,
+        eventType: 'custom',
+        payload: {
+          custom_type: 'session_stop_result',
+          fallback_text: exited ? '停止命令已执行：进程已退出' : '停止命令已接纳：进程退出未确认（见证据字段）',
+          accepted: true,
+          exited,
+          reason: stopResult?.reason || null,
+          code: stopResult?.code ?? null,
+          signal: stopResult?.signal ?? null,
+          ...(stopResult?.taskkill_exit_code != null ? { taskkill_exit_code: stopResult.taskkill_exit_code } : {}),
+        },
+      });
+      this.onEvent?.(session.sessionId, event);
+      this.enqueueEvent(event);
+    } catch {
+      // 证据事件构造/入队失败不影响停止语义本身
+    }
+  }
+
   /** 未知 session_id 拒绝时的错误事件回流（手机端可见，不中断轮询循环）。 */
   emitUnknownSessionEvent(sessionId, commandType) {
     this.emitSessionError({ sessionId, agentType: 'generic', sequencer: new SessionSequencer() }, {
@@ -969,22 +1356,202 @@ export class SessionManager {
   /**
    * create_session：手机端新建任务——在本机配置的 agent 命令上，以指定工作区 cwd
    * 拉起新会话并注入初始提示。
+   *
+   * V12-11（N09 修复）双路径，绝无静默回退（§8.2「绝不能 fallback 到 defaultSpec」）：
+   *   - 携带 agent_profile_id / agent_profile_revision（成对）→ 按 profile 路由：
+   *     AdapterFactory 二次验证本机 profile 并生成冻结 spec；任何失败都是明确错误码，
+   *     绝不退回 defaultSpec；
+   *   - 不带 profile 字段 → legacy（v0.2）语义：defaultSpec（本机 config 显式配置）。
    * TASK-012/D4 工作区授权边界：绝对路径 → stat 目录 → realpath 前后授权根前缀判断
    * （防符号链接逃逸）；拒绝时零进程拉起 + 最小审计（时间/cwd/原因，不含 prompt）。
    * CLI 本地 `run` 不受限（用户本机操作即授权）。
    * 返回 { ok, session_id?, error? }：session_id 供 ack 回填（手机端经 result_session_id
-   * 获知新会话）；correlation_id 随 session_meta 事件回流。
+   * 获知新会话）；correlation_id 随 session_meta 事件回流；成功时回传实际执行 profile
+   * （agent_profile_id/agent_profile_revision/agent_key，§14.3 ACK 比对）。
    */
   createSessionFromCommand(payload = {}, command = {}) {
-    if (!this.defaultSpec) return { ok: false, error: 'no-agent-spec' };
     const rawCwd = typeof payload.cwd === 'string' ? payload.cwd.trim() : '';
     const prompt = typeof payload.prompt === 'string' ? payload.prompt.trim() : '';
+    const profileId = typeof payload.agent_profile_id === 'string' ? payload.agent_profile_id.trim() : '';
+    const hasProfileRevision = payload.agent_profile_revision !== undefined && payload.agent_profile_revision !== null;
+    if (profileId || hasProfileRevision) {
+      // profile 路由：两字段必须成对（云端 V12-05/10 已强制；桥端 fail-closed 兜底）
+      if (!profileId || !hasProfileRevision) return { ok: false, error: 'invalid-profile-route' };
+      if (!this.adapterFactory) {
+        // 旧 bridge / 未接线工厂：明确失败，绝不按 defaultSpec 执行（N09 反例）
+        console.warn('[session-manager] 拒绝 create_session：携带 profile 路由但本机未启用 profile 调度（不回退 defaultSpec）');
+        return { ok: false, error: 'profile-routing-unsupported' };
+      }
+      // AdapterFactory 二次验证本机 profile（存在/未删/未停/revision/agent_key/verified
+      // adapter/可执行文件）并生成冻结 spec；任何失败都是明确错误码，绝不退回 defaultSpec。
+      let spec;
+      try {
+        spec = this.adapterFactory.createFrozenSpec({
+          profileId,
+          revision: payload.agent_profile_revision,
+          commandAgentKey: command?.agent_key ?? null,
+        });
+      } catch (err) {
+        if (err instanceof ProfileRouteError) {
+          console.warn(`[session-manager] 拒绝 create_session（profile 路由）：${err.code}（profile=${profileId}）`);
+          appendAuditLine(this.auditFile, {
+            event: 'profile-route-denied',
+            profile_id: profileId,
+            reason: err.code,
+            command_id: command?.command_id || null,
+          });
+          return { ok: false, error: err.code };
+        }
+        throw err;
+      }
+      // 声明层执行门禁（adapter-contract §2.2）：verified create 已在工厂把关，此处防御兜底；
+      // workspace_id 为 opaque 引用，真实路径在本机由 cwd/授权列表裁决（云端不解析）。
+      const caps = capabilitiesFor(spec.agentType);
+      if (!caps.create) return { ok: false, error: 'profile-capability-unsupported' };
+      if (prompt && !caps.initialPromptChannel) {
+        return { ok: false, error: 'capability-unsupported', capability: 'initial_prompt', reason: 'prompt-inject-unsupported' };
+      }
+      // 全局工作区授权（D4 语义不变）：拒绝时零进程 + 审计行
+      const authz = authorizeWorkspace({ rawCwd, workspaces: this.workspaces });
+      if (!authz.ok) {
+        appendAuditLine(this.auditFile, {
+          event: 'workspace-denied',
+          cwd: rawCwd.slice(0, 500),
+          reason: authz.reason,
+          profile_id: spec.profileId,
+          command_id: command?.command_id || null,
+        });
+        return { ok: false, error: authz.reason };
+      }
+      // profile 自身授权目录叠加校验（非空时）：§8.2 bridge 二次验证「权限」
+      if (spec.workspaceAllowlist.length > 0) {
+        const profileAuthz = authorizeWorkspace({ rawCwd: authz.cwd, workspaces: spec.workspaceAllowlist });
+        if (!profileAuthz.ok) {
+          appendAuditLine(this.auditFile, {
+            event: 'profile-workspace-denied',
+            cwd: authz.cwd.slice(0, 500),
+            reason: profileAuthz.reason,
+            profile_id: spec.profileId,
+            command_id: command?.command_id || null,
+          });
+          return { ok: false, error: 'workspace-not-authorized' };
+        }
+      }
+      // 并发会话上限（结束会话已即时移除，这里只计活跃会话）
+      if (this.sessions.size >= this.maxSessions) {
+        appendAuditLine(this.auditFile, {
+          event: 'session-limit-rejected',
+          cwd: authz.cwd,
+          reason: `active=${this.sessions.size},max=${this.maxSessions}`,
+          profile_id: spec.profileId,
+          command_id: command?.command_id || null,
+        });
+        return { ok: false, error: 'session-limit' };
+      }
+      // V12-13：每 profile 并发上限（§8.3「总运行上限与每 profile 上限分开」——单产品
+      // 限流/失效不得挤占全部并发；拒绝显式反馈，不静默排队）
+      const profileActive = [...this.sessions.values()].filter((s) => s.profileId === spec.profileId).length;
+      if (profileActive >= this.maxSessionsPerProfile) {
+        appendAuditLine(this.auditFile, {
+          event: 'profile-session-limit-rejected',
+          cwd: authz.cwd,
+          reason: `active=${profileActive},max=${this.maxSessionsPerProfile}`,
+          profile_id: spec.profileId,
+          command_id: command?.command_id || null,
+        });
+        return { ok: false, error: 'profile-session-limit' };
+      }
+      // 初始 prompt 通道：launch-args=codex exec 位置参数；stdin=claude-code 输入帧（会话
+      // 启动后 sendText）；null=拒绝（能力检查已拦截，防御兜底）。
+      const launchPrompt = prompt && caps.initialPromptChannel === 'launch-args' ? prompt : null;
+      const sessionId = `s_${crypto.randomUUID()}`;
+      // V12-13：写任务工作区互斥（§8.3）——同 realpath 只允许一个任务；冲突显式反馈
+      // 持有者信息（手机端据此「等待重试」或「另选独立目录」），绝不静默并行双写。
+      if (this.workspaceLocks) {
+        const lock = this.workspaceLocks.acquire({
+          cwd: authz.cwd,
+          sessionId,
+          profileId: spec.profileId,
+          agentKey: spec.agentKey,
+        });
+        if (!lock.ok) {
+          const holder = lock.holder || null;
+          appendAuditLine(this.auditFile, {
+            event: 'workspace-busy',
+            cwd: authz.cwd.slice(0, 500),
+            reason: lock.reason,
+            holder_session: holder?.session_id || null,
+            profile_id: spec.profileId,
+            command_id: command?.command_id || null,
+          });
+          return {
+            ok: false,
+            error: lock.reason === 'workspace-busy'
+              ? `workspace-busy: held by ${holder?.agent_key || 'unknown'} session=${holder?.session_id || 'unknown'}`
+              : lock.reason,
+            ...(holder ? { holder } : {}),
+          };
+        }
+      }
+      const correlationId = String(command.correlation_id || command.command_id || '');
+      const session = this.startSession({
+        sessionId,
+        agentType: spec.agentType,
+        command: spec.command,
+        args: launchPrompt ? [...spec.args, launchPrompt] : spec.args, // 冻结 args + 可选末位 prompt
+        cwd: authz.cwd,
+        correlationId,
+        profileId: spec.profileId,
+        profileRevision: spec.profileRevision,
+        agentKey: spec.agentKey,
+        adapterVersion: spec.adapterVersion,
+        capabilitySnapshot: spec.capabilitySnapshot,
+      });
+      // profile 恢复记录：启动台账（含进程归属身份，重启对账依据）
+      this.launchLedger?.recordLaunch({
+        bridgeSessionId: sessionId,
+        profileId: spec.profileId,
+        profileRevision: spec.profileRevision,
+        agentKey: spec.agentKey,
+        adapterId: spec.agentType,
+        pid: session.runner?.ownership?.pid ?? null,
+        instanceId: session.runner?.ownership?.instanceId ?? null,
+        spawnedAt: session.runner?.ownership?.spawnedAtMs ?? null,
+        command: spec.command,
+      });
+      appendAuditLine(this.auditFile, {
+        event: 'profile-session-created',
+        profile_id: spec.profileId,
+        profile_revision: spec.profileRevision,
+        agent_key: spec.agentKey,
+        adapter_id: spec.agentType,
+        session_id: sessionId,
+        command_id: command?.command_id || null,
+      });
+      let promptOk = true;
+      if (prompt && !launchPrompt) promptOk = session.sendText(prompt) !== false;
+      return {
+        ...(promptOk ? { ok: true } : { ok: false, error: 'prompt-inject-failed' }),
+        session_id: sessionId,
+        // 实际执行 profile 回传（ACK 比对 §14.3；revision 为本机冻结值，任何不一致由云端判冲突）
+        agent_profile_id: spec.profileId,
+        agent_profile_revision: spec.profileRevision,
+        agent_key: spec.agentKey,
+        ...(spec.adapterVersion ? { adapter_version: spec.adapterVersion } : {}),
+      };
+    }
+
+    // —— legacy（v0.2）路径：不带 profile 字段的 create_session → 本机 defaultSpec ——
+    if (!this.defaultSpec) return { ok: false, error: 'no-agent-spec' };
     const agentType = this.defaultSpec.agentType || 'generic';
     const caps = capabilitiesFor(agentType);
-    // 能力前置检查（零进程拒绝）：create 本身 + 初始 prompt 注入依赖 send
+    // 能力前置检查（零进程拒绝）：create 本身 + 初始 prompt 注入（V1-005①：初始输入与
+    // 追加输入是两个独立能力——codex exec 官方支持把初始 prompt 作为末位位置参数，
+    // 不得再借 send=false 拒绝携带 prompt 的创建；追加 send_text 仍按 append=false 拒绝）。
+    // V12-09：generic/未知类型 create=false（只读文本+受控停止底线，不得替用户拉新进程）。
     if (!caps.create) return { ok: false, error: 'capability-unsupported', capability: 'create' };
-    if (prompt && !caps.send) {
-      return { ok: false, error: 'capability-unsupported', capability: 'send', reason: 'prompt-inject-unsupported' };
+    if (prompt && !caps.initialPromptChannel) {
+      return { ok: false, error: 'capability-unsupported', capability: 'initial_prompt', reason: 'prompt-inject-unsupported' };
     }
     // D4 工作区授权（TASK-012）：拒绝时零进程 + 审计行
     const authz = authorizeWorkspace({ rawCwd, workspaces: this.workspaces });
@@ -1007,18 +1574,51 @@ export class SessionManager {
       });
       return { ok: false, error: 'session-limit' };
     }
+    // 初始 prompt 通道（V1-005② / V12-09 更名 initialPromptChannel）：
+    // launch-args=codex exec 位置参数（spawn args 数组直传，无 shell、无拼接，长度上限
+    // 4000 由云函数 sendCommand 侧已校验）；stdin=claude-code 输入帧（会话启动后 sendText，
+    // 既有路径）；null=拒绝（能力检查已拦截，防御兜底）。
+    const launchPrompt = prompt && caps.initialPromptChannel === 'launch-args' ? prompt : null;
     const sessionId = `s_${crypto.randomUUID()}`;
+    // V12-13：写任务工作区互斥（§8.3）——legacy（defaultSpec）任务同样是写任务，
+    // 与 profile 路由任务共用同一把 realpath 锁；冲突显式反馈，绝不静默并行双写。
+    if (this.workspaceLocks) {
+      const lock = this.workspaceLocks.acquire({
+        cwd: authz.cwd,
+        sessionId,
+        profileId: null,
+        agentKey: agentType,
+      });
+      if (!lock.ok) {
+        const holder = lock.holder || null;
+        appendAuditLine(this.auditFile, {
+          event: 'workspace-busy',
+          cwd: authz.cwd.slice(0, 500),
+          reason: lock.reason,
+          holder_session: holder?.session_id || null,
+          command_id: command?.command_id || null,
+        });
+        return {
+          ok: false,
+          error: lock.reason === 'workspace-busy'
+            ? `workspace-busy: held by ${holder?.agent_key || 'unknown'} session=${holder?.session_id || 'unknown'}`
+            : lock.reason,
+          ...(holder ? { holder } : {}),
+        };
+      }
+    }
     const correlationId = String(command.correlation_id || command.command_id || '');
+    const baseArgs = this.defaultSpec.args || [];
     const session = this.startSession({
       sessionId,
       agentType,
       command: this.defaultSpec.command,
-      args: this.defaultSpec.args || [],
+      args: launchPrompt ? [...baseArgs, launchPrompt] : baseArgs,
       cwd: authz.cwd,
       correlationId,
     });
     let promptOk = true;
-    if (prompt) promptOk = session.sendText(prompt) !== false;
+    if (prompt && !launchPrompt) promptOk = session.sendText(prompt) !== false;
     return promptOk
       ? { ok: true, session_id: sessionId }
       : { ok: false, error: 'prompt-inject-failed', session_id: sessionId };
@@ -1034,6 +1634,9 @@ export class SessionManager {
     const results = [];
     for (const session of this.sessions.values()) results.push(await session.stop());
     await this.flushEvents(); // 停止过程产生的尾部事件（session_exit 等）同样入 outbox
+    // V12-13：兜底释放本进程名下全部工作区锁（正常路径 onExit 已逐个释放；
+    // 只触碰自己名下的锁，绝不清扫他人锁文件）
+    this.workspaceLocks?.releaseAll();
     // 退出排空：等在途完成并持续排空至期限；未确认项留在磁盘/内存，重启后恢复重发
     await this.outbox.flush({ deadlineMs: this.drainDeadlineMs });
     return results;

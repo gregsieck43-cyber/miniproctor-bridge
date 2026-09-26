@@ -1,7 +1,13 @@
+import crypto from 'node:crypto';
 import { createEvent, getEventPolicy, redactThinkingEvent, sanitizePreview, truncateText } from '../lib/events.js';
 
 const KNOWN_TYPES = new Set([
   'system', 'assistant', 'user', 'result', 'control_request', 'control_cancel_request',
+  // V12-A01：--include-partial-messages 时的逐 token 增量帧（官方 headless 文档"Stream responses"）。
+  // bridge 预设未开启该旗标（src/lib/config.js AGENT_PRESETS）；若用户显式开启，完整文本仍会随
+  // assistant/result 帧到达，逐帧转发增量只会重复刷屏并灌爆 outbox（信封 7.5KB × 每 token 一帧），
+  // 故识别后安全丢弃（见 mapClaudeRaw stream_event 分支），不落入 generic"未知 JSON 事件"兜底。
+  'stream_event',
 ]);
 
 export function isClaudeStreamType(raw) {
@@ -12,7 +18,48 @@ export function mapClaudeRaw(raw, { sessionId, agentType = 'claude-code', sequen
   if (!raw || typeof raw !== 'object') return [];
   const events = [];
   switch (raw.type) {
+    case 'stream_event': {
+      // V12-A01：见 KNOWN_TYPES 注释——增量帧识别后丢弃，最终内容以 assistant/result 帧为准。
+      break;
+    }
     case 'system': {
+      // V12-A01：API 重试帧（官方 headless 文档"Handle API retries"：attempt/max_retries/
+      // retry_delay_ms/error_status/error）。旧实现落通用 system 分支只显示"系统事件：api_retry"，
+      // 手机端看不到重试进度与错误类别（§23.1：拒绝/过期/错误需准确反馈）。
+      if (raw.subtype === 'api_retry') {
+        events.push(createEvent({
+          sessionId, agentType, sequencer,
+          eventType: 'custom',
+          payload: {
+            custom_type: 'api_retry',
+            fallback_text: `API 请求重试中（第 ${numberOrZero(raw.attempt)} 次 / 上限 ${numberOrZero(raw.max_retries)}）：${raw.error || 'unknown'}`,
+            data: {
+              attempt: numberOrZero(raw.attempt),
+              max_retries: numberOrZero(raw.max_retries),
+              retry_delay_ms: numberOrZero(raw.retry_delay_ms),
+              error_status: raw.error_status ?? null,
+              error: raw.error || 'unknown',
+            },
+          },
+        }));
+        break;
+      }
+      // V12-A01：权限拒绝帧（官方 headless 文档"With --output-format stream-json, denials appear
+      // as permission_denied system messages"）。官方未给出该帧完整字段 schema，此处只透传可
+      // 确认的 message/uuid，其余字段安全降级——区分"Agent 主动报错"与"权限被拒"（卡边界：拒绝）。
+      if (raw.subtype === 'permission_denied') {
+        const deniedText = typeof raw.message === 'string' && raw.message ? raw.message : '一次权限请求被拒绝';
+        events.push(createEvent({
+          sessionId, agentType, sequencer,
+          eventType: 'custom',
+          payload: {
+            custom_type: 'permission_denied',
+            fallback_text: `权限被拒绝：${deniedText}`.slice(0, 500),
+            data: { message: deniedText, uuid: typeof raw.uuid === 'string' ? raw.uuid : null },
+          },
+        }));
+        break;
+      }
       events.push(createEvent({
         sessionId, agentType, sequencer,
         eventType: 'custom',
@@ -72,7 +119,7 @@ export function mapClaudeRaw(raw, { sessionId, agentType = 'claude-code', sequen
             payload: {
               tool_call_id: item.id || `tc_${crypto.randomUUID()}`,
               tool_name: item.name || 'unknown',
-              input_preview: sanitizePreview(item.input, 500),
+              input_preview: sanitizePreview(item.input ?? {}, 500),
               input_sensitive: false,
               status: 'running',
             },
@@ -92,18 +139,73 @@ export function mapClaudeRaw(raw, { sessionId, agentType = 'claude-code', sequen
     case 'user': {
       const message = raw.message || {};
       const content = message.content;
-      const text = typeof content === 'string' ? content : JSON.stringify(content || {});
-      if (text) {
-        events.push(createEvent({
-          sessionId, agentType, sequencer,
-          eventType: 'user_message',
-          payload: {
-            message_id: `m_${crypto.randomUUID()}`,
-            role: 'user',
-            content: text,
-            content_type: 'text',
-          },
-        }));
+      // V12-A01 加固：stream-json 输入模式下工具结果以 user 帧回传（官方 subagent 文档：user
+      // 消息携带 tool_result 块；bridge 预设还开了 --replay-user-messages）。旧实现把整块
+      // content JSON.stringify 后伪装成 user_message 上行——工具结果常含文件内容/命令输出，
+      // 既污染对话流又放大隐私面。现按块类型分派：tool_result → 协议 §3.4 tool_result 事件；
+      // text → user_message；无法识别的块保留旧 JSON 兜底（不静默丢弃）。
+      if (Array.isArray(content)) {
+        let emitted = false;
+        for (const item of content) {
+          if (!item || typeof item !== 'object') continue;
+          if (item.type === 'tool_result') {
+            emitted = true;
+            events.push(createEvent({
+              sessionId, agentType, sequencer,
+              eventType: 'tool_result',
+              payload: {
+                tool_call_id: item.tool_use_id || `tc_${crypto.randomUUID()}`,
+                // tool_result 块不携带工具名；适配器为纯函数无状态，无法回查先前 tool_call——
+                // 如实置 null（手机端 tool_result 卡只渲染 result_preview，不依赖 tool_name）。
+                tool_name: null,
+                status: item.is_error ? 'error' : 'success',
+                result_preview: sanitizePreview(item.content ?? '', 500),
+                result_sensitive: false,
+              },
+            }));
+          } else if (item.type === 'text' && typeof item.text === 'string' && item.text) {
+            emitted = true;
+            events.push(createEvent({
+              sessionId, agentType, sequencer,
+              eventType: 'user_message',
+              payload: {
+                message_id: message.id || `m_${crypto.randomUUID()}`,
+                role: 'user',
+                content: item.text,
+                content_type: 'text',
+              },
+            }));
+          }
+        }
+        if (!emitted) {
+          const text = JSON.stringify(content);
+          if (text) {
+            events.push(createEvent({
+              sessionId, agentType, sequencer,
+              eventType: 'user_message',
+              payload: {
+                message_id: `m_${crypto.randomUUID()}`,
+                role: 'user',
+                content: text,
+                content_type: 'text',
+              },
+            }));
+          }
+        }
+      } else {
+        const text = typeof content === 'string' ? content : JSON.stringify(content || {});
+        if (text) {
+          events.push(createEvent({
+            sessionId, agentType, sequencer,
+            eventType: 'user_message',
+            payload: {
+              message_id: `m_${crypto.randomUUID()}`,
+              role: 'user',
+              content: text,
+              content_type: 'text',
+            },
+          }));
+        }
       }
       break;
     }
@@ -117,10 +219,10 @@ export function mapClaudeRaw(raw, { sessionId, agentType = 'claude-code', sequen
             request_id: raw.request_id || `req_${crypto.randomUUID()}`,
             kind: 'tool_permission',
             title: `是否允许 ${request.tool_name || '工具'}？`,
-            detail: sanitizePreview(request.input, 500),
+            detail: sanitizePreview(request.input ?? {}, 500),
             context: {
               tool_name: request.tool_name || 'unknown',
-              input_preview: sanitizePreview(request.input, 500),
+              input_preview: sanitizePreview(request.input ?? {}, 500),
               cwd: null,
             },
             timeout_seconds: 120,
@@ -158,11 +260,22 @@ export function mapClaudeRaw(raw, { sessionId, agentType = 'claude-code', sequen
     case 'result': {
       const subtype = raw.subtype || 'completed';
       const usage = raw.usage || {};
+      // V12-A01 加固：官方 headless 文档——运行内失败（如鉴权缺失）会把失败信息作为 result
+      // 落到 stdout（携带 is_error 标记）。旧映射把一切非 success/error_max_turns 子类型归为
+      // reason 'stopped'，失败终局会被当成正常停止展示（§23.1：错误需准确反馈）。现按
+      // is_error/error 子类型显式归 error（协议 §3.10 reason 枚举：completed|stopped|error|timeout）。
+      const isError = raw.is_error === true
+        || subtype === 'error_during_execution'
+        || subtype === 'error';
+      const reason = isError ? 'error'
+        : subtype === 'success' ? 'completed'
+          : subtype === 'error_max_turns' ? 'timeout'
+            : 'stopped';
       events.push(createEvent({
         sessionId, agentType, sequencer,
         eventType: 'session_end',
         payload: {
-          reason: subtype === 'success' ? 'completed' : subtype === 'error_max_turns' ? 'timeout' : 'stopped',
+          reason,
           summary: typeof raw.result === 'string' ? raw.result.slice(0, 1000) : `会话结束（${subtype}）`,
           usage: {
             input_tokens: numberOrZero(usage.input_tokens),

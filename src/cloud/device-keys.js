@@ -65,7 +65,7 @@ export function appendAuthFields(payload, { deviceId, privateKey, canonical: can
  * ------------------------------------------------------------------ */
 
 /** 对单个已存在的文件施加最小权限；返回警告列表（空 = 全部成功）。 */
-function applyMinimalPermissions(filePath) {
+export function applyMinimalPermissions(filePath) {
   const warnings = [];
   if (process.platform === 'win32') {
     // Windows：隐藏属性 + ACL 收紧均为尽力而为（见文件头注释）

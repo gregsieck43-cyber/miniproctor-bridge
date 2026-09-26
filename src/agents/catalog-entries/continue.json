@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "continue",
+  "display_name": "Continue CLI",
+  "aliases": ["cn"],
+  "logo_asset": "assets/agents/continue.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": true,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": { "status": "pending", "evidence": "官方 headless 模式（cn -p \"<prompt>\" 单任务执行后打印响应退出，A08 快照 + 官网 2026-09-25 核对一致）+ runner 通用 spawn 路径；本机未安装 cn（where/command -v 双探测），真实往返未取证（V12-A08，2026-09-26）" },
+    "read": { "status": "pending", "evidence": "解析器 bridge/src/adapters/continue.js（官方未记载 --format json 的 JSON schema，fail-closed：文本行走 generic 兜底 agent_message，JSON 行落 custom 观察兜底）+ fixture 对拍 bridge/test/adapters/continue-adapter.test.js（synthetic）；CLI 未安装，真实输出未取证" },
+    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Continue 实机 stop→子进程退出未取证（CLI 未安装）" },
+    "append": { "status": "unavailable", "evidence": "headless 模式为单任务执行（-p），官方无中途追加输入通道（A08 快照，V12-A08）" },
+    "resume": { "status": "pending", "evidence": "官方记载 headless 恢复（cn -p --resume 重放上一会话历史，A08 快照），但适配器未实现恢复路径且真实 CLI 未验证——能力保持 false，待 V03 取证后评估" },
+    "approve": { "status": "unavailable", "evidence": "headless 下 ask 权限工具被自动排除（官方：there's no one to approve them），无审批回传通道——权限不足显示实际拒绝/退出码而非挂起等待；本适配器从不产生 confirm_required 事件，不生成无法送回 CLI 的审批卡；bridge 默认不添加 --allow（A08 快照，V12-A08）" },
+    "fileChanges": { "status": "unavailable", "evidence": "无文件变更输出证据，不伪造工具事件（A08 快照，V12-A08）" },
+    "usage": { "status": "unavailable", "evidence": "无 token/费用统计输出证据，无统计不伪造（§8.3，V12-A08）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A08-continue-cli-headless-mode.md"
+}

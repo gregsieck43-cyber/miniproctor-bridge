@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "comate",
+  "display_name": "Comate",
+  "aliases": [],
+  "logo_asset": "assets/agents/comate.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "manual-report",
+  "capabilities": {
+    "create": false,
+    "read": false,
+    "stop": false,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": null,
+  "verification": {
+    "create": { "status": "unavailable", "evidence": "Zulu 为 IDE 内 MCP 客户端，MCP 客户端能力≠外部可控制（§6 A23）；快照无 headless CLI/受控新建接口（xcx/docs/官方资料/A23-comate-zulu-mcp.md，2026-09-25）；解析器骨架 xcx/bridge/src/adapters/comate.js（探测恒 false）；本机 command -v comate/zulu 未安装（2026-09-26）；证据卡 xcx/docs/release/v1.2/agents/comate.md（BLOCKED 待产品决策）" },
+    "read": { "status": "unavailable", "evidence": "无外部事件流/报告通道文档；解析器骨架 xcx/bridge/src/adapters/comate.js 防御式 custom 兜底；文本行最终回复经 generic 兜底通路（test/adapters/comate-adapter.test.js，L1 对拍）；证据卡 xcx/docs/release/v1.2/agents/comate.md（BLOCKED）" },
+    "stop": { "status": "unavailable", "evidence": "官方无受控停止/取消接口文档；证据卡 xcx/docs/release/v1.2/agents/comate.md（BLOCKED 待产品决策）" },
+    "append": { "status": "unavailable", "evidence": "无追加输入通道文档；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
+    "resume": { "status": "unavailable", "evidence": "无会话恢复接口文档；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
+    "approve": { "status": "unavailable", "evidence": "MCP 工具批准为 IDE 内弹窗交互，无外部回写通道；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
+    "fileChanges": { "status": "unavailable", "evidence": "无文件变更事件通道文档；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
+    "usage": { "status": "unavailable", "evidence": "无 token/用量统计字段文档；无统计不伪造（§8.3）；证据卡 xcx/docs/release/v1.2/agents/comate.md" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A23-comate-zulu-mcp.md"
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "copilot-cli",
+  "display_name": "GitHub Copilot CLI",
+  "aliases": ["copilot"],
+  "logo_asset": "assets/agents/copilot-cli.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": true,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": { "status": "pending", "evidence": "官方程序化模式（copilot -p \"<prompt>\" 单次执行后退出，A06 快照）+ runner 通用 spawn 路径；本机未安装 copilot（where/command -v 双探测），真实往返未取证（V12-A06，2026-09-26）" },
+    "read": { "status": "pending", "evidence": "解析器 bridge/src/adapters/copilot-cli.js（官方未记载机器可读帧结构，fail-closed：文本行走 generic 兜底 agent_message，JSON 行落 custom 观察兜底）+ fixture 对拍 bridge/test/adapters/copilot-cli-adapter.test.js（synthetic）；CLI 未安装，真实输出未取证" },
+    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Copilot 实机 stop→子进程退出未取证（CLI 未安装）" },
+    "append": { "status": "unavailable", "evidence": "程序化模式为单次执行（-p 完成即退出），官方无中途追加输入通道（A06 快照，V12-A06）" },
+    "resume": { "status": "unavailable", "evidence": "A06 快照与参考页均无 headless 会话恢复旗标记载，未实测能力一律 false（V12-A06）" },
+    "approve": { "status": "unavailable", "evidence": "程序化模式无审批回写通道记载；工具授权靠本机策略旗标（--allow-tool/--deny-tool），bridge 默认绝不添加 --allow-all-tools（A06 快照 Security considerations；权限拒绝由退出码/文本与 session_exit 承载，V12-A06）" },
+    "fileChanges": { "status": "unavailable", "evidence": "无文件变更输出证据，不伪造工具事件（A06 快照，V12-A06）" },
+    "usage": { "status": "unavailable", "evidence": "官方记载 credits 按 token 计费但无输出用量帧记载，无统计不伪造（§8.3，V12-A06）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A06-copilot-cli-about.md"
+}

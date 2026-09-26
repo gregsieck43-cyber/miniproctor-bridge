@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "claude-code",
+  "display_name": "Claude Code",
+  "aliases": ["claude", "claude-cli"],
+  "logo_asset": "assets/agents/claude-code.png",
+  "lifecycle": "active",
+  "adapter_id": "claude-code",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": true,
+    "read": true,
+    "stop": true,
+    "append": true,
+    "resume": false,
+    "approve": true,
+    "fileChanges": true,
+    "usage": true
+  },
+  "initial_prompt_channel": "stdin",
+  "verification": {
+    "read": { "status": "verified", "evidence": "bridge/test/adapters/claude-code-adapter.test.js + bridge/test/claude-adapter.test.js（解析 fixture 对拍）+ bridge/test/approval-lifecycle.test.js（演示宿主往返）；真实 CLI 往返挂 V03（本机未装 claude，见 docs/release/v1.2/agents/claude-code.md）" },
+    "stop": { "status": "verified", "evidence": "bridge/test/runner.test.js / runner-windows.test.js（进程树终止）" },
+    "create": { "status": "verified", "evidence": "bridge/test/approval-lifecycle.test.js（演示宿主 spawn 往返）；真实 CLI 往返挂 V03" },
+    "append": { "status": "pending", "evidence": "仅演示宿主 stdin 往返；真实 CLI 往返挂 V03 验证队列（本机未装 claude，V12-A01 未取证）" },
+    "resume": { "status": "unavailable", "evidence": "无实现路径（声明 false）" },
+    "approve": { "status": "pending", "evidence": "仅演示宿主 control_request→control_response 往返；真实 CLI 往返挂 V03（审批协议单独取证，不以禁用权限检查达成远程控制）" },
+    "fileChanges": { "status": "pending", "evidence": "仅解析 fixture（bridge/test/adapters/claude-code-adapter.test.js Edit→file_change）；真实 CLI 是否发帧未验证" },
+    "usage": { "status": "pending", "evidence": "仅解析 fixture（result.usage 映射，bridge/test/adapters/claude-code-adapter.test.js）；真实 CLI 未验证" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A01-claude-code-headless.md"
+}

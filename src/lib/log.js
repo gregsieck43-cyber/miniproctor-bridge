@@ -27,6 +27,14 @@
  * （只暴露字段名，不暴露值）。event_id 等关联 ID 不受影响（规范化后不以黑名单词结尾）。
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+// V1-018②：值级凭据形态清洗与 events.js 共用同一管线（sk-/ghp_/Bearer/键值赋值），
+// 字段黑名单是"按字段名"的第一层，这里是"按值形态"的第二层（双保险）。
+import { sanitizeSensitiveText } from './events.js';
+// V1-018③：日志文件 ACL 尽力收紧（Windows attrib+icacls / POSIX chmod 600），失败明确可见。
+import { applyMinimalPermissions } from '../cloud/device-keys.js';
+
 const LEVELS = Object.freeze({ debug: 10, info: 20, warn: 30, error: 40 });
 const DEFAULT_LEVEL = 'info';
 
@@ -77,10 +85,12 @@ function isBlockedKey(key) {
   return false;
 }
 
-/** 字符串值：去控制字符（防日志注入/保单行）、替换 PEM 特征、截断。 */
+/** 字符串值：去控制字符（防日志注入/保单行）、替换 PEM 特征、凭据形态清洗、截断。 */
 function sanitizeString(value, maxChars = MAX_STR_CHARS) {
   let s = String(value).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ');
   if (PEM_PATTERN.test(s)) s = '[redacted-pem]';
+  // V1-018②：值级凭据形态清洗（sk-/ghp_/Bearer/token=… 等已知形态；URL token 同样命中）
+  s = sanitizeSensitiveText(s);
   if (s.length > maxChars) s = `${s.slice(0, maxChars)}…(truncated)`;
   return s;
 }
@@ -151,7 +161,9 @@ function emit(level, component, msg, fields) {
       if (clean && typeof clean === 'object' && !Array.isArray(clean)) Object.assign(record, clean);
       else if (clean !== undefined) record.detail = clean;
     }
-    process.stderr.write(`${JSON.stringify(record)}\n`);
+    const line = `${JSON.stringify(record)}\n`;
+    process.stderr.write(line);
+    if (fileSink) writeToSink(line); // V1-018③：可选轮转文件副本（写失败不阻断，见 sink.failed）
   } catch {
     /* 日志是旁路：输出失败绝不阻断主流程 */
   }

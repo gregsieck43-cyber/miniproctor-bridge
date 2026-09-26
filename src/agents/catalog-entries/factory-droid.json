@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "factory-droid",
+  "display_name": "Factory Droid",
+  "aliases": ["droid"],
+  "logo_asset": "assets/agents/factory-droid.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": false,
+    "stop": false,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": null,
+  "verification": {
+    "create": { "status": "pending", "evidence": "解析器+fixture 就绪（bridge/test/adapters/factory-droid-adapter.test.js + test/fixtures/factory-droid/）；真实 CLI 往返未取证（2026-09-26 本机 command -v droid 未安装，且需 FACTORY_API_KEY 账号）；capabilities.js 无声明层行（V12 简报禁改），AdapterFactory 现阶段 fail-closed 拒绝实例化。文档化初始 prompt 通道为 launch-args（exec 位置参数），create 验证前不开放；桥接默认不追加 --auto/--skip-permissions-unsafe（exec 默认只读 spec 模式）" },
+    "read": { "status": "pending", "evidence": "仅解析 fixture（--output-format json 的 result 帧→session_end，bridge/test/adapters/factory-droid-adapter.test.js + test/fixtures/factory-droid/output-samples.jsonl）；帧形状证据为快照「json」节样例（docs_ref A10）；真实 CLI 往返未取证" },
+    "stop": { "status": "pending", "evidence": "bridge runner 进程树终止为公共能力（test/runner*.test.js）；真实 CLI 下受控停止未验证（droid 未安装）" },
+    "append": { "status": "unavailable", "evidence": "droid exec 为一次性任务（快照「single non-interactive pass」），中途追加输入仅在双向 stream-jsonrpc 协议存在且本项目未实现" },
+    "resume": { "status": "unavailable", "evidence": "CLI 有 --session-id/--fork 文档化通道（快照「Sessions, tagging, and logs」），但 bridge 无恢复实现路径，声明 false" },
+    "approve": { "status": "unavailable", "evidence": "stream-jsonrpc 协议有 droid.request_permission 服务端请求（快照「Build custom flows on raw JSON-RPC」），本项目未实现该协议，声明 false" },
+    "fileChanges": { "status": "unavailable", "evidence": "官方快照未记载文件变更帧；result 帧字段不含文件变更（docs_ref A10）" },
+    "usage": { "status": "unavailable", "evidence": "文档化 result 帧无 token 统计字段（仅 duration_ms/num_turns），usage 恒空对象（无统计不伪造 §8.3）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A10-factory-droid-exec-overview.md"
+}

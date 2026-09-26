@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "trae-cli",
+  "display_name": "TRAE CLI",
+  "aliases": ["trae", "traecli"],
+  "logo_asset": "assets/agents/trae-cli.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": { "status": "unavailable", "evidence": "官方存在 exec 非交互入口（A20b：traecli exec [选项] [PROMPT]，--sandbox read-only|workspace-write|danger-full-access 按本机 profile 策略授权），但 bridge 拉起参数模板未接线且真实 CLI 未验证——声明 false；禁用 danger-full-access/--yolo 作默认（简报禁止照抄官方危险参数）" },
+    "read": { "status": "pending", "evidence": "L1 解析 fixture：bridge/test/adapters/trae-cli-adapter.test.js（候选契约对拍；官方快照 A20b 仅记载 exec --json 输出 JSONL 事件流、未记载帧 schema，真实 CLI 帧未取证，本机未安装 traecli/trae）" },
+    "stop": { "status": "pending", "evidence": "bridge 进程树终止为 agent 无关代码路径（bridge/test/runner.test.js、runner-windows.test.js）；产品级真实停止未取证（CLI 未安装）" },
+    "append": { "status": "unavailable", "evidence": "官方无 exec 中途追加输入通道文档（A20b；TUI 交互选项不构成非交互追加通道），无实现路径（声明 false）" },
+    "resume": { "status": "unavailable", "evidence": "官方存在 traecli resume [SESSION_ID]/--resume 子命令（A20b），但适配器未实现恢复映射路径且真实 CLI 未验证——声明 false" },
+    "approve": { "status": "unavailable", "evidence": "官方有 --ask-for-approval 旗标，但无外部客户端回写审批决议的帧协议文档（A20b）；不映射 confirm_required（手机端不出现虚假审批按钮，§5.2）" },
+    "fileChanges": { "status": "unavailable", "evidence": "无官方文件变更帧文档；无 file_change 映射路径（声明 false）" },
+    "usage": { "status": "unavailable", "evidence": "无官方用量帧文档；session_end.usage 恒空对象（无统计不伪造，§8.3）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A20a-trae-cli2-get-started.md"
+}

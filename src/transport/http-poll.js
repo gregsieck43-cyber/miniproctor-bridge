@@ -7,6 +7,7 @@
  */
 import { TransportError, isPermanentFailure } from '../lib/outbox.js';
 import { createLogger } from '../lib/log.js';
+import { readJsonBodyCapped, RESPONSE_BODY_MAX_BYTES } from './body-limits.js';
 
 export class HttpPollTransport {
   constructor({ baseUrl, timeoutMs = 5000, deviceId = 'bridge', tokenHash = null, logger = createLogger('http-poll') }) {
@@ -72,38 +73,54 @@ export class HttpPollTransport {
     // 日志/错误消息只带路径不带查询串：pullCommands 的 GET 查询含 token_hash（等价凭据），
     // 绝不进入日志或持久化的 last_error/dead_reason（TASK-022 脱敏红线）。
     const pathForLog = String(path).split('?')[0];
-    let res;
+    // V1-014：计时器在 body 读取完成后才清理（外层 finally）——超时信号覆盖全程
+    //（与 endpoint.js 同口径；此前 body 等待期无期限可永久挂起）。
     try {
-      res = await fetch(`${this.baseUrl}${path}`, { ...init, signal: controller.signal });
-    } catch (e) {
-      this.logger.warn?.(`[http-poll] ${pathForLog} network failure: ${e.message}`, {
-        path: pathForLog, error_code: 'UPSTREAM_UNAVAILABLE', http_status: 0, retryable: true,
-      });
-      throw new TransportError(`[http-poll] ${pathForLog} network failure: ${e.message}`, {
-        code: 'UPSTREAM_UNAVAILABLE', status: 0, data: null, retryable: true,
-      });
+      let res;
+      try {
+        res = await fetch(`${this.baseUrl}${path}`, { ...init, signal: controller.signal });
+      } catch (e) {
+        this.logger.warn?.(`[http-poll] ${pathForLog} network failure: ${e.message}`, {
+          path: pathForLog, error_code: 'UPSTREAM_UNAVAILABLE', http_status: 0, retryable: true,
+        });
+        throw new TransportError(`[http-poll] ${pathForLog} network failure: ${e.message}`, {
+          code: 'UPSTREAM_UNAVAILABLE', status: 0, data: null, retryable: true,
+        });
+      }
+      let json;
+      try {
+        json = await readJsonBodyCapped(res, RESPONSE_BODY_MAX_BYTES, { signal: controller.signal });
+      } catch (e) {
+        if (e && e.code === 'response-too-large') {
+          throw new TransportError(`[http-poll] ${pathForLog} ${e.message}`, {
+            code: 'RESPONSE_TOO_LARGE', status: res.status, data: null, retryable: true,
+          });
+        }
+        throw new TransportError(`[http-poll] ${pathForLog} body read failure: ${e.message}`, {
+          code: 'UPSTREAM_UNAVAILABLE', status: 0, data: null, retryable: true,
+        });
+      }
+      if (!res.ok || json === null || json.ok === false) {
+        const bizCode = json && typeof json === 'object' ? json.error : null;
+        const code = bizCode || (!res.ok ? `HTTP_${res.status}` : 'INVALID_RESPONSE');
+        const retryable = !isPermanentFailure({ status: res.status, data: json });
+        this.logger.warn?.(
+          `[http-poll] ${pathForLog} failed: HTTP ${res.status}${bizCode ? ` ${bizCode}` : ' (invalid/empty body)'}`,
+          { path: pathForLog, error_code: code, http_status: res.status, retryable },
+        );
+        throw new TransportError(
+          `[http-poll] ${pathForLog} failed: HTTP ${res.status}${bizCode ? ` ${bizCode}` : ' (invalid/empty body)'}`,
+          {
+            code,
+            status: res.status,
+            data: json,
+            retryable,
+          },
+        );
+      }
+      return { ok: true, status: res.status, data: json };
     } finally {
       clearTimeout(timer);
     }
-    const json = await res.json().catch(() => null);
-    if (!res.ok || json === null || json.ok === false) {
-      const bizCode = json && typeof json === 'object' ? json.error : null;
-      const code = bizCode || (!res.ok ? `HTTP_${res.status}` : 'INVALID_RESPONSE');
-      const retryable = !isPermanentFailure({ status: res.status, data: json });
-      this.logger.warn?.(
-        `[http-poll] ${pathForLog} failed: HTTP ${res.status}${bizCode ? ` ${bizCode}` : ' (invalid/empty body)'}`,
-        { path: pathForLog, error_code: code, http_status: res.status, retryable },
-      );
-      throw new TransportError(
-        `[http-poll] ${pathForLog} failed: HTTP ${res.status}${bizCode ? ` ${bizCode}` : ' (invalid/empty body)'}`,
-        {
-          code,
-          status: res.status,
-          data: json,
-          retryable,
-        },
-      );
-    }
-    return { ok: true, status: res.status, data: json };
   }
 }

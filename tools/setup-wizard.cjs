@@ -120,6 +120,8 @@ function fillMissingMode() {
   fs.writeFileSync(target, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8');
   console.log(`\n已写入 ${target}`);
   console.log('下一步：node src/main.js doctor   （自检）');
+  console.log('      node src/main.js profiles list   （查看本机已登记的 Agent 配置实例）');
+  console.log('      node src/main.js profiles register --agent-key <key> --command <cmd>   （登记/幂等更新 profile，V12-08/V12-14）');
   console.log('      node src/main.js pair      （开始配对，终端显示 6 位码）');
   rl.close();
 })().catch((e) => { console.error(e); process.exit(1); });

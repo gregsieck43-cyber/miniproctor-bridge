@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "auggie",
+  "display_name": "Auggie",
+  "aliases": [],
+  "logo_asset": "assets/agents/auggie.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": true,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": { "status": "pending", "evidence": "官方 print 模式（auggie --print \"<instruction>\" 单次运行打印 stdout，A12 快照）+ runner 通用 spawn 路径；CLI 本机未安装，真实往返未取证（V12-A12，2026-09-25）" },
+    "read": { "status": "pending", "evidence": "解析器 bridge/src/adapters/auggie.js（print stdout 纯文本行→agent_message）+ fixture 对拍 bridge/test/adapters/auggie-adapter.test.js（官方示例语义构造，synthetic）；CLI 未安装，真实输出未取证" },
+    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Auggie 实机 stop→子进程退出未取证（CLI 未安装）" },
+    "append": { "status": "unavailable", "evidence": "print 模式单次运行无中途追加输入通道证据（A12 快照，V12-A12）" },
+    "resume": { "status": "unavailable", "evidence": "print 模式无会话恢复旗标证据，未实测能力一律 false（A12 快照，V12-A12）" },
+    "approve": { "status": "unavailable", "evidence": "print 模式无审批回写通道证据（A12 快照，V12-A12）" },
+    "fileChanges": { "status": "unavailable", "evidence": "print 模式无文件变更输出证据，不伪造工具事件（A12 快照，V12-A12）" },
+    "usage": { "status": "unavailable", "evidence": "无 token 统计输出证据，无统计不伪造（§8.3，A12 快照，V12-A12）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A12-auggie-readme.md"
+}

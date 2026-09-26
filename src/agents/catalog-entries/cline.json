@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "cline",
+  "display_name": "Cline CLI",
+  "aliases": [],
+  "logo_asset": "assets/agents/cline.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": false,
+    "stop": false,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": null,
+  "verification": {
+    "create": { "status": "pending", "evidence": "解析器+fixture 就绪（bridge/test/adapters/cline-adapter.test.js + test/fixtures/cline/）；真实 CLI 往返未取证（2026-09-26 本机 command -v cline 未安装）；capabilities.js 无声明层行（V12 简报禁改），AdapterFactory 现阶段 fail-closed 拒绝实例化。文档化初始 prompt 通道为 launch-args（--json 非交互需位置 prompt），create 验证前不开放" },
+    "read": { "status": "pending", "evidence": "仅解析 fixture（--json agent_event.text→agent_message，bridge/test/adapters/cline-adapter.test.js + test/fixtures/cline/ndjson-samples.jsonl）；官方 NDJSON 帧证据仅 README jq 示例一处（docs_ref A07）；真实 CLI 往返未取证（CLI 未安装）" },
+    "stop": { "status": "pending", "evidence": "bridge runner 进程树终止为公共能力（test/runner*.test.js）；真实 CLI 下受控停止未验证（cline 未安装）" },
+    "append": { "status": "unavailable", "evidence": "官方 --json 为单发非交互模式，快照未记载中途追加输入通道（docs_ref A07）" },
+    "resume": { "status": "unavailable", "evidence": "cline history 命令存在但快照未记载恢复到 --json 会话的通道；bridge 无恢复实现路径" },
+    "approve": { "status": "unavailable", "evidence": "非 TTY 下 --auto-approve false 直接拒绝（快照「required-approval calls are denied in terminal mode」），无 NDJSON 审批回写通道；desktop file-IPC（CLINE_TOOL_APPROVAL_MODE=desktop）未取证、未实现" },
+    "fileChanges": { "status": "unavailable", "evidence": "官方快照未记载文件变更帧；不伪造工具事件" },
+    "usage": { "status": "unavailable", "evidence": "官方快照未记载 token 统计帧；无统计不伪造（§8.3）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A07-cline-cli-readme.md"
+}

@@ -113,8 +113,11 @@ const RELEASE_README = `miniproctor bridge 发行包
 一键安装（推荐；自动定位包内容，默认装到用户主目录 miniproctor-bridge）：
   Windows PowerShell：powershell -NoProfile -ExecutionPolicy Bypass -File installer\\setup.ps1
   macOS / Linux / Git Bash：sh installer/setup.sh
-  升级保护：目标已有的 config.json / device.json / data/（outbox/inbox）一律保留，
-  config.json 仅补齐缺失字段。
+  升级保护（原子升级）：先建暂存目录并按 RELEASE-MANIFEST.json 校验完整性，通过才切换；
+  目标已有的 config.json / device.json / data/（outbox/inbox）一律保留，config.json 仅补齐缺失字段；
+  切换时旧目录整体改名 <安装目录>.old-<时间戳>（完整配置/数据备份，可改名回去回滚），
+  切换失败自动还原，旧版照常可运行；检测到 bridge 正在运行（data/bridge.lock）会提示
+  先等待任务结束或明确停止任务，不能偷偷中断。
 
 手动安装（也可解压到任意目录后逐步执行）：
   1. node tools/setup-wizard.cjs   # 交互式配置（endpoint 模式无需任何密钥）

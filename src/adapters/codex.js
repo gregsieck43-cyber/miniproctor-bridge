@@ -1,8 +1,17 @@
+import crypto from 'node:crypto';
 import { createEvent, sanitizePreview } from '../lib/events.js';
 
 // Codex `exec --json` emits JSONL. Event shapes are version-sensitive; this
 // adapter is defensive: every branch falls back to `custom` when unknown.
-// TODO(W5): run `codex exec --json` against a local repo to freeze schema v1.
+// Schema evidence（V1-005，2026-09-23 实测 codex-cli 0.155.1）：`codex exec --json
+// "<positional prompt>"` 真实输出 thread.started / turn.started / item.completed / error
+// 帧（两次实测取证，xcx/.tmp/v1-005-roundtrip/），与 isCodexStreamType 分支一致；
+// 完整 agent_message 成功帧仍受本机到 chatgpt.com 网络阻塞（与 CLOSE-007 后遗留的
+// V03 观察项同因），agent_message 映射保持单测覆盖。0.144.1 冻结线束见 CLOSE-007。
+// V12-A02 增补实测（2026-09-26，xcx/.tmp/v12-exec/cli/codex/roundtrip-2-result.json）：
+// 0.155.1 复测再次取到 thread.started → item.completed(error 诊断) → turn.started 后流静默，
+// chatgpt.com 不可达时 CLI 既不发 turn.failed 也不发顶层 error（"最终事件缺失"实锤——
+// 恢复只能靠 bridge 进程树停止，不能等 CLI 错误帧），本机网络恢复后需 V03 补成功往返。
 
 export function isCodexStreamType(raw) {
   if (!raw || typeof raw !== 'object') return false;
@@ -25,7 +34,17 @@ export function mapCodexRaw(raw, { sessionId, agentType = 'codex', sequencer }) 
   if (itemType === 'agent_message' || itemType === 'assistant_message') {
     const message = item.message || item;
     const role = message.role || 'assistant';
-    const content = Array.isArray(message.content) ? message.content : [{ type: 'output_text', text: message.content }];
+    // V12-A02 加固：官方 noninteractive 文档示例的成功帧是扁平形态
+    // {"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"…"}}
+    // ——text 直接在 item 上，没有 message.content。旧实现只认 message.content（数组或字符串），
+    // 对官方扁平形态一行都不产出（text 字段从未进入提取链）。现三形态并认：content 数组 /
+    // content 字符串 / item 级 text（空数组等边缘形态不回退到伪造空事件）。
+    const flatText = typeof message.text === 'string' ? message.text : null;
+    const content = Array.isArray(message.content) && message.content.length
+      ? message.content
+      : typeof message.content === 'string'
+        ? [{ type: 'output_text', text: message.content }]
+        : (flatText !== null ? [{ type: 'output_text', text: flatText }] : []);
     for (const part of content) {
       if (!part || typeof part !== 'object') continue;
       const text = part.text || part.content || part.output_text;
@@ -39,7 +58,9 @@ export function mapCodexRaw(raw, { sessionId, agentType = 'codex', sequencer }) 
             role,
             content: String(text),
             content_type: 'text',
-            is_final: Boolean(item.status === 'completed' || item.completed),
+            // V12-A02：官方成功帧经 item.completed 容器到达且不带 status 字段——item.completed
+            // 即最终形态（turn.completed 随后收尾），补入 is_final 判定。
+            is_final: Boolean(item.status === 'completed' || item.completed || raw.type === 'item.completed'),
           },
         }));
       }
@@ -49,7 +70,9 @@ export function mapCodexRaw(raw, { sessionId, agentType = 'codex', sequencer }) 
 
   if (itemType === 'user_message') {
     const message = item.message || item;
-    const text = typeof message.content === 'string' ? message.content : sanitizePreview(message.content);
+    // V12-A02：畸形帧隔离（契约 §3.3 不得抛出）——无 content 的 user_message 旧实现会因
+    // sanitizePreview(undefined) 抛 TypeError，补缺省守卫。
+    const text = typeof message.content === 'string' ? message.content : sanitizePreview(message.content ?? '');
     if (text) {
       events.push(createEvent({
         sessionId, agentType, sequencer,
@@ -160,19 +183,58 @@ export function mapCodexRaw(raw, { sessionId, agentType = 'codex', sequencer }) 
     return events;
   }
 
-  // 顶层流错误 / turn.failed 收尾：致命语义保留（会话失败或结束）。
-  if (raw.type === 'turn.failed' || raw.type === 'error') {
-    const message = raw.message || raw.error?.message || item?.message || 'Codex 错误';
+  // V12-A02 加固：turn.completed 是官方事件流的成功终帧（noninteractive 文档 JSONL 示例末行，
+  // 携带 usage）。旧映射未覆盖——成功终态落入底部 codex_raw 兜底只显示"Codex 事件：turn.completed"，
+  // 解析层永远等不到 session_end（只能靠进程退出 session_exit 收尾，丢失 turn 级结束语义）。
+  // 按协议 §3.10 映射为 session_end(completed)。usage 暂不透传：codex 声明层 usage=false
+  // （capabilities.js 冻结范围，本卡不得擅改），无统计不伪造（§8.3）；V03 回收时随声明层一并翻入。
+  if (raw.type === 'turn.completed') {
     events.push(createEvent({
       sessionId, agentType, sequencer,
-      eventType: raw.type === 'turn.failed' ? 'session_end' : 'error',
+      eventType: 'session_end',
       payload: {
-        error_code: 'CODEX_TURN_FAILED',
-        severity: 'fatal',
-        message: String(message).slice(0, 1000),
-        recoverable: false,
+        reason: 'completed',
+        summary: sanitizePreview(item.summary || item.result || raw.result || 'Codex 回合完成', 1000),
+        usage: {},
       },
     }));
+    return events;
+  }
+
+  // 顶层流错误 / turn.failed 收尾：致命语义保留（会话失败或结束）。
+  // V12-A02 加固：session_end 协议 payload 为 {reason, summary, usage}（§3.10）——旧 turn.failed
+  // 分支发的是 error 事件字段（error_code/severity/message/recoverable），手机端 session_end 渲染
+  // 拿不到 reason/summary。现补齐协议字段；error_code/severity/message/recoverable 为旧字段，
+  // close007 回归钉定（payload.severity === 'fatal'），保留兼容、不弱化旧断言。
+  if (raw.type === 'turn.failed' || raw.type === 'error') {
+    const message = raw.message || raw.error?.message || item?.message || 'Codex 错误';
+    const safeMessage = String(message).slice(0, 1000);
+    if (raw.type === 'turn.failed') {
+      events.push(createEvent({
+        sessionId, agentType, sequencer,
+        eventType: 'session_end',
+        payload: {
+          reason: 'error',
+          summary: safeMessage,
+          usage: {},
+          error_code: 'CODEX_TURN_FAILED',
+          severity: 'fatal',
+          message: safeMessage,
+          recoverable: false,
+        },
+      }));
+    } else {
+      events.push(createEvent({
+        sessionId, agentType, sequencer,
+        eventType: 'error',
+        payload: {
+          error_code: 'CODEX_TURN_FAILED',
+          severity: 'fatal',
+          message: safeMessage,
+          recoverable: false,
+        },
+      }));
+    }
     return events;
   }
 

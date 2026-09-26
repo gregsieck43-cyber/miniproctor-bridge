@@ -4,10 +4,14 @@
 #   Source 缺省 = 自动定位（本脚本所在的发行包或源码树；兼容"扁平结构"与"bridge/ 子目录"两种布局）
 #   Target  缺省 = $HOME\miniproctor-bridge（用户主目录；也可用 -Target 指定任意目录）
 #
-# 升级保护（TASK-021/E20/E23）：
+# 升级保护（TASK-021/E20/E23；V12-24 原子升级）：
 #   - 目标已存在的 config.json / device.json / data/（含 outbox/inbox）一律保留不覆盖；
-#   - config.json 仅补齐缺失字段（调用 node tools\setup-wizard.cjs --fill-missing）；
-#   - 程序目录（src/tools/installer 等）按发行包内容替换。
+#   - config.json 仅补齐缺失字段（调用 node tools\setup-wizard.cjs --fill-missing，在暂存目录内进行）；
+#   - 先构建暂存目录并做完整性校验（RELEASE-MANIFEST.json 逐文件 sha256），校验通过才切换；
+#   - 原子切换 = 旧目录整体改名（<Target>.old-<时间戳>，即 config/设备身份/队列数据的完整备份），
+#     暂存目录顶上成为新活动目录；切换失败自动改名还原，旧版照常可运行；
+#   - 运行任务提示：bridge 运行时持有 data\bridge.lock（单实例锁），升级前检测到运行中的
+#     bridge 会提示"等待或明确结束任务"（§16：不能偷偷中断），交互确认后才继续，非交互直接中止。
 # 安全声明：本脚本不安装、不升级任何全局组件；不请求管理员权限。
 param(
   [string]$Source = "",
@@ -70,45 +74,130 @@ $hadCfg = Test-Path -LiteralPath (Join-Path $Target "config.json")
 $hadData = Test-Path -LiteralPath (Join-Path $Target "data")
 $hadDevice = (Test-Path -LiteralPath (Join-Path $Target "data\device.json")) -or (Test-Path -LiteralPath (Join-Path $Target "device.json"))
 
-# ---- 复制程序文件（保护清单永不覆盖）----
+# ---- 运行任务检查（V12-24 / §16：升级前对运行任务选择等待或明确结束，不能偷偷中断）----
+# bridge 运行时持有 data\bridge.lock（单实例锁，CLOSE-010）；锁持有者进程存活 = 可能有任务在跑。
+$lockPath = Join-Path $Target "data\bridge.lock"
+if (Test-Path -LiteralPath $lockPath) {
+  $holderPid = 0
+  try {
+    $lockInfo = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json
+    if ($lockInfo -and $lockInfo.pid) { $holderPid = [int]$lockInfo.pid }
+  } catch { $holderPid = 0 }
+  $holderAlive = $false
+  if ($holderPid -gt 0) {
+    try { $null = Get-Process -Id $holderPid -ErrorAction Stop; $holderAlive = $true } catch { $holderAlive = $false }
+  }
+  if ($holderAlive) {
+    Write-Warning "检测到 bridge 正在运行（PID $holderPid，锁 $lockPath）。"
+    Write-Warning "升级会中断正在执行的任务。建议先等待任务结束、或到小程序上明确停止任务，并关闭 bridge（运行 node src\main.js run 的窗口按 Ctrl+C），再运行本脚本。"
+    $ans = ""
+    try { $ans = (Read-Host "仍要继续升级吗？（继续将中断运行任务）[y/N]").Trim().ToLower() } catch { $ans = "" }
+    if ($ans -ne "y") { throw "已取消升级：bridge 正在运行。等待/结束后重试（本脚本未改动任何文件）。" }
+    Write-Warning "已确认继续：正在运行的任务可能被中断，请知悉。"
+  } else {
+    Write-Host "[i] 发现陈旧实例锁（无存活持有者）：升级后由新版本接管清理"
+  }
+}
+
+# 程序文件复制规则：保护清单（用户数据）永不来自发行包
 $protectedNames = @("config.json", "device.json", "data", "node_modules")
+
 if (-not $inPlace) {
-  New-Item -ItemType Directory -Force -Path $Target | Out-Null
+  # ---- 1) 暂存：程序文件 + 用户数据（config.json/device.json/data 原样带入暂存目录）----
+  $staging = "$Target.staging"
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Target) | Out-Null
+  if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
+  New-Item -ItemType Directory -Force -Path $staging | Out-Null
   foreach ($item in (Get-ChildItem -LiteralPath $Source)) {
     $name = $item.Name
     if ($protectedNames -contains $name -or $name -like "*.log") { continue }
-    $dest = Join-Path $Target $name
-    if ($item.PSIsContainer) {
-      if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
-      Copy-Item -LiteralPath $item.FullName -Destination $dest -Recurse -Force
-    } else {
-      Copy-Item -LiteralPath $item.FullName -Destination $dest -Force
+    Copy-Item -LiteralPath $item.FullName -Destination (Join-Path $staging $name) -Recurse -Force
+  }
+  foreach ($userItem in @("config.json", "device.json", "data")) {
+    $src = Join-Path $Target $userItem
+    if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination (Join-Path $staging $userItem) -Recurse -Force }
+  }
+  Write-Host "[ok] 暂存目录就绪：$staging（程序文件 + 用户 config.json/device.json/data/ 已带入，未触碰现有安装）"
+
+  # ---- 2) config.json：暂存内缺失则建模板；已有则只补缺失字段（在暂存内做，不触碰现有安装）----
+  $cfgStage = Join-Path $staging "config.json"
+  $exampleStage = Join-Path $staging "config.example.json"
+  if ((-not (Test-Path -LiteralPath $cfgStage)) -and (Test-Path -LiteralPath $exampleStage)) {
+    Copy-Item -LiteralPath $exampleStage -Destination $cfgStage
+    Write-Host "[ok] 已创建 config.json（默认模板；运行 node tools\setup-wizard.cjs 切到 endpoint 模式，无需任何密钥）"
+  } elseif (Test-Path -LiteralPath $cfgStage) {
+    Push-Location $staging
+    try { & node tools\setup-wizard.cjs --fill-missing } finally { Pop-Location }
+  }
+
+  # ---- 3) 先校验暂存包（RELEASE-MANIFEST.json 逐文件 sha256）；失败绝不切换，现有安装原样 ----
+  $manifestStage = Join-Path $staging "RELEASE-MANIFEST.json"
+  if (Test-Path -LiteralPath $manifestStage) {
+    Write-Host "[i] 校验暂存安装完整性（先于切换；失败即中止，现有安装不受影响）..."
+    Push-Location $staging
+    try { & node tools\verify-release.cjs --installed $staging | Write-Host } finally { Pop-Location }
+    if ($LASTEXITCODE -ne 0) {
+      Remove-Item -LiteralPath $staging -Recurse -Force
+      throw "暂存包完整性校验失败（sha256 不符或文件缺失）。已中止，现有安装未被改动。请重新下载 zip 并重试。"
     }
   }
-  Write-Host "[ok] 程序文件已复制到 $Target（config.json / device.json / data/ / *.log 不参与覆盖）"
+
+  # ---- 4) 原子切换：旧目录整体改名 = 配置/数据完整备份；暂存顶上成为新活动目录 ----
+  # 改名必须用 [System.IO.Directory]::Move（同卷真改名、失败不建目标）；PowerShell 的
+  # Move-Item 在目标不存在时会退化成「建目录 + 逐文件复制」，撞上被占用文件即留下半套
+  # 新版本、并让随后的还原把备份嵌套进半成品目录（V12-24 演练 G7 实测复现）。
+  if (Test-Path -LiteralPath $Target) {
+    $stamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
+    $backupDir = "$Target.old-$stamp"
+    [System.IO.Directory]::Move($Target, $backupDir)
+    try {
+      [System.IO.Directory]::Move($staging, $Target)
+    } catch {
+      # 切换失败：立即改名还原，保证旧版照常可运行（T17：升级失败旧版可运行）。
+      # 还原前清掉任何半成品目标（防御式：真改名不应产生，若产生则归档会嵌套错位）。
+      if (Test-Path -LiteralPath $Target) { Remove-Item -LiteralPath $Target -Recurse -Force -ErrorAction SilentlyContinue }
+      [System.IO.Directory]::Move($backupDir, $Target)
+      Write-Warning "切换到新版本失败（$($_.Exception.Message)）。已回滚为原版本，$Target 可继续使用。"
+      # 暂存目录尽力清理（V12-24 演练 G 发现：失败原因若正是暂存内文件被占用，
+      # 此处必然删不掉——绝不因此中断，否则用户看不到上面的可操作回滚提示）
+      try {
+        if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction Stop }
+        Write-Host "[i] 暂存目录已清理。"
+      } catch {
+        Write-Warning "暂存目录残留（内有文件被占用）：$staging —— 关闭占用该目录的程序后可手动删除，不影响已回滚的旧版本。"
+      }
+      exit 1
+    }
+    Write-Host "[ok] 已原子切换：新版本 $Target"
+    Write-Host "[ok] 配置与数据备份：旧版本连同 config.json/device.json/data/ 完整保留于 $backupDir"
+    Write-Host "[i] 回滚方法：关闭 bridge 后，把 $Target 改名挪走，再把 $backupDir 改名回 $Target，即可恢复旧版本"
+    # 清理更早的历史备份（只保留本次；确认新版运行正常后也可手动删除本备份）
+    Get-ChildItem -LiteralPath (Split-Path -Parent $Target) -Directory -Filter ((Split-Path -Leaf $Target) + ".old-*") |
+      Where-Object { $_.FullName -ne $backupDir } |
+      Remove-Item -Recurse -Force
+  } else {
+    [System.IO.Directory]::Move($staging, $Target)
+    Write-Host "[ok] 全新安装完成：$Target"
+  }
 } else {
-  Write-Host "[i] 源与目标相同，原地升级模式：只做配置补齐与自检，不复制文件"
-}
-
-# ---- config.json：缺失则建模板；已有则只补缺失字段 ----
-$cfg = Join-Path $Target "config.json"
-$example = Join-Path $Target "config.example.json"
-if ((-not (Test-Path -LiteralPath $cfg)) -and (Test-Path -LiteralPath $example)) {
-  Copy-Item -LiteralPath $example -Destination $cfg
-  Write-Host "[ok] 已创建 config.json（默认模板；运行 node tools\setup-wizard.cjs 切到 endpoint 模式，无需任何密钥）"
-} elseif (Test-Path -LiteralPath $cfg) {
-  Push-Location $Target
-  try { & node tools\setup-wizard.cjs --fill-missing } finally { Pop-Location }
-}
-
-# ---- 发行完整性校验（RELEASE-MANIFEST.json 逐文件 sha256；失败绝不继续）----
-$manifest = Join-Path $Target "RELEASE-MANIFEST.json"
-if (Test-Path -LiteralPath $manifest) {
-  Write-Host "[i] 校验发行文件完整性（RELEASE-MANIFEST.json）..."
-  Push-Location $Target
-  try { & node tools\verify-release.cjs --installed $Target | Write-Host } finally { Pop-Location }
-  if ($LASTEXITCODE -ne 0) {
-    throw "发行文件完整性校验失败（sha256 不符或文件缺失）。已中止：绝不使用不完整的安装。请重新下载 zip 并重试。"
+  Write-Host "[i] 源与目标相同，原地模式：只做配置补齐与自检，不重建目录"
+  $cfg = Join-Path $Target "config.json"
+  $example = Join-Path $Target "config.example.json"
+  if ((-not (Test-Path -LiteralPath $cfg)) -and (Test-Path -LiteralPath $example)) {
+    Copy-Item -LiteralPath $example -Destination $cfg
+    Write-Host "[ok] 已创建 config.json（默认模板）"
+  } elseif (Test-Path -LiteralPath $cfg) {
+    Push-Location $Target
+    try { & node tools\setup-wizard.cjs --fill-missing } finally { Pop-Location }
+  }
+  $manifest = Join-Path $Target "RELEASE-MANIFEST.json"
+  if (Test-Path -LiteralPath $manifest) {
+    Write-Host "[i] 校验安装完整性（RELEASE-MANIFEST.json）..."
+    Push-Location $Target
+    try { & node tools\verify-release.cjs --installed $Target | Write-Host } finally { Pop-Location }
+    if ($LASTEXITCODE -ne 0) {
+      throw "发行文件完整性校验失败（sha256 不符或文件缺失）。已中止：绝不使用不完整的安装。请重新下载 zip 并重试。"
+    }
   }
 }
 
@@ -119,6 +208,7 @@ $entryOk = (Test-Path -LiteralPath (Join-Path $Target "src\main.js")) -and (Test
 if (-not $entryOk) { throw "入口文件缺失（src\main.js / package.json / tools\setup-wizard.cjs）：$Target" }
 Write-Host "[ok] 入口文件齐全：src\main.js + package.json + tools\setup-wizard.cjs"
 
+$cfg = Join-Path $Target "config.json"
 if (Test-Path -LiteralPath $cfg) { Write-Host "[ok] config.json 存在" } else { Write-Host "[warn] config.json 不存在（运行 node tools\setup-wizard.cjs 生成）" }
 
 try {
@@ -131,8 +221,8 @@ try {
 } catch {
   throw "数据目录不可写：$($_.Exception.Message)"
 }
-if ($hadData) { Write-Host "[ok] 升级保护：已有 data/（outbox/inbox 队列）原样保留" }
-if ($hadDevice) { Write-Host "[ok] 升级保护：已有设备身份 device.json 原样保留（无需重新配对）" } else { Write-Host "[i] 未配对状态：安装后运行 node src\main.js pair 开始配对" }
+if ($hadData) { Write-Host "[ok] 升级保护：已有 data/（outbox/inbox 队列）原样带入新目录" }
+if ($hadDevice) { Write-Host "[ok] 升级保护：已有设备身份 device.json 原样带入（无需重新配对）" } else { Write-Host "[i] 未配对状态：安装后运行 node src\main.js pair 开始配对" }
 if ($hadCfg -and -not $inPlace) { Write-Host "[ok] 升级保护：已有 config.json 仅补齐缺失字段，未覆盖" }
 
 # Agent CLI 探测（仅提示，不算失败；真实探测也可运行 node src\main.js doctor 不带参数）

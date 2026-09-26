@@ -54,6 +54,14 @@ export const INBOX_ENVELOPE_VERSION = 1;
  */
 export const INBOX_DONE_RETENTION_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * V1-019③：quarantine/ 隔离文件保留治理——无上限的隔离目录同样是磁盘资源泄漏
+ * （持续损坏的磁盘可无限产隔离件）。容量上限 + 保留期双约束，超限/超龄淘汰最旧
+ * （文件名前缀 <ts>-<rand>-<原名>，时间序即淘汰序）。构造时与每次隔离动作后执行。
+ */
+export const QUARANTINE_MAX_FILES = 100;
+export const QUARANTINE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 function safeFileName(commandId) {
   return String(commandId).replace(/[^A-Za-z0-9._-]/g, '_');
 }
@@ -68,16 +76,26 @@ function looksValidRecord(rec) {
 }
 
 export class CommandInbox {
-  constructor({ dir = null, logger = console, doneRetentionMs = INBOX_DONE_RETENTION_MS } = {}) {
+  constructor({
+    dir = null,
+    logger = console,
+    doneRetentionMs = INBOX_DONE_RETENTION_MS,
+    quarantineMaxFiles = QUARANTINE_MAX_FILES,
+    quarantineRetentionMs = QUARANTINE_RETENTION_MS,
+  } = {}) {
     this.dir = dir ? path.resolve(String(dir)) : null;
     this.logger = logger;
     this._records = new Map(); // command_id -> record
     // <=0 视为禁用回收（显式选择）；否则必须 ≥ 云端重派窗口（见 INBOX_DONE_RETENTION_MS 注释）
     this.doneRetentionMs = Number.isFinite(doneRetentionMs) && doneRetentionMs > 0 ? doneRetentionMs : 0;
+    // V1-019③：隔离保留（0 = 禁用对应维度，显式选择）
+    this.quarantineMaxFiles = Number.isFinite(quarantineMaxFiles) && quarantineMaxFiles > 0 ? quarantineMaxFiles : 0;
+    this.quarantineRetentionMs = Number.isFinite(quarantineRetentionMs) && quarantineRetentionMs > 0 ? quarantineRetentionMs : 0;
     if (this.dir) {
       fs.mkdirSync(this.dir, { recursive: true });
       this._loadFromDisk();
       this._pruneRetention(Date.now());
+      this._pruneQuarantine(Date.now());
     }
   }
 
@@ -200,6 +218,7 @@ export class CommandInbox {
         return name.endsWith('.json') ? name.slice(0, -'.json'.length) : name.slice(0, name.indexOf('.json.tmp-'));
       }
       this.logger?.warn?.(`[inbox] corrupt/partial record quarantined (${reason}): ${name}`);
+      this._pruneQuarantine(Date.now()); // V1-019③：隔离动作后立即执行保留治理
       return name.endsWith('.json') ? name.slice(0, -'.json'.length) : name.slice(0, name.indexOf('.json.tmp-'));
     } catch (err) {
       this.logger?.warn?.(`[inbox] quarantine failed for ${name}: ${err?.message || err}`);
@@ -294,8 +313,15 @@ export class CommandInbox {
    * 执行结束：完整结果信封一次落盘（CLOSE-010）。落盘失败向上抛且内存记录保持原状
    * （内存与磁盘一致：markResult 成功才算 done）——调用方进入 fail-closed 处理。
    * result: 'succeeded' | 'failed' | 'unknown'
+   * V12-11：agent_profile_id/agent_profile_revision/agent_key = 实际执行 profile
+   * （create_session 等；缺省 null 不入库）——租约重放/重启恢复重建 ACK 时携带同一份，
+   * 供云端与命令路由比对（'profile-ack-mismatch'，§14.3）。
    */
-  markResult(commandId, { result, error = null, result_session_id = null, command_type = null, correlation_id = null, request_id = null } = {}) {
+  markResult(commandId, {
+    result, error = null, result_session_id = null, command_type = null,
+    correlation_id = null, request_id = null,
+    agent_profile_id = null, agent_profile_revision = null, agent_key = null,
+  } = {}) {
     const record = this._records.get(String(commandId));
     if (!record) return null;
     const updated = {
@@ -309,6 +335,9 @@ export class CommandInbox {
       command_type: command_type ?? record.command?.command_type ?? null,
       correlation_id: correlation_id ?? record.command?.correlation_id ?? null,
       request_id: request_id ?? record.command?.payload?.request_id ?? null,
+      agent_profile_id: agent_profile_id ?? null,
+      agent_profile_revision: Number.isInteger(agent_profile_revision) ? agent_profile_revision : null,
+      agent_key: agent_key ?? null,
     };
     this._persist(updated);
     this._records.set(String(commandId), updated);
@@ -340,6 +369,80 @@ export class CommandInbox {
       if (rec.state === 'done' && rec.envelope_version != null && !rec.ack_enqueued_at) out.push(rec);
     }
     return out;
+  }
+
+  /** executing 态记录（V1-015①：启动恢复扫描依据——上次进程执行中崩溃的命令）。 */
+  executingRecords() {
+    const out = [];
+    for (const rec of this._records.values()) {
+      if (rec.state === 'executing') out.push(rec);
+    }
+    return out;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * V1-019③：quarantine/ 保留治理（容量上限 + 保留期；main.js clean 可手动触发）
+   * ------------------------------------------------------------------ */
+
+  /**
+   * 执行隔离保留策略：先淘汰超过保留期的隔离件，再按容量上限淘汰最旧
+   * （文件名前缀 <ts>-… 时间序）。@returns {number} 本次删除文件数
+   */
+  _pruneQuarantine(now) {
+    if (!this.dir || (!this.quarantineMaxFiles && !this.quarantineRetentionMs)) return 0;
+    const qDir = path.join(this.dir, QUARANTINE_DIR);
+    let names = [];
+    try {
+      names = fs.readdirSync(qDir).filter((f) => !f.startsWith('_'));
+    } catch {
+      return 0; // 目录不存在 = 无隔离件
+    }
+    const entries = names.map((name) => {
+      const head = Number.parseInt(name.split('-')[0], 10);
+      let mtimeMs = 0;
+      if (!Number.isFinite(head) || head <= 0) {
+        try { mtimeMs = fs.statSync(path.join(qDir, name)).mtimeMs; } catch { /* missing */ }
+      }
+      return { name, ts: Number.isFinite(head) && head > 0 ? head : Math.floor(mtimeMs || 0) };
+    });
+    const drop = new Set();
+    if (this.quarantineRetentionMs > 0) {
+      for (const e of entries) {
+        if (e.ts > 0 && now - e.ts > this.quarantineRetentionMs) drop.add(e.name);
+      }
+    }
+    if (this.quarantineMaxFiles > 0) {
+      const kept = entries
+        .filter((e) => !drop.has(e.name))
+        .sort((a, b) => (a.ts !== b.ts ? a.ts - b.ts : (a.name < b.name ? -1 : 1)));
+      for (let i = 0; i < kept.length - this.quarantineMaxFiles; i += 1) drop.add(kept[i].name);
+    }
+    let removed = 0;
+    for (const name of drop) {
+      try { fs.rmSync(path.join(qDir, name), { force: true }); removed += 1; } catch { /* ignore */ }
+    }
+    if (removed > 0) this.logger?.log?.(`[inbox] quarantine retention pruned ${removed} file(s)`);
+    return removed;
+  }
+
+  /** 清理入口（main.js clean / 测试）：立即执行隔离保留策略，返回删除文件数。 */
+  pruneQuarantine() {
+    return this._pruneQuarantine(Date.now());
+  }
+
+  /** quarantine/ 现状观测（doctor/clean 报告用）。 */
+  quarantineStats() {
+    if (!this.dir) return { files: 0, bytes: 0 };
+    const qDir = path.join(this.dir, QUARANTINE_DIR);
+    let files = 0;
+    let bytes = 0;
+    try {
+      for (const name of fs.readdirSync(qDir)) {
+        files += 1;
+        try { bytes += fs.statSync(path.join(qDir, name)).size; } catch { /* ignore */ }
+      }
+    } catch { /* 目录不存在 */ }
+    return { files, bytes };
   }
 
   /** 保留期回收：仅回收「信封完整 + ACK 已入队」且超过保留期的 done 记录（见常量注释）。 */

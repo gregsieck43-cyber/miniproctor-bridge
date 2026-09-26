@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "qoder",
+  "display_name": "Qoder",
+  "aliases": [],
+  "logo_asset": "assets/agents/qoder.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": { "status": "unavailable", "evidence": "无产品专属拉起路径（无启动预设；AdapterFactory 对 adapter_id=generic 拒绝新会话，fail-closed）；官方 headless 形态为 qoder -p \"<prompt>\"（launch-args 通道，A18a），待 V03 真实 CLI 往返接通" },
+    "read": { "status": "pending", "evidence": "文本输出（官方 text 默认格式）经 generic 行流路径读取（bridge/test/adapters/qoder-adapter.test.js fixture 对拍）；官方快照未给出 json/stream-json 帧 schema——探测为空集、不伪造结构化事件；真实 CLI 往返未取证（V12-A18：本机未安装 qoder，command -v/where.exe 双确认，2026-09-26）" },
+    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js 同源路径）；qoder 真实进程停止未验（CLI 未安装，V12-A18）" },
+    "append": { "status": "unavailable", "evidence": "官方仅述及 --input-format stream-json 存在（A18a），未给出 Structured Messages 的消息 schema——无编码路径，不声明；待 V03 取证" },
+    "resume": { "status": "unavailable", "evidence": "--session-id 为官方 CLI flag（A18a），bridge 无恢复重拉代码路径，不声明；待 V03 单独取证" },
+    "approve": { "status": "unavailable", "evidence": "headless（-p）下任何 ask 一律自动拒绝（A18a/A18b 官方文档化行为）；SDK canUseTool 回调与 ACP requestPermission 为其他集成模式（A18b），本卡未实现，不混合宣传" },
+    "fileChanges": { "status": "unavailable", "evidence": "无帧 schema，无 file_change 映射路径（generic 式文本产品不伪造工具事件）" },
+    "usage": { "status": "unavailable", "evidence": "json 输出含 Metadata 但字段未文档化（A18a），无统计路径——无统计不伪造（§8.3）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A18a-qoder-run-in-scripts.md"
+}

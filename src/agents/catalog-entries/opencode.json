@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "opencode",
+  "display_name": "OpenCode",
+  "aliases": [],
+  "logo_asset": "assets/agents/opencode.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": true,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": true
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": { "status": "pending", "evidence": "真实 CLI 最小往返成功（opencode 1.18.20 / win32，`run --format json` 初始 prompt→text→step_finish→退出码 0，2026-09-25，证据卡 docs/release/v1.2/agents/opencode.md）；bridge 实机 spawn→手机可见闭环未跑" },
+    "read": { "status": "verified", "evidence": "真实 opencode 1.18.20 往返帧脱敏固化 fixture 对拍：bridge/test/adapters/opencode-adapter.test.js + bridge/test/fixtures/opencode/（step_start/text/tool_use/step_finish/error 五类真实帧，V12-A05）" },
+    "stop": { "status": "pending", "evidence": "stdio 单进程模式 stop=runner 进程树终止（bridge 自有能力，bridge/test/runner*.test.js 覆盖通用路径）；OpenCode 实机 stop→子进程退出未单独取证" },
+    "append": { "status": "unavailable", "evidence": "run 非交互单次模式无中途追加输入通道证据（A05 快照，V12-A05）" },
+    "resume": { "status": "unavailable", "evidence": "官方 run --continue/--session 恢复旗标存在但未实测，未实测能力一律 false（A05 快照，V12-A05）" },
+    "approve": { "status": "unavailable", "evidence": "无审批回写通道证据（未用 --auto 全放行；权限请求在非交互模式的回写协议未取证，A05 快照，V12-A05）" },
+    "fileChanges": { "status": "unavailable", "evidence": "真实往返仅见 text/tool_use 帧，无文件变更 diff 帧证据，不伪造（V12-A05 实测）" },
+    "usage": { "status": "pending", "evidence": "真实 step_finish 帧携带 tokens/cost（fixture 对拍映射入 session_end.usage），bridge 上行路径未验（V12-A05 实测帧，2026-09-25）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A05-opencode-cli.md"
+}

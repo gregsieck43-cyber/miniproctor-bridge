@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "kimi-code",
+  "display_name": "Kimi Code",
+  "aliases": ["kimi"],
+  "logo_asset": "assets/agents/kimi-code.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": true,
+    "stop": true,
+    "append": true,
+    "resume": false,
+    "approve": true,
+    "fileChanges": true,
+    "usage": true
+  },
+  "initial_prompt_channel": "stdin",
+  "verification": {
+    "create": { "status": "unavailable", "evidence": "无产品专属拉起路径（无启动预设；AdapterFactory 对 adapter_id=generic 拒绝新会话，fail-closed）；初始 prompt 经 Wire prompt 请求（stdin）编码器已实现（bridge/src/adapters/kimi-code.js buildKimiPromptFrame），待 V03 真实 CLI 往返接通" },
+    "read": { "status": "pending", "evidence": "L1 fixture：bridge/test/adapters/kimi-code-adapter.test.js + bridge/test/fixtures/kimi-code/（官方 Wire 文档示例帧对拍：TurnBegin→ContentPart→TurnEnd/审批/JSON-RPC 错误/畸形帧隔离）；真实 CLI 往返未取证（V12-A16：本机未安装 kimi，command -v/where.exe 双确认，2026-09-26）" },
+    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js 同源路径）；kimi --wire 真实进程停止未验（CLI 未安装，V12-A16）" },
+    "append": { "status": "pending", "evidence": "L1 fixture：buildKimiPromptFrame/buildKimiSteerFrame 编码器对拍（官方文档：prompt/steer 为官方中途追加通道）；session-manager 写入接线与真实 CLI 未验（V12-A16）" },
+    "resume": { "status": "unavailable", "evidence": "无恢复代码路径：Wire replay 仅本会话历史重放（A16a），非跨进程恢复；CLI -C/--session 会话恢复待 V03 单独取证" },
+    "approve": { "status": "pending", "evidence": "L1 fixture：buildKimiApprovalResponse 对拍（官方 ApprovalRequest→response: approve|reject[+feedback] 逐字段）；ApprovalRequest→confirm_required 映射对拍；真实 CLI 审批往返未验（V12-A16）" },
+    "fileChanges": { "status": "pending", "evidence": "L1 fixture：ToolResult.return_value.display[diff]（官方 DisplayBlock.diff）→ file_change 映射对拍；真实 CLI 是否发 diff 块未验（V12-A16）" },
+    "usage": { "status": "pending", "evidence": "L1 fixture：StatusUpdate.token_usage（官方 TokenUsage：input_other/output/input_cache_read/input_cache_creation）→ usage 数据路径对拍；真实 CLI 未验（V12-A16）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A16b-kimi-code-getting-started.md"
+}

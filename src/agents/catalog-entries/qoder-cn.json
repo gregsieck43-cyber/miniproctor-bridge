@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "qoder-cn",
+  "display_name": "Qoder CN",
+  "aliases": ["qodercn", "qoderclicn", "lingma"],
+  "logo_asset": "assets/agents/qoder-cn.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": { "status": "unavailable", "evidence": "官方存在 headless 入口（A19a：qodercn -p '<提示词>'），但 bridge 拉起参数模板未接线（AGENT_PRESETS/capabilities.js 属编排层统一处理）且真实 CLI 未验证——声明 false；V03 取证后按 adapter-contract §2.3 翻层" },
+    "read": { "status": "pending", "evidence": "L1 解析 fixture：bridge/test/adapters/qoder-cn-adapter.test.js（候选契约对拍；官方快照 A19a 未记载 headless 输出帧 schema，真实 CLI 帧未取证，本机未安装 qodercn/qoderclicn）" },
+    "stop": { "status": "pending", "evidence": "bridge 进程树终止为 agent 无关代码路径（bridge/test/runner.test.js、runner-windows.test.js）；产品级真实停止未取证（CLI 未安装）" },
+    "append": { "status": "unavailable", "evidence": "官方无 headless 中途追加输入通道文档（A19a），无实现路径（声明 false）" },
+    "resume": { "status": "unavailable", "evidence": "A19a /resume 仅 TUI 命令，无 headless 恢复通道文档；无实现路径（声明 false）" },
+    "approve": { "status": "unavailable", "evidence": "官方无审批帧/回写协议文档（A19a）；适配器将 control_request 候选帧降级为诊断事件，不映射 confirm_required（手机端不出现虚假审批按钮，§5.2）" },
+    "fileChanges": { "status": "unavailable", "evidence": "无官方文件变更帧文档；候选 assistant.tool_use 帧仅映射 tool_call，不衍生 file_change（不伪造）" },
+    "usage": { "status": "unavailable", "evidence": "无官方用量帧文档；session_end.usage 恒空对象（无统计不伪造，§8.3）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A19a-qoder-cn-commands.md"
+}

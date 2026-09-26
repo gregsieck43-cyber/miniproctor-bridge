@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "openclaw",
+  "display_name": "OpenClaw",
+  "aliases": [],
+  "logo_asset": "assets/agents/openclaw.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": false,
+    "stop": false,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": null,
+  "verification": {
+    "create": { "status": "pending", "evidence": "合规通路已核验（官方资料 A27 快照）：openclaw agent exec（无 gateway、一次性嵌入执行，默认临时状态目录用后即清，--isolated 可忽略本机 ambient 配置）；未实测——本机未安装 CLI（command -v openclaw 无结果），真实 create 往返未取证（V12-A27）" },
+    "read": { "status": "pending", "evidence": "L1 fixture 对拍已实现（官方 --json 稳定信封 ok/status/final/payloads/usage/error{message,kind}）：xcx/bridge/test/adapters/openclaw-adapter.test.js + test/fixtures/openclaw/；真实 CLI 信封未取证（本机未安装）" },
+    "stop": { "status": "pending", "evidence": "停止=runner 只终止本次 spawn 的进程树（adapter-contract §4），绝不调用 openclaw gateway stop（避免关闭其他 gateway 会话，V12-A27 边界）；真实往返未取证；runner 通用进程树终止 CI 验证 bridge/test/runner.test.js" },
+    "append": { "status": "unavailable", "evidence": "agent exec 为一次性执行，官方快照无中途追加输入接口记载（--state-dir 会话保持语义未核验）" },
+    "resume": { "status": "unavailable", "evidence": "官方快照未记载 exec 恢复既有会话接口（--session-id 属 gateway 命令语义，未核验）" },
+    "approve": { "status": "unavailable", "evidence": "官方快照未记载审批回写通道；适配器绝不伪造审批按钮（fixture 断言 actions 为空）" },
+    "fileChanges": { "status": "unavailable", "evidence": "--json 信封仅含聚合 toolSummary（调用计数/工具名列表），无逐文件变更结构；不从聚合计数伪造工具事件（fixture 断言无 tool_call）" },
+    "usage": { "status": "pending", "evidence": "L1 fixture：官方信封 usage{input,output,total} 映射为 session_end.usage{input_tokens,output_tokens}（协议 §3.10 形状），xcx/bridge/test/adapters/openclaw-adapter.test.js；真实信封未取证（本机未安装），不进入开放视图" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A27-openclaw-cli-agent.md"
+}

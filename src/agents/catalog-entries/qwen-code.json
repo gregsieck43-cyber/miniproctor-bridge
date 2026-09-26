@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_key": "qwen-code",
+  "display_name": "Qwen Code",
+  "aliases": ["qwen"],
+  "logo_asset": "assets/agents/qwen-code.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": false,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": true
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": { "status": "unavailable", "evidence": "无 create 代码路径：adapter_id 归 generic 且 AdapterFactory verified create 双闸门（catalog verification + openCapabilitiesFor）均未过；真实 CLI create/read/stop 往返挂 V03" },
+    "read": { "status": "pending", "evidence": "解析器已实现（bridge/src/adapters/qwen-code.js）+ fixture 对拍（bridge/test/adapters/qwen-code-adapter.test.js，L1）；stream-json 输入模式官方标注 under construction，真实 CLI 帧形未取证（V03），不进开放视图" },
+    "stop": { "status": "pending", "evidence": "runner 进程树停止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js，adapter 无关）；qwen 真实 CLI 会话停止未取证（V03）" },
+    "append": { "status": "unavailable", "evidence": "A15 快照：--input-format stream-json『currently under construction』，headless 单发 -p 无中途追加通道；无实现路径（声明 false）" },
+    "resume": { "status": "unavailable", "evidence": "官方 --continue/--resume 旗标存在（A15 快照），但 bridge 无 resume 会话实现路径（声明 false）；未实测不开放" },
+    "approve": { "status": "unavailable", "evidence": "A15 快照无 headless 审批回写通道记载（--yolo 为自动批准、不提供手机端决议回写）；无实现路径（声明 false）" },
+    "fileChanges": { "status": "unavailable", "evidence": "A15 快照未定义 file_change 帧（tool_result 仅 64KB 预览上限记载）；无映射路径，不伪造（声明 false）" },
+    "usage": { "status": "pending", "evidence": "仅 fixture 证据（result.usage/assistant.message.usage → session_end.usage 映射，bridge/test/adapters/qwen-code-adapter.test.js）；真实 CLI 字段未实测（V03）" }
+  },
+  "probe": {
+    "version_args": ["--version"],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A15-qwen-code-headless.md"
+}
