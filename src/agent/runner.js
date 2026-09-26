@@ -157,6 +157,10 @@ export class AgentRunner extends EventEmitter {
     this.child.on('exit', (code, signal) => {
       this.emit('exit', { code, signal, error: null, stderrTail: this.stderrTail });
     });
+    // exit 可能早于 stdout/stderr 管道排空；文本型产品须等 close 后才判定最终答复。
+    this.child.on('close', (code, signal) => {
+      this.emit('io-close', { code, signal, error: null, stderrTail: this.stderrTail });
+    });
 
     // TASK-012：stdin 写入错误（EPIPE 等）必须显式暴露——静默悬挂会让命令"假成功"。
     this.stdin.on('error', (err) => this.emit('stdin-error', err));

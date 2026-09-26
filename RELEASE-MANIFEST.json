@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc1",
-  "commit": "df5e9da8bd5e28e0f62eed5ff1ad5485193758ab",
+  "version": "0.6.0-rc2",
+  "commit": "056f1782a794a90518132bb63409bac3fadff4a5",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "b7ffb023edbd0d4f708d55141e1aac7c53293278e2e9cd378713976519c47c9c",
+      "sha256": "ced7a977f6c95b46bd86d05def187bc6ee2a28af6436c01288c95bae35977b9e",
       "bytes": 442
     },
     {
@@ -41,8 +41,8 @@
     },
     {
       "path": "src/adapters/aider.js",
-      "sha256": "1ca3e38676d7aadfbb7b349d979c80bb9ef3044aeb3978a09330c12e8ecf99e1",
-      "bytes": 3544
+      "sha256": "06bd8a16022ea0c50881ef090c45e29454980e5cb324bb067a07579af6a2af01",
+      "bytes": 5374
     },
     {
       "path": "src/adapters/amp.js",
@@ -116,8 +116,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "1beba36e1f906cb3cd6d46bea308e2db719cb1f48e532b2a32d878e68162ae6f",
-      "bytes": 12925
+      "sha256": "39e566a6f39c372f3e384712cb6e4d1390b4b81f65356bbf5382adfbfc2e0413",
+      "bytes": 14286
     },
     {
       "path": "src/adapters/goose.js",
@@ -126,8 +126,8 @@
     },
     {
       "path": "src/adapters/iflow.js",
-      "sha256": "80e2c694293735eb4a00a302cb6c6219a3d7305b761ea16d94fb83e3d83c3552",
-      "bytes": 2854
+      "sha256": "df02d026468bcb745c85388f288dc904c950c8c3d658c28a356701041f1dd358",
+      "bytes": 2561
     },
     {
       "path": "src/adapters/junie.js",
@@ -186,28 +186,28 @@
     },
     {
       "path": "src/agent/runner.js",
-      "sha256": "6291c7265a3171bb6d426fa24d9c40ff5404e1147e6e1451e3817cd888861f88",
-      "bytes": 22752
+      "sha256": "dcde090a9c71b3d1e306b3af2c1ae87cd9a465163269b40ef055c6e11f4bf20a",
+      "bytes": 23006
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "a2e156ffadddeed0cb263504aa7a1044d6b17eb7004aa83eb354bc96b5c005ae",
-      "bytes": 81672
+      "sha256": "f7bec07ef5d01334d07d0097a1c331eb888aba9673713f48b85479a0b85cae4f",
+      "bytes": 83555
     },
     {
       "path": "src/agents/adapter-contract.md",
-      "sha256": "19800e8330a43ccffc181a7a1ac35db4d7c3d220d4f155b280208fa829685fac",
-      "bytes": 12226
+      "sha256": "b0235ec785d8789d355ac3c11defc716ecac35f028c6b5e85cc1cf7768a329e2",
+      "bytes": 13315
     },
     {
       "path": "src/agents/adapter-factory.js",
-      "sha256": "f8dceab129cb8f75d7a7a4e48b6bbec5388f0e5b8bf82ceca11d4ecd98dd6f7c",
-      "bytes": 15290
+      "sha256": "a27e29fda00ef0c29bd1f4c7200caf4bdf1645a2ac07b820bdaacf7968f7d8b3",
+      "bytes": 15101
     },
     {
       "path": "src/agents/catalog-entries/aider.json",
-      "sha256": "fe28a557b5d15a9dda27d3d34fd477ca30ee53afff580c9fe83295139b3dac49",
-      "bytes": 2066
+      "sha256": "53d3b604d040a96144cb0b19a2f5f149d2dd42c100999ba39dfd5917a48f30a5",
+      "bytes": 2078
     },
     {
       "path": "src/agents/catalog-entries/amp.json",
@@ -281,8 +281,8 @@
     },
     {
       "path": "src/agents/catalog-entries/iflow.json",
-      "sha256": "6017941324e23762ae4bf68792230da42a0a9d1867c52d6df88669cf4a5304a9",
-      "bytes": 2440
+      "sha256": "803d8baf5a3c1b97f8915c4166ce82121fb9b330b4f15cec2598410e038ed57a",
+      "bytes": 2252
     },
     {
       "path": "src/agents/catalog-entries/junie.json",
@@ -306,8 +306,8 @@
     },
     {
       "path": "src/agents/catalog-entries/opencode.json",
-      "sha256": "2d026d59deebe6c16f3588a7c11d4d7d893625d94cc433ab3519b690b1fcfde9",
-      "bytes": 2334
+      "sha256": "2228a91e83864f9e79c6dfd0b019818725adf7479d8e2d3a9d51d7706177222c",
+      "bytes": 2486
     },
     {
       "path": "src/agents/catalog-entries/openhands.json",
@@ -346,13 +346,18 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "5918127950196d6cd1fe0b56b3e5d0d13e81dfa29f77e50e5e3bfec970168abb",
-      "bytes": 81135
+      "sha256": "d01d36bfb9986f82514932a47a292b35570f5de699f7dec329552fca98d2b638",
+      "bytes": 81111
     },
     {
       "path": "src/agents/identify.js",
       "sha256": "b195b5d63ca735d9c484fae0af6028d787f844774762e9a731fa7e4070c5e014",
       "bytes": 15747
+    },
+    {
+      "path": "src/agents/product-runtime.js",
+      "sha256": "efc48183a9e4c518cd27ec103e2b8ab296e15ae0d888aed29f6d15284ef8a0be",
+      "bytes": 2214
     },
     {
       "path": "src/agents/profile-store.js",

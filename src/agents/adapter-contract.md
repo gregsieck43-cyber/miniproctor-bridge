@@ -61,7 +61,7 @@ bridge/test/<agent_key>-adapter.test.js       # 解析器 fixture 对拍（§3.4
 2. `display_name` 多语言自由；`agent_key`/`aliases` 一律 ASCII——目录多语言边界。
 3. `verification.status = verified` 必须给 `evidence`（测试文件或探针记录路径）；无证据 = `pending`。
 
-## 2. 能力声明与守卫（src/adapters/capabilities.js）
+## 2. 能力声明与守卫（src/adapters/capabilities.js；profile 产品视图见 §2.4）
 
 ### 2.1 能力键（V12-09 拆分，8 布尔）
 
@@ -70,7 +70,7 @@ v0.2 的 `send` 更名——初始输入与追加输入是两个独立能力）�
 `approve`（回写审批决议）、`fileChanges`（上报文件变更）、`usage`（上报 token 用量；
 无统计不得伪造，§8.3）。非布尔维度：`integrationMode`、`initialPromptChannel`。
 
-### 2.2 两层视图
+### 2.2 协议适配器两层视图（无 profile 的旧会话）
 
 - **声明层 `ADAPTER_CAPABILITIES`**：代码路径是否存在。session-manager 执行门禁依据
   （不支持 → `capability-unsupported` 零进程拒绝，E13 立场不变）。
@@ -89,11 +89,25 @@ v0.2 的 `send` 更名——初始输入与追加输入是两个独立能力）�
 |---|---|---|
 | L1 fixture | 解析器 fixture 对拍（证明"若 CLI 发帧则能解析"） | claude-code/codex 的 fileChanges、usage |
 | L2 演示宿主往返 | CI 内真实子进程 + 演示帧端到端 | claude-code/codex 的 read/stop/create；claude-code 的 append/approve |
-| L3 真实 CLI 往返 | 真实官方 CLI 全链路（挂 V03 验证队列） | 暂无——append/approve/fileChanges/usage 因此不开放 |
+| L3 真实 CLI 往返 | 真实官方 CLI 全链路（挂 V03 验证队列） | OpenCode 1.18.20 本机 profile create/read/stop/usage 已复验；其他产品逐卡取证 |
 
 V03 逐项回收后由对应任务把能力翻入 `VERIFIED_CAPABILITIES`（附证据路径），并同步本文件与
 catalog-entry 的 `verification`。**开放视图当前取 L2**（bridge 自有能力，CI 持续验证）；L3 只升级
-证据等级、不改变"未经真实验证不得开放"的底线（V03 完成前 CLI 依赖能力一律不开放）。
+证据等级、不改变"未经真实验证不得开放"的底线（此句约束 §2.2 旧适配器，产品 profile 的逐键验证见 §2.4）。
+
+### 2.4 V1.2 已绑定产品的能力视图
+
+协议 `agent_type` 仍只取 `claude-code|codex|generic`，多个产品可以共用 generic 信封；
+`agent_key` 是 profile 冻结的产品身份。`src/agents/product-runtime.js` 仅为受信任的本机
+产品登记静态 argv 配方，从该产品 catalog 条目得到声明层和 `verification.status=verified`
+的开放视图。`AdapterFactory` 要求该产品配方与 create 均已验证才生成冻结规格；
+`SessionManager` 用该规格检查动作、输出 `session_meta.capabilities`，并按产品键定向解析。
+没有配方的 generic 产品不能继承 OpenCode 的 create。无 profile 会话仍按 §2.2 的
+`capabilitiesFor/openCapabilitiesFor` 工作。
+
+OpenCode 的本机真实 CLI 与正常 profile create/read/stop/usage 证据见
+`docs/release/v1.2/agents/opencode.md`；手机可见和手机停止属于 V12-26/§23.1
+发布验收，目录能力验证不替代该门禁。
 
 ## 3. 解析器接口（src/adapters/<agent_key>.js）
 

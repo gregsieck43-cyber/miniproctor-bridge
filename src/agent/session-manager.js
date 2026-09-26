@@ -5,6 +5,8 @@ import { SessionSequencer, createEvent, sanitizePreview } from '../lib/events.js
 import { EventOutbox } from '../lib/outbox.js';
 import { CommandInbox } from '../lib/inbox.js';
 import { lineToEvent } from '../adapters/generic.js';
+import { AiderOutputAccumulator } from '../adapters/aider.js';
+import { IflowOutputAccumulator } from '../adapters/iflow.js';
 import { capabilitiesFor, openCapabilitiesFor, authorizeWorkspace } from '../adapters/capabilities.js';
 import { appendAuditLine } from '../lib/audit.js';
 import { loadUiOverrides } from '../lib/agent-config.js';
@@ -28,6 +30,7 @@ export const EVENT_BUFFER_MAX = 2000;
 // 截断事件本身也必须有界；超出的截断只计数，随 session_exit.truncation_events_suppressed 汇总。
 export const MAX_TRUNCATION_EVENTS = 50;
 const MAX_BACKOFF_EXPONENT = 10; // 防 2^n 溢出，30s 封顶由 maxBackoffMs 保证
+const TEXT_OUTPUT_DRAIN_MS = 3000;
 
 const APPROVAL_RESULT_TEXT = Object.freeze({
   applied: '审批已执行：允许',
@@ -73,6 +76,7 @@ export class ManagedSession {
     agentType = 'generic',
     command,
     args = [],
+    productEnv = null,
     cwd,
     correlationId = null,
     // TASK-008：审批 deadline（毫秒）与本机超时动作（config.bridge.permissionTimeoutAction）
@@ -84,6 +88,7 @@ export class ManagedSession {
     agentKey = null,
     adapterVersion = null,
     capabilitySnapshot = null,
+    executionCapabilities = null,
   }) {
     this.sessionId = sessionId;
     this.agentType = agentType;
@@ -94,15 +99,20 @@ export class ManagedSession {
     this.profileId = profileId;
     this.profileRevision = profileRevision;
     this.agentKey = agentKey;
+    this.aiderOutput = agentKey === 'aider' ? new AiderOutputAccumulator() : null;
+    this.iflowOutput = agentKey === 'iflow' ? new IflowOutputAccumulator() : null;
+    this.textOutput = this.aiderOutput || this.iflowOutput;
     this.adapterVersion = adapterVersion;
-    this.capabilitySnapshot = capabilitySnapshot;
+    this.capabilitySnapshot = capabilitySnapshot ? Object.freeze({ ...capabilitySnapshot }) : null;
     // V12-11：Agent 原生会话 ID（claude system/init 的 session_id；codex thread.started 的
     // thread_id）——按 profile 命名空间归档到 launch ledger（见 SessionManager.startSession）。
     this.nativeSessionRef = null;
     // TASK-012：能力声明（adapter 级真实能力；session-manager 据此拒绝不支持的操作）
-    this.capabilities = capabilitiesFor(agentType);
+    this.capabilities = executionCapabilities
+      ? Object.freeze({ ...executionCapabilities })
+      : capabilitiesFor(agentType);
     this.sequencer = new SessionSequencer();
-    this.runner = new AgentRunner({ command, args, cwd });
+    this.runner = new AgentRunner({ command, args, cwd, env: productEnv });
     this.status = 'starting';
     this.lastSeq = 0;
     this.exitInfo = null;
@@ -118,6 +128,8 @@ export class ManagedSession {
     // V12-11：原生会话 ID 归档回调（SessionManager 注入 → launch ledger profile 命名空间）
     this._onNativeSessionRef = null;
     this._exitHandled = false;
+    this._textExitInfo = null;
+    this._textDrainTimer = null;
     // 用户/系统显式停止：进程终止应归因为 ended（stopped），非崩溃
     this._stopRequested = false;
     // 最近一次 respondAction 失败原因（供 approval_result / 错误事件归因）
@@ -136,6 +148,13 @@ export class ManagedSession {
       : (event) => { transport?.pushEvents([event]).catch(() => {}); };
     this._onExit = typeof onExit === 'function' ? onExit : null;
     this.runner.on('line', (line, meta) => {
+      // 截断行不是完整产品帧；先记录证据，再拒绝交给任何解析器。
+      // Aider 的最终答复按退出时聚合，必须记住这次丢字节，不能把残片标成完整回复。
+      if (meta?.truncated) {
+        if (this.textOutput) this.textOutput.truncated = true;
+        this.emitTruncationWithinBudget(meta);
+        return;
+      }
       // V12-11：适配器解析崩溃只隔离目标任务（§8.3）——trackLineState/mapLineToEvents 的
       // 任何异常都折为本会话 error 事件 + 计数，绝不外抛（外抛会让 supervisor 连坐全部任务）。
       let events;
@@ -152,17 +171,6 @@ export class ManagedSession {
         if (event.event_type === 'confirm_required' && event.payload?.request_id && this.deadlineMs > 0) {
           event.payload.deadline = Date.now() + this.deadlineMs;
           this.armDeadlineTimer(event.payload.request_id);
-        }
-        // TASK-012：超长行截断标记——不再把 256KB 截断文本映射为完整事件（结构上限）。
-        // V1-019①：截断事件本身也有预算（洪峰下事件通道不被截断风暴打爆）。
-        if (meta && meta.truncated) {
-          if (this._truncationEventsSent < MAX_TRUNCATION_EVENTS) {
-            this._truncationEventsSent += 1;
-            this.pushEventNow(this.truncationEvent(meta));
-          } else {
-            this._truncationEventsSuppressed += 1;
-          }
-          continue;
         }
         this.pushEventNow(event);
       }
@@ -185,26 +193,30 @@ export class ManagedSession {
         },
       }));
     });
-    this.runner.on('exit', (info) => this.handleRunnerExit(info));
+    this.runner.on('exit', (info) => {
+      if (!this.textOutput || info?.error) {
+        this.handleRunnerExit(info);
+        return;
+      }
+      this._textExitInfo = info;
+      // 子进程 exit 已发生但管道可能还在排空；无 close 时按不完整输出收口。
+      this._textDrainTimer = setTimeout(() => {
+        this.textOutput.truncated = true;
+        this.handleRunnerExit(info);
+      }, TEXT_OUTPUT_DRAIN_MS);
+    });
+    this.runner.on('io-close', (info) => {
+      if (this.textOutput && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || info);
+    });
     this.runner.start();
     this.status = 'running';
-    // P2-E（CLOSE-007）：codex 会话 stdin 启动即 EOF。
-    // 依据（2026-09-18 codex-cli 0.144.1 / Windows 实测，探针存 xcx/.tmp/close-007/probes/）：
-    //   - stdin 常开 + 无 prompt argv：codex 打印 "Reading prompt from stdin..." 后无限等待
-    //     （45s 观察窗零输出零退出，探针强杀）→ create_session 无 prompt 时永久挂起；
-    //   - stdin 常开 + prompt 在 argv：codex 仍等待 stdin EOF（`codex exec --help` 明示
-    //     "stdin is appended as a <stdin> block"），实测同样零输出挂起——bridge 旧行为下
-    //     初始会话 150s 无任何事件（侦察 run1/run2 一致复现）；
-    //   - stdin 立即 EOF + prompt 在 argv：正常启动（thread.started → turn.started）；
-    //   - stdin 立即 EOF + 无 prompt argv：约 340ms 显式报错退出（"No prompt provided
-    //     via stdin."，exit 1），会话以 session_exit(failed) 收场，不悬挂。
-    // bridge 对 codex 会话的一切写 stdin 路径（send_text/respond_action/prompt 注入）均被
-    // 能力协商拒绝——立即 EOF 不损失任何功能，只消除整类挂起。二选一裁决：选「立即 EOF」
-    // 而非「create_session 能力拒绝」——codex 任务提示本就来自 config args（argv 末位），
-    // EOF 后真实可用（harness codex 模式验证）。
-    // 范围仅 codex：generic 是任意用户 CLI，stdin 契约未知、无实测依据（有的 CLI 合法
-    // 等待输入），不随本修复改变行为；claude-code 需要 stdin 双向帧，不适用。
-    if (this.agentType === 'codex') {
+    // Codex 和已验证的 profile 产品若只通过 argv 接收初始 prompt、且不支持中途追加，
+    // 启动后应立即发 stdin EOF；否则 CLI 可能等待管道结束才处理 argv。Codex 的证据
+    // 见 CLOSE-007，OpenCode 1.18.20 的真实探针见 V12-A05 证据卡。未绑定产品的
+    // generic 会话以及需要 stdin 双向帧的 Claude 会话保持原行为。
+    if (this.agentType === 'codex' || (this.profileId
+      && this.capabilities.initialPromptChannel === 'launch-args'
+      && this.capabilities.append === false)) {
       try { this.runner.stdin?.end(); } catch { /* stdin 已关闭/不可用则忽略 */ }
     }
     // TASK-029：AGENTS.md `ui` 块 → 白名单化 ui_overrides 随 session_meta 上报。
@@ -229,7 +241,7 @@ export class ManagedSession {
           // TASK-012：能力协商——前端以此禁用不支持操作的按钮（矩阵 §2）。
           // V12-09：对外宣称取开放视图（声明 ∩ 验证，未经真实验证的能力不得开放）；
           // 执行门禁仍按声明层（this.capabilities，capabilitiesFor）。
-          capabilities: openCapabilitiesFor(this.agentType),
+          capabilities: this.capabilitySnapshot || openCapabilitiesFor(this.agentType),
           // V12-11：profile 路由来源（创建时冻结；legacy/初始会话为 null——
           // 云端 sessions 投影 v0.3 字段，schema.cjs SESSION_SCHEMA 同名同形）。
           ...(this.profileId ? {
@@ -276,11 +288,42 @@ export class ManagedSession {
   handleRunnerExit(info) {
     if (this._exitHandled) return; // 'error' 与 'exit' 双发时先到者为准
     this._exitHandled = true;
+    if (this._textDrainTimer) clearTimeout(this._textDrainTimer);
+    this._textDrainTimer = null;
     this.exitInfo = info;
     // 显式停止（stop_session/stopAll）导致的进程终止 → ended；非停止路径按退出规则
     this.status = this._stopRequested && !info?.error ? 'ended' : resolveExitStatus(info);
     this.clearAllDeadlineTimers();
     this.pendingInputs.clear();
+    const textFinal = this.textOutput?.finish({
+      success: info?.code === 0 && !this._stopRequested,
+      stderrTail: this.runner.stderrTail,
+    });
+    if (textFinal) {
+      this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'agent_message',
+        payload: {
+          message_id: `m_${this.agentKey}_${this.sequencer.next()}`,
+          role: 'assistant', content: textFinal.content, content_type: 'text', is_final: !textFinal.truncated,
+        },
+      }));
+      this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'session_end',
+        payload: {
+          reason: textFinal.truncated ? 'failed' : 'completed',
+          summary: textFinal.truncated ? 'Agent 回复超出桥接缓冲上限，已截断' : `${this.agentKey} 单次任务完成`,
+          usage: {},
+        },
+      }));
+    } else if (this.textOutput && info?.code === 0 && !this._stopRequested) {
+      this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'session_end',
+        payload: { reason: 'failed', summary: `${this.agentKey} 进程已退出，但没有可识别的最终答复`, usage: {} },
+      }));
+    }
     const failed = this.status === 'failed';
     const payload = {
       custom_type: 'session_exit',
@@ -348,7 +391,20 @@ export class ManagedSession {
 
   /** 适配器分发（session ↔ adapters 唯一接线点经 generic.js lineToEvent）。 */
   mapLineToEvents(line) {
-    return lineToEvent(line, { sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer });
+    if (this.textOutput) {
+      this.textOutput.consume(line);
+      return [];
+    }
+    return lineToEvent(line, { sessionId: this.sessionId, agentType: this.agentType, agentKey: this.agentKey, sequencer: this.sequencer });
+  }
+
+  emitTruncationWithinBudget(meta) {
+    if (this._truncationEventsSent < MAX_TRUNCATION_EVENTS) {
+      this._truncationEventsSent += 1;
+      this.pushEventNow(this.truncationEvent(meta));
+    } else {
+      this._truncationEventsSuppressed += 1;
+    }
   }
 
   /**
@@ -1406,7 +1462,7 @@ export class SessionManager {
       }
       // 声明层执行门禁（adapter-contract §2.2）：verified create 已在工厂把关，此处防御兜底；
       // workspace_id 为 opaque 引用，真实路径在本机由 cwd/授权列表裁决（云端不解析）。
-      const caps = capabilitiesFor(spec.agentType);
+      const caps = spec.executionCapabilities || capabilitiesFor(spec.agentType);
       if (!caps.create) return { ok: false, error: 'profile-capability-unsupported' };
       if (prompt && !caps.initialPromptChannel) {
         return { ok: false, error: 'capability-unsupported', capability: 'initial_prompt', reason: 'prompt-inject-unsupported' };
@@ -1499,12 +1555,14 @@ export class SessionManager {
         agentType: spec.agentType,
         command: spec.command,
         args: launchPrompt ? [...spec.args, launchPrompt] : spec.args, // 冻结 args + 可选末位 prompt
+        productEnv: spec.productEnv,
         cwd: authz.cwd,
         correlationId,
         profileId: spec.profileId,
         profileRevision: spec.profileRevision,
         agentKey: spec.agentKey,
         adapterVersion: spec.adapterVersion,
+        executionCapabilities: spec.executionCapabilities,
         capabilitySnapshot: spec.capabilitySnapshot,
       });
       // profile 恢复记录：启动台账（含进程归属身份，重启对账依据）

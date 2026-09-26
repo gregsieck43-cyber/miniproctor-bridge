@@ -17,28 +17,28 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
-        "read": false,
-        "stop": false,
+        "create": true,
+        "read": true,
+        "stop": true,
         "append": false,
         "resume": false,
         "approve": false,
         "fileChanges": false,
         "usage": false
       },
-      "initial_prompt_channel": null,
+      "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "解析器 fixture 对拍 + 启动参数安全模板（bridge/test/adapters/aider-adapter.test.js）；真实 CLI 往返未取证（本机未安装 aider，V12-A09 探测 2026-09-26），工厂 verified create 门槛未过"
+          "status": "verified",
+          "evidence": "Windows 本机 Aider 0.86.2 + DeepSeek Flash：--message 真实执行得到 bridgepong 最终回复且 exit=0；只开放 aider agent_key，手机/真云闭环未验，见 V12-A09 证据卡"
         },
         "read": {
-          "status": "pending",
-          "evidence": "文本行经 generic 兜底呈现 + 畸形输入隔离 fixture（bridge/test/adapters/aider-adapter.test.js）；真实 CLI 往返未取证（本机未安装 aider，V12-A09 探测 2026-09-26）"
+          "status": "verified",
+          "evidence": "真实 CLI stdout 经有界回合聚合器过滤启动信息与 THINKING 后，ManagedSession 产生 agent_message(bridgepong) 与 session_end(completed)；手机可见未验，见 V12-A09 证据卡"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "进程树终止为 generic 既有能力（runner*.test.js）；aider 真实进程未实测，V12-A09 探测 2026-09-26"
+          "status": "verified",
+          "evidence": "真实 Aider 进程 PID 4032 活跃时 stop：exited=true、taskkill_exit_code=0、无伪造最终回复；手机 stop 未验，见 V12-A09 证据卡"
         },
         "append": {
           "status": "unavailable",
@@ -983,32 +983,32 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
-        "read": false,
-        "stop": false,
+        "create": true,
+        "read": true,
+        "stop": true,
         "append": false,
         "resume": false,
         "approve": false,
         "fileChanges": false,
         "usage": false
       },
-      "initial_prompt_channel": null,
+      "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "unavailable",
-          "evidence": "官方快照仅记载交互式 TUI，无 headless/非交互模式文档（xcx/docs/官方资料/A22-iflow-cli-quickstart.md，2026-09-25）；解析器骨架 xcx/bridge/src/adapters/iflow.js（探测恒 false，不猜测帧格式）；本机 command -v iflow 未安装（2026-09-26），help/版本实验未执行；证据卡 xcx/docs/release/v1.2/agents/iflow.md（BLOCKED）"
+          "status": "verified",
+          "evidence": "Windows 本机 iFlow CLI 0.5.19：官方 --prompt 非交互入口、--default 人工审批，DeepSeek Flash 自定义 API 真实回复 iflowpong、退出码 0；仅本产品本机开放，手机/真云未验，见 A22 证据卡"
         },
         "read": {
-          "status": "unavailable",
-          "evidence": "输出帧格式未验证（快照无协议记载）；解析器骨架 xcx/bridge/src/adapters/iflow.js 防御式 custom 兜底；文本行最终回复经 generic 兜底通路（test/adapters/iflow-adapter.test.js，L1 对拍）；证据卡 xcx/docs/release/v1.2/agents/iflow.md（BLOCKED）"
+          "status": "verified",
+          "evidence": "真实 0.5.19 stdout=iflowpong、stderr Execution Info assistantRounds=1；产品聚合器仅成功退出且完成标记有效时发最终 agent_message；手机可见未验，见 A22 证据卡"
         },
         "stop": {
-          "status": "unavailable",
-          "evidence": "官方快照无受控停止接口（/exit 仅为 TUI 内命令）；证据卡 xcx/docs/release/v1.2/agents/iflow.md（BLOCKED）"
+          "status": "verified",
+          "evidence": "真实 iFlow CLI .cmd 进程 PID 49688 活跃时 ManagedSession.stop 返回 exited=true/taskkill_exit_code=0，无假最终回复；手机 stop 未验，见 A22 证据卡"
         },
         "append": {
           "status": "unavailable",
-          "evidence": "非交互追加输入通道未文档化；证据卡 xcx/docs/release/v1.2/agents/iflow.md"
+          "evidence": "--prompt 单次任务启动参数通道，未接入追加输入；证据卡 xcx/docs/release/v1.2/agents/iflow.md"
         },
         "resume": {
           "status": "unavailable",
@@ -1016,7 +1016,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "审批回写通道未文档化（yolo 模式为全放行，不符合最小权限，不采用）；证据卡 xcx/docs/release/v1.2/agents/iflow.md"
+          "evidence": "--default 要求人工审批，但 bridge 尚未对接 iFlow 审批回写；yolo 不采用，证据卡 xcx/docs/release/v1.2/agents/iflow.md"
         },
         "fileChanges": {
           "status": "unavailable",
@@ -1312,16 +1312,16 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "真实 CLI 最小往返成功（opencode 1.18.20 / win32，`run --format json` 初始 prompt→text→step_finish→退出码 0，2026-09-25，证据卡 docs/release/v1.2/agents/opencode.md）；bridge 实机 spawn→手机可见闭环未跑"
+          "status": "verified",
+          "evidence": "2026-09-26 win32/OpenCode 1.18.20：真实 AgentRunner 与 SessionManager profile 初始 prompt→最终回复→进程退出；stdin EOF 回归见 bridge/test/agents-profile-routing.test.js，详情 docs/release/v1.2/agents/opencode.md；手机验收仍待 V12-26"
         },
         "read": {
           "status": "verified",
-          "evidence": "真实 opencode 1.18.20 往返帧脱敏固化 fixture 对拍：bridge/test/adapters/opencode-adapter.test.js + bridge/test/fixtures/opencode/（step_start/text/tool_use/step_finish/error 五类真实帧，V12-A05）"
+          "evidence": "2026-09-26 真实 bridge profile 收到 step_start/text/step_finish，映射 task_progress/agent_message/session_end；fixtures 对拍见 bridge/test/adapters/opencode-adapter.test.js，详情 docs/release/v1.2/agents/opencode.md"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "stdio 单进程模式 stop=runner 进程树终止（bridge 自有能力，bridge/test/runner*.test.js 覆盖通用路径）；OpenCode 实机 stop→子进程退出未单独取证"
+          "status": "verified",
+          "evidence": "2026-09-26 真实 OpenCode 活跃步骤由 AgentRunner.stop 与 SessionManager stop_session 定向终止，taskkill_exit_code=0、exited=true，独立进程保持存活；详情 docs/release/v1.2/agents/opencode.md；手机验收仍待 V12-26"
         },
         "append": {
           "status": "unavailable",
@@ -1340,8 +1340,8 @@ export const CATALOG_ENTRIES = Object.freeze(  [
           "evidence": "真实往返仅见 text/tool_use 帧，无文件变更 diff 帧证据，不伪造（V12-A05 实测）"
         },
         "usage": {
-          "status": "pending",
-          "evidence": "真实 step_finish 帧携带 tokens/cost（fixture 对拍映射入 session_end.usage），bridge 上行路径未验（V12-A05 实测帧，2026-09-25）"
+          "status": "verified",
+          "evidence": "2026-09-26 真实 bridge profile session_end.usage 收到 input_tokens=192/output_tokens=2；映射回归见 bridge/test/adapters/opencode-adapter.test.js，详情 docs/release/v1.2/agents/opencode.md"
         }
       },
       "probe": {

@@ -5,21 +5,20 @@
  * 契约来源：主方案 §7.1/§8.2/§8.3 与 src/agents/adapter-contract.md §0/§2/§4：
  *   - create_session 携带 agent_profile_id 时，启动规格只能来自该 profile 的冻结 spec——
  *     任何解析失败都是明确错误（ProfileRouteError.code），绝不 fallback defaultSpec（§8.2/N09）；
- *   - adapter 按 catalog 条目 adapter_id 路由，且必须通过 verified create 门槛：
- *     VERIFIED_CAPABILITIES[adapter] 含 create 且 catalog.verification.create.status='verified'
- *     （能力校验 create 最低门槛；未验证规格不得替用户拉新进程）；
+ *   - adapter_id 保持协议路由，启动配方及 verified create 按 agent_key 单独验证；
+ *     没有本地配方或该产品 verification.create 未 verified 时不拉新进程；
  *   - bridge 二次验证本地 profile：存在/未删除/未停用/revision 一致/agent_key 一致/
  *     可执行文件真实路径存在（§8.2）；profile 自带 workspace_allowlist 由 session-manager
  *     叠加校验（spec 携带冻结副本）；
  *   - spec 生成即冻结（Object.freeze）：运行中 profile 热改不影响已创建会话（T07）；
- *   - 启动参数（args）默认取 lib/config.js AGENT_PRESETS 的对应 CLI 预设（既有本机事实，
- *     不新造旗标）；可注入 launchArgsResolver 覆盖（测试/后续适配组提供逐产品模板）。
+ *   - 启动参数默认取随发行的 product-runtime 静态配方；可注入 launchArgsResolver
+ *     覆盖测试规格，不接受云端下发可执行参数模板。
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCatalogEntry } from './catalog.js';
-import { ADAPTER_CAPABILITIES, openCapabilitiesFor } from '../adapters/capabilities.js';
-import { AGENT_PRESETS } from '../lib/config.js';
+import { ADAPTER_CAPABILITIES } from '../adapters/capabilities.js';
+import { getProductRuntime } from './product-runtime.js';
 
 /** profile 路由失败码（与 event-protocol.md §14.4 扁平错误串对齐；§14.4 未列的为本机校验扩展）。 */
 export const PROFILE_ROUTE_ERROR_CODES = Object.freeze([
@@ -57,7 +56,7 @@ export class AdapterFactory {
    * @param {object} opts
    * @param {ProfileStore} opts.profileStore 本机 profile 存储实例（V12-08）
    * @param {Function} [opts.launchArgsResolver] ({ agentKey, adapterId, profile }) => string[]
-   *   逐产品启动参数模板；缺省按 AGENT_PRESETS[adapterId].args 取既有 CLI 预设（generic → []）。
+   *   测试注入启动参数；生产缺省取 product-runtime 的产品静态配方。
    * @param {Function} [opts.fileExists] 路径存在性检查（测试注入）；默认 fs.existsSync
    */
   constructor({ profileStore, launchArgsResolver = null, fileExists = (p) => fs.existsSync(p) } = {}) {
@@ -71,10 +70,10 @@ export class AdapterFactory {
    * 解析 profile.agent_key → verified adapter（能力校验 create 最低门槛）：
    *   - catalog 条目必须存在（profile 登记时已拒绝 unknown，防御兜底）；
    *   - adapter_id 必须是已实现适配器（ADAPTER_CAPABILITIES 有行）；
-   *   - verified create 双闸门：① catalog verification.create.status='verified'（目录证据）；
-   *     ② openCapabilitiesFor(adapterId).create=true（bridge 侧声明∩验证，capabilities.js 两层视图）。
-   *     两层都必须过——只声明未验证的 adapter 不得实例化新会话。
-   * @returns {{ entry, adapterId }}
+   *   - 产品必须有本机静态启动配方；verified create 双闸门：① catalog 的该产品
+   *     verification.create.status='verified'；② 产品开放能力 create=true。
+   *     不能借同一个 generic adapter 下其他产品的验证结果放行。
+   * @returns {{ entry, adapterId, runtime }}
    * @throws {ProfileRouteError} 'profile-capability-unsupported'
    */
   resolveVerifiedAdapter(agentKey) {
@@ -86,15 +85,17 @@ export class AdapterFactory {
     if (!ADAPTER_CAPABILITIES[adapterId]) {
       throw new ProfileRouteError(`adapter 未实现：${adapterId}（agent_key=${agentKey}）`, { code: 'profile-capability-unsupported' });
     }
+    const runtime = getProductRuntime(agentKey);
     const verifiedCreate = entry.verification?.create?.status === 'verified'
-      && openCapabilitiesFor(adapterId).create === true;
+      && runtime?.adapterId === adapterId
+      && runtime.open.create === true;
     if (!verifiedCreate) {
       throw new ProfileRouteError(
         `adapter ${adapterId}（agent_key=${agentKey}）create 能力未通过验证门槛，不得实例化新会话`,
         { code: 'profile-capability-unsupported' },
       );
     }
-    return { entry, adapterId };
+    return { entry, adapterId, runtime };
   }
 
   /**
@@ -133,7 +134,7 @@ export class AdapterFactory {
         );
       }
     }
-    const { adapterId } = this.resolveVerifiedAdapter(profile.agent_key);
+    const { adapterId, runtime } = this.resolveVerifiedAdapter(profile.agent_key);
     const ref = profile.executable_ref || {};
     const command = String(ref.resolved_path || ref.command || '').trim();
     if (!command) throw new ProfileRouteError(`profile 缺少可执行命令：${id}`, { code: 'profile-executable-missing' });
@@ -146,7 +147,7 @@ export class AdapterFactory {
     } else if (/[\\/]/.test(command) && !this._fileExists(command)) {
       throw new ProfileRouteError(`profile 可执行文件不存在：${command}`, { code: 'profile-executable-missing' });
     }
-    const args = this.resolveLaunchArgs({ agentKey: profile.agent_key, adapterId, profile });
+    const args = this.resolveLaunchArgs({ agentKey: profile.agent_key, adapterId, profile, runtime });
     return Object.freeze({
       profileId: profile.profile_id,
       profileRevision: profile.revision, // 冻结创建时刻 revision（profile 热改不影响本会话）
@@ -154,20 +155,21 @@ export class AdapterFactory {
       agentType: adapterId,
       command,
       args: Object.freeze([...args]),
+      productEnv: runtime.env,
       adapterVersion: profile.adapter_version || null,
-      capabilitySnapshot: Object.freeze({ ...openCapabilitiesFor(adapterId) }),
+      executionCapabilities: runtime.declared,
+      capabilitySnapshot: runtime.open,
       workspaceAllowlist: Object.freeze([...(profile.workspace_allowlist || [])]),
     });
   }
 
-  /** 启动参数：注入 resolver 优先；缺省 AGENT_PRESETS[adapterId].args（generic/未知 → []，宁空勿错）。 */
-  resolveLaunchArgs({ agentKey, adapterId, profile }) {
+  /** 启动参数：注入 resolver 优先；否则只取随发行的产品静态配方。 */
+  resolveLaunchArgs({ agentKey, adapterId, profile, runtime }) {
     if (this.launchArgsResolver) {
       const out = this.launchArgsResolver({ agentKey, adapterId, profile });
       return Array.isArray(out) ? out.map(String) : [];
     }
-    const preset = AGENT_PRESETS[adapterId];
-    return preset && Array.isArray(preset.args) ? [...preset.args] : [];
+    return runtime ? [...runtime.args] : [];
   }
 }
 

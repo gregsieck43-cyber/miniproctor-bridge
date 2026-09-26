@@ -40,10 +40,35 @@ import { isQwenStreamType, mapQwenRaw } from './qwen-code.js';
 // V12-A04（适配组4）：cursor-cli print/stream-json 探测与分发（契约 §3 授权的唯一接线点）。
 import { isCursorCliStreamType, mapCursorCliRaw } from './cursor-cli.js';
 
-export function lineToEvent(line, { sessionId, agentType = 'generic', sequencer }) {
+const PROFILE_PARSERS = Object.freeze({
+  'claude-code': Object.freeze({ accepts: isClaudeStreamType, map: mapClaudeRaw, agentType: 'claude-code' }),
+  codex: Object.freeze({ accepts: isCodexStreamType, map: mapCodexRaw, agentType: 'codex' }),
+  opencode: Object.freeze({ accepts: isOpenCodeStreamType, map: mapOpenCodeRaw, agentType: 'generic' }),
+});
+
+export function lineToEvent(line, { sessionId, agentType = 'generic', agentKey = null, sequencer }) {
   if (!line) return [];
   let raw = null;
   try { raw = JSON.parse(line); } catch { raw = null; }
+  // Profile 启动时产品身份已经冻结；同形 JSON 不能再由其他产品的探测器认领。
+  // 未知帧只产生有限诊断，不把原始 stdout 或异产品 result 伪装为最终答复。
+  const hasProfileKey = typeof agentKey === 'string' && agentKey.length > 0;
+  const profileParser = hasProfileKey && Object.hasOwn(PROFILE_PARSERS, agentKey)
+    ? PROFILE_PARSERS[agentKey] : null;
+  if (hasProfileKey) {
+    if (profileParser?.accepts(raw)) {
+      return profileParser.map(raw, { sessionId, agentType: profileParser.agentType, sequencer });
+    }
+    return [createEvent({
+      sessionId, agentType: profileParser?.agentType || 'generic', sequencer,
+      eventType: 'custom',
+      payload: {
+        custom_type: 'unrecognized_product_output',
+        fallback_text: '已绑定产品输出未识别，请检查本机 CLI 版本与日志',
+        data: { agent_key: agentKey, output_format: raw && typeof raw === 'object' ? 'json' : 'text' },
+      },
+    })];
+  }
   // V12-A19/A20/A21：自报标记/产品特异信封优先甄别（理由见上方 import 处注释）。
   if (isQoderCnStreamType(raw)) {
     return mapQoderCnRaw(raw, { sessionId, agentType, sequencer });
