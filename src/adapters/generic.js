@@ -44,6 +44,7 @@ const PROFILE_PARSERS = Object.freeze({
   'claude-code': Object.freeze({ accepts: isClaudeStreamType, map: mapClaudeRaw, agentType: 'claude-code' }),
   codex: Object.freeze({ accepts: isCodexStreamType, map: mapCodexRaw, agentType: 'codex' }),
   opencode: Object.freeze({ accepts: isOpenCodeStreamType, map: mapOpenCodeRaw, agentType: 'generic' }),
+  'qwen-code': Object.freeze({ accepts: isQwenStreamType, map: mapQwenRaw, agentType: 'generic' }),
 });
 
 export function lineToEvent(line, { sessionId, agentType = 'generic', agentKey = null, sequencer }) {

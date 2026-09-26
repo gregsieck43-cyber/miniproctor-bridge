@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc2",
-  "commit": "056f1782a794a90518132bb63409bac3fadff4a5",
+  "version": "0.6.0-rc3",
+  "commit": "eb17faf44ee795852e363c9fee0d2a1bf42a80f5",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "ced7a977f6c95b46bd86d05def187bc6ee2a28af6436c01288c95bae35977b9e",
+      "sha256": "14fd173f89e880b8ccf8c8a8414755db4b9a4e4b08d81b6abc917028b4d73b13",
       "bytes": 442
     },
     {
@@ -116,8 +116,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "39e566a6f39c372f3e384712cb6e4d1390b4b81f65356bbf5382adfbfc2e0413",
-      "bytes": 14286
+      "sha256": "4e40e1ac494b93c2cac83ad8b5e3adc6fea8a153b9fa7600f2fef0a7ac79bca9",
+      "bytes": 14386
     },
     {
       "path": "src/adapters/goose.js",
@@ -171,8 +171,8 @@
     },
     {
       "path": "src/adapters/qwen-code.js",
-      "sha256": "eb10c03fe431e106826333e5b7176567e1526bd3e28f77c37358c43351ea50eb",
-      "bytes": 7768
+      "sha256": "b463cb02cbc71fdc838391f6bc1ac67e770464124a858c83c0b8ba0cb19f2229",
+      "bytes": 7933
     },
     {
       "path": "src/adapters/trae-cli.js",
@@ -326,8 +326,8 @@
     },
     {
       "path": "src/agents/catalog-entries/qwen-code.json",
-      "sha256": "59022d89a54ccd24fb4b4f33466b94bbf441ac72533e70ffb1f1c2aaf74e88d8",
-      "bytes": 2473
+      "sha256": "f844c7cb0e53cb53db154624ae23f646a25c2689370fbed5b1e4e2136b2a5af4",
+      "bytes": 2515
     },
     {
       "path": "src/agents/catalog-entries/roo-code.json",
@@ -346,8 +346,8 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "d01d36bfb9986f82514932a47a292b35570f5de699f7dec329552fca98d2b638",
-      "bytes": 81111
+      "sha256": "d6c881fa3ad5e3acaa206bbd49990352136c0b598f3b0dcfec3a077c22d45553",
+      "bytes": 81153
     },
     {
       "path": "src/agents/identify.js",
@@ -356,8 +356,8 @@
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "efc48183a9e4c518cd27ec103e2b8ab296e15ae0d888aed29f6d15284ef8a0be",
-      "bytes": 2214
+      "sha256": "e68026093cf917ce1635e912911dd5610ceaefde440782e869f8b3f430965f1d",
+      "bytes": 2375
     },
     {
       "path": "src/agents/profile-store.js",

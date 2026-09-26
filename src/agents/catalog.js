@@ -1558,7 +1558,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
+        "create": true,
         "read": true,
         "stop": true,
         "append": false,
@@ -1570,20 +1570,20 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "unavailable",
-          "evidence": "无 create 代码路径：adapter_id 归 generic 且 AdapterFactory verified create 双闸门（catalog verification + openCapabilitiesFor）均未过；真实 CLI create/read/stop 往返挂 V03"
+          "status": "verified",
+          "evidence": "2026-09-26 Windows：@qwen-code/qwen-code 0.24.6（项目内隔离安装），bridge ManagedSession 调用本机 qwen.cmd，--bare/--approval-mode default/stream-json/--prompt 创建真实会话；DeepSeek OpenAI-compatible 凭据仅进进程环境；见 docs/release/v1.2/agents/qwen-code.md"
         },
         "read": {
-          "status": "pending",
-          "evidence": "解析器已实现（bridge/src/adapters/qwen-code.js）+ fixture 对拍（bridge/test/adapters/qwen-code-adapter.test.js，L1）；stream-json 输入模式官方标注 under construction，真实 CLI 帧形未取证（V03），不进开放视图"
+          "status": "verified",
+          "evidence": "同次真实 bridge→Qwen 0.24.6 往返，收到 assistant『桥接器实测成功』、result completed、session_exit ended；profile 产品路由与 system/init 帧已接线，见 qwen-code.md"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "runner 进程树停止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js，adapter 无关）；qwen 真实 CLI 会话停止未取证（V03）"
+          "status": "verified",
+          "evidence": "同次第二个真实 CLI 会话，在 system/init 后调用 ManagedSession.stop，runner 返回 stopped=true、exited=true、force-killed、taskkill_exit_code=0，session_exit ended；见 qwen-code.md"
         },
         "append": {
           "status": "unavailable",
-          "evidence": "A15 快照：--input-format stream-json『currently under construction』，headless 单发 -p 无中途追加通道；无实现路径（声明 false）"
+          "evidence": "0.24.6 已暴露 --input-format stream-json，但 bridge 尚未实现 Qwen 会话中途追加；headless --prompt 配方只支持单次初始输入"
         },
         "resume": {
           "status": "unavailable",
@@ -1598,8 +1598,8 @@ export const CATALOG_ENTRIES = Object.freeze(  [
           "evidence": "A15 快照未定义 file_change 帧（tool_result 仅 64KB 预览上限记载）；无映射路径，不伪造（声明 false）"
         },
         "usage": {
-          "status": "pending",
-          "evidence": "仅 fixture 证据（result.usage/assistant.message.usage → session_end.usage 映射，bridge/test/adapters/qwen-code-adapter.test.js）；真实 CLI 字段未实测（V03）"
+          "status": "verified",
+          "evidence": "真实 Qwen 0.24.6 result.usage 经 bridge session_end 上行 input_tokens=7583、output_tokens=5（测试模型 DeepSeek）；见 qwen-code.md"
         }
       },
       "probe": {

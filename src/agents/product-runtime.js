@@ -8,6 +8,10 @@ const RECIPES = Object.freeze({
   'claude-code': Object.freeze({ adapterId: 'claude-code', args: AGENT_PRESETS['claude-code'].args }),
   codex: Object.freeze({ adapterId: 'codex', args: AGENT_PRESETS.codex.args }),
   opencode: Object.freeze({ adapterId: 'generic', args: ['run', '--format', 'json'] }),
+  'qwen-code': Object.freeze({
+    adapterId: 'generic',
+    args: ['--bare', '--approval-mode', 'default', '--output-format', 'stream-json', '--prompt'],
+  }),
   aider: Object.freeze({ adapterId: 'generic', args: [...AIDER_SCRIPT_FLAGS, '--message'] }),
   iflow: Object.freeze({
     adapterId: 'generic',

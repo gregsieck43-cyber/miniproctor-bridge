@@ -2,7 +2,7 @@ import { createEvent, redactThinkingEvent, sanitizePreview, truncateText } from 
 
 // Qwen Code headless `--output-format stream-json` 解析器（V12-A15）。
 // 官方资料：xcx/docs/官方资料/A15-qwen-code-headless.md（qwenlm.github.io/qwen-code-docs
-// 2026-09-25 快照）——stream-json 为 JSONL，官方示例帧型：
+// 2026-09-25 快照）——stream-json 为 JSONL；本机 0.24.6 实测 init 含 qwen_code_version：
 //   {"type":"system","subtype":"session_start",uuid,session_id,...}
 //   {"type":"assistant",uuid,session_id,message:{id,role,content:[{type:'text',text}],usage},parent_tool_use_id}
 //   {"type":"result",subtype,uuid,session_id,is_error,duration_ms,result,usage}
@@ -10,14 +10,14 @@ import { createEvent, redactThinkingEvent, sanitizePreview, truncateText } from 
 // 形态与 Claude Code stream-json 高度同源（Qwen Code 输出格式文档即按 Claude 风格给出），
 // 但任务卡明确"不能复用 Claude 解析假定兼容"：本适配器独立解析，探测只在 generic 桶生效
 // （generic.js agentType==='generic' 守卫），claude-code 会话帧型不受影响。
-// 帧内部未文档化字段一律防御式读取，取不到落 custom 兜底；真实 CLI 帧形取证挂 V03。
+// 帧内部未文档化字段一律防御式读取，取不到落 custom 兜底；真实 CLI 帧形见 A15 证据卡。
 
 /**
  * 帧形状探测（generic.js 分发器路由用；契约 §3：对 null/非对象安全）。
  * 认领规则（防止吞并 claude-code 会话帧——那些会话不进 generic 桶；generic 桶内未认领的
  * claude 同形帧保持既有 claude 探测路由不变）：
  *   - stream_event：Qwen 专有 partial-message 帧；
- *   - system：仅 subtype==='session_start'（Claude init 用 subtype='init'）；
+ *   - system：旧版 session_start，或 0.24.6 init + qwen_code_version（排除 Claude init）；
  *   - assistant/result：官方示例每帧携带 uuid（或 result.usage），以此为认领标记。
  * 不认领 {type:'error'}：A15 快照未定义 error 流帧型，且与 codex 顶层 error 同形，
  * 保持既有 codex 探测路由（close007 裁决）。
@@ -25,7 +25,8 @@ import { createEvent, redactThinkingEvent, sanitizePreview, truncateText } from 
 export function isQwenStreamType(raw) {
   if (!raw || typeof raw !== 'object' || typeof raw.type !== 'string') return false;
   if (raw.type === 'stream_event') return true;
-  if (raw.type === 'system') return raw.subtype === 'session_start';
+  if (raw.type === 'system') return raw.subtype === 'session_start'
+    || (raw.subtype === 'init' && typeof raw.qwen_code_version === 'string');
   if (raw.type === 'assistant') return raw.uuid !== undefined;
   if (raw.type === 'result') return raw.uuid !== undefined || raw.usage !== undefined;
   return false;
@@ -48,7 +49,8 @@ export function mapQwenRaw(raw, ctx) {
         payload: {
           custom_type: 'system',
           system_subtype: stringOrNull(raw.subtype) || 'unknown',
-          fallback_text: raw.subtype === 'session_start' ? 'Qwen 会话已初始化' : `系统事件：${raw.subtype || 'unknown'}`,
+          fallback_text: raw.subtype === 'session_start' || raw.subtype === 'init'
+            ? 'Qwen 会话已初始化' : `系统事件：${raw.subtype || 'unknown'}`,
           data: {
             session_id: stringOrNull(raw.session_id),
             model: stringOrNull(raw.model),
