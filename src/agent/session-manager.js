@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { AgentRunner, sanitizeDiagnosticText } from './runner.js';
 import { SessionSequencer, createEvent, sanitizePreview } from '../lib/events.js';
@@ -7,10 +8,12 @@ import { CommandInbox } from '../lib/inbox.js';
 import { lineToEvent } from '../adapters/generic.js';
 import { AiderOutputAccumulator } from '../adapters/aider.js';
 import { IflowOutputAccumulator } from '../adapters/iflow.js';
+import { OpenclawOutputAccumulator } from '../adapters/openclaw.js';
 import { capabilitiesFor, openCapabilitiesFor, authorizeWorkspace } from '../adapters/capabilities.js';
 import { appendAuditLine } from '../lib/audit.js';
 import { loadUiOverrides } from '../lib/agent-config.js';
 import { ProfileRouteError } from '../agents/adapter-factory.js';
+import { prepareProductLaunch } from '../agents/product-runtime.js';
 
 // confirm_required / error 必须即时直推，不参与批量缓冲。
 // TASK-006 后：直推 = outbox critical 优先级（首包同步发起，失败退避重试），
@@ -101,7 +104,8 @@ export class ManagedSession {
     this.agentKey = agentKey;
     this.aiderOutput = agentKey === 'aider' ? new AiderOutputAccumulator() : null;
     this.iflowOutput = agentKey === 'iflow' ? new IflowOutputAccumulator() : null;
-    this.textOutput = this.aiderOutput || this.iflowOutput;
+    this.openclawOutput = agentKey === 'openclaw' ? new OpenclawOutputAccumulator() : null;
+    this.textOutput = this.aiderOutput || this.iflowOutput || this.openclawOutput;
     this.adapterVersion = adapterVersion;
     this.capabilitySnapshot = capabilitySnapshot ? Object.freeze({ ...capabilitySnapshot }) : null;
     // V12-11：Agent 原生会话 ID（claude system/init 的 session_id；codex thread.started 的
@@ -296,7 +300,27 @@ export class ManagedSession {
     this.status = this._stopRequested && !info?.error ? 'ended' : resolveExitStatus(info);
     this.clearAllDeadlineTimers();
     this.pendingInputs.clear();
-    const textFinal = this.textOutput?.finish({
+    const openclawFrame = this.openclawOutput?.finish({ stopped: this._stopRequested });
+    if (this.openclawOutput) {
+      if (openclawFrame) {
+        try {
+          const events = lineToEvent(openclawFrame, {
+            sessionId: this.sessionId, agentType: this.agentType,
+            agentKey: this.agentKey, sequencer: this.sequencer,
+          });
+          for (const event of events) this.pushEventNow(event);
+        } catch (err) {
+          this.handleAdapterParseError(err);
+        }
+      } else if (info?.code === 0 && !this._stopRequested) {
+        this.pushEventNow(createEvent({
+          sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+          eventType: 'session_end',
+          payload: { reason: 'failed', summary: 'OpenClaw 进程已退出，但 JSON 信封缺失或超出缓冲上限', usage: {} },
+        }));
+      }
+    }
+    const textFinal = this.openclawOutput ? null : this.textOutput?.finish({
       success: info?.code === 0 && !this._stopRequested,
       stderrTail: this.runner.stderrTail,
     });
@@ -318,7 +342,7 @@ export class ManagedSession {
           usage: {},
         },
       }));
-    } else if (this.textOutput && info?.code === 0 && !this._stopRequested) {
+    } else if (this.textOutput && !this.openclawOutput && info?.code === 0 && !this._stopRequested) {
       this.pushEventNow(createEvent({
         sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
         eventType: 'session_end',
@@ -392,6 +416,10 @@ export class ManagedSession {
 
   /** 适配器分发（session ↔ adapters 唯一接线点经 generic.js lineToEvent）。 */
   mapLineToEvents(line) {
+    if (this.openclawOutput) {
+      this.openclawOutput.consume(line);
+      return [];
+    }
     if (this.textOutput) {
       this.textOutput.consume(line);
       return [];
@@ -1551,12 +1579,28 @@ export class SessionManager {
         }
       }
       const correlationId = String(command.correlation_id || command.command_id || '');
+      let prepared;
+      try {
+        prepared = prepareProductLaunch(spec, { sessionId, dataDir: this.adapterFactory.profileStore?.dir });
+        if (prepared.stateDir) fs.mkdirSync(prepared.stateDir, { recursive: true });
+      } catch (err) {
+        this.workspaceLocks?.release(sessionId);
+        appendAuditLine(this.auditFile, {
+          event: 'profile-runtime-unavailable',
+          profile_id: spec.profileId,
+          agent_key: spec.agentKey,
+          session_id: sessionId,
+          reason: err?.code || 'invalid-local-runtime',
+          command_id: command?.command_id || null,
+        });
+        return { ok: false, error: 'profile-runtime-unavailable' };
+      }
       const session = this.startSession({
         sessionId,
         agentType: spec.agentType,
         command: spec.command,
-        args: launchPrompt ? [...spec.args, launchPrompt] : spec.args, // 冻结 args + 可选末位 prompt
-        productEnv: spec.productEnv,
+        args: launchPrompt ? [...prepared.args, launchPrompt] : prepared.args, // 冻结配方 + 本机会话状态 + 可选末位 prompt
+        productEnv: prepared.productEnv,
         cwd: authz.cwd,
         correlationId,
         profileId: spec.profileId,

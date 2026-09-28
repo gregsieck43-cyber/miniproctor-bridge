@@ -1,4 +1,38 @@
+import crypto from 'node:crypto';
 import { createEvent, sanitizePreview, sanitizeSensitiveText } from '../lib/events.js';
+
+/** 2026.9.6 的 --json 实际是多行 pretty JSON；只在 stdout 管道关闭后交给信封解析器。 */
+export class OpenclawOutputAccumulator {
+  constructor({ maxBytes = 1024 * 1024 } = {}) {
+    this.maxBytes = maxBytes;
+    this.lines = [];
+    this.bytes = 0;
+    this.truncated = false;
+  }
+
+  consume(line) {
+    if (this.truncated) return;
+    const next = String(line) + '\n';
+    const bytes = Buffer.byteLength(next, 'utf8');
+    if (this.bytes + bytes > this.maxBytes) {
+      this.truncated = true;
+      this.lines = [];
+      return;
+    }
+    this.lines.push(next);
+    this.bytes += bytes;
+  }
+
+  finish({ stopped = false } = {}) {
+    if (stopped || this.truncated || this.lines.length === 0) return null;
+    try {
+      const raw = JSON.parse(this.lines.join(''));
+      return isOpenclawStreamType(raw) ? JSON.stringify(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+}
 
 // OpenClaw（V12-A27）解析器——纯函数零 IO，只做帧翻译（adapter-contract.md §3）。
 //

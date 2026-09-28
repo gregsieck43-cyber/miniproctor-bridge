@@ -51,6 +51,7 @@ const PROFILE_PARSERS = Object.freeze({
   continue: Object.freeze({ accepts: isContinueHeadlessOutput, map: mapContinueHeadlessOutput, agentType: 'generic' }),
   cline: Object.freeze({ accepts: isClineProfileOutput, map: mapClineProfileOutput, agentType: 'generic' }),
   'kimi-code': Object.freeze({ accepts: isKimiCodeProfileOutput, map: mapKimiCodeProfileOutput, agentType: 'generic' }),
+  openclaw: Object.freeze({ accepts: isOpenclawStreamType, map: mapOpenclawRaw, agentType: 'generic' }),
   'qwen-code': Object.freeze({ accepts: isQwenStreamType, map: mapQwenRaw, agentType: 'generic' }),
   openhands: Object.freeze({ accepts: isOpenhandsSdkFrame, map: mapOpenhandsSdkFrame, agentType: 'generic' }),
 });

@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc9",
-  "commit": "e9d6e793ed5ce1e4fba6819a50e501bdfb2478f6",
+  "version": "0.6.0-rc10",
+  "commit": "635931173819aa9f0b771b64bd2928d0946a90ff",
   "files": [
     {
       "path": "config.example.json",
@@ -31,8 +31,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "0beb192b775a2ab9748bd3ad2e67e2db639de5da6d277d01c11d14d0aae80863",
-      "bytes": 458
+      "sha256": "dc0eabd9c4600e72c3cbe532625ccd18d2ed1c32fa704eb291d8efcf3e82d464",
+      "bytes": 459
     },
     {
       "path": "README-RELEASE.txt",
@@ -116,8 +116,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "ab2cb1c98f634f9e0ab5b6998a12c38ecdc4ffc71fd8bcee1ba31d179e4a46e8",
-      "bytes": 15275
+      "sha256": "de748075e4a7e08e26d30f8a23117903af3e65c28064ef83b88f85b57a4953ed",
+      "bytes": 15380
     },
     {
       "path": "src/adapters/goose.js",
@@ -146,8 +146,8 @@
     },
     {
       "path": "src/adapters/openclaw.js",
-      "sha256": "ee00f767f56811fbf52cbf7e701e9580e013d5290af758828f0dfdcaabfccc98",
-      "bytes": 5795
+      "sha256": "2dd9436d094559c2e3d46f70e73c026db3871b4bb08df83c2f182f96aa482407",
+      "bytes": 6736
     },
     {
       "path": "src/adapters/opencode.js",
@@ -196,8 +196,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "e50b6eccbe1bb79a553f46da2c0c19992cb1323b0ea65112792f1bc26521f1d1",
-      "bytes": 83644
+      "sha256": "1247e1e1fd3b777f8b5e0a8a5dd9c0addd120f192faa5a8e04c20199ed814b2c",
+      "bytes": 85735
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -306,8 +306,8 @@
     },
     {
       "path": "src/agents/catalog-entries/openclaw.json",
-      "sha256": "0dd0fe3365b1f02b7de707d38b762ab30e75f530deaaa4c7fe2dc2a89c8b3f18",
-      "bytes": 2680
+      "sha256": "22c7beb8327a1502e432d796c4d7bef6389a9af94f13cc7abf4062897a67a288",
+      "bytes": 2366
     },
     {
       "path": "src/agents/catalog-entries/opencode.json",
@@ -351,8 +351,8 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "e3395bae585fa98869d1cc2059a90bbb88b50706172cfa7987767131e485b9af",
-      "bytes": 80369
+      "sha256": "3cf25ad0d154432f8afaa2daf08745320eac6a809b82f2850d2753059dc471bb",
+      "bytes": 80055
     },
     {
       "path": "src/agents/identify.js",
@@ -365,14 +365,19 @@
       "bytes": 265
     },
     {
+      "path": "src/agents/openclaw-readonly.json",
+      "sha256": "4101167667cb62c14c921caf93455bad33c555bead2075c30d0b8db6c452a728",
+      "bytes": 757
+    },
+    {
       "path": "src/agents/openhands-sdk-worker.py",
       "sha256": "5ec5a882f97e0d64ef13d4399d074df17df424e8cc22e5395e4b28dbdb156624",
       "bytes": 7605
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "d4f4f82127907a61ad281ff2b3291c80c3e6135f3c30da3da2aa2bd4c3d02032",
-      "bytes": 3883
+      "sha256": "5555f3010fb2d63cd5c6154f084f26c08f8a41e5c1ed8c0c53ab6bbbcbd844a3",
+      "bytes": 6007
     },
     {
       "path": "src/agents/profile-store.js",

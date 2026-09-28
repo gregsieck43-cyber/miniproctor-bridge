@@ -1237,28 +1237,28 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
-        "read": false,
-        "stop": false,
+        "create": true,
+        "read": true,
+        "stop": true,
         "append": false,
         "resume": false,
         "approve": false,
         "fileChanges": false,
-        "usage": false
+        "usage": true
       },
-      "initial_prompt_channel": null,
+      "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "合规通路已核验（官方资料 A27 快照）：openclaw agent exec（无 gateway、一次性嵌入执行，默认临时状态目录用后即清，--isolated 可忽略本机 ambient 配置）；未实测——本机未安装 CLI（command -v openclaw 无结果），真实 create 往返未取证（V12-A27）"
+          "status": "verified",
+          "evidence": "Windows OpenClaw 2026.9.6：固定 --config 全禁工具 + 独立 --state-dir 的真实 DeepSeek agent exec 返回 ok=true；正常 ProfileStore→AdapterFactory→SessionManager 本机 create 已复验；其他 OS/手机未验（2026-09-28 A27 卡）"
         },
         "read": {
-          "status": "pending",
-          "evidence": "L1 fixture 对拍已实现（官方 --json 稳定信封 ok/status/final/payloads/usage/error{message,kind}）：xcx/bridge/test/adapters/openclaw-adapter.test.js + test/fixtures/openclaw/；真实 CLI 信封未取证（本机未安装）"
+          "status": "verified",
+          "evidence": "2026.9.6 真实 --json 信封含 final/payloads/usage；正常 profile 只从产品绑定信封映射最终答复，不上行工具原文；手机/真云未验（A27 卡）"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "停止=runner 只终止本次 spawn 的进程树（adapter-contract §4），绝不调用 openclaw gateway stop（避免关闭其他 gateway 会话，V12-A27 边界）；真实往返未取证；runner 通用进程树终止 CI 验证 bridge/test/runner.test.js"
+          "status": "verified",
+          "evidence": "Windows 2026.9.6 正常 profile 的 stop_session 经 runner 仅终止本次 spawn 的进程树；不调用共享 gateway stop，进程退出核验见 A27 卡（2026-09-28）"
         },
         "append": {
           "status": "unavailable",
@@ -1277,8 +1277,8 @@ export const CATALOG_ENTRIES = Object.freeze(  [
           "evidence": "--json 信封仅含聚合 toolSummary（调用计数/工具名列表），无逐文件变更结构；不从聚合计数伪造工具事件（fixture 断言无 tool_call）"
         },
         "usage": {
-          "status": "pending",
-          "evidence": "L1 fixture：官方信封 usage{input,output,total} 映射为 session_end.usage{input_tokens,output_tokens}（协议 §3.10 形状），xcx/bridge/test/adapters/openclaw-adapter.test.js；真实信封未取证（本机未安装），不进入开放视图"
+          "status": "verified",
+          "evidence": "2026.9.6 真实 DeepSeek --json 信封含 usage.input/output；产品绑定解析映射为 session_end.usage，见 A27 卡；手机/真云未验"
         }
       },
       "probe": {
