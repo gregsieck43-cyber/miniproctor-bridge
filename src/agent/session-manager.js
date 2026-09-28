@@ -136,6 +136,7 @@ export class ManagedSession {
     this._textDrainTimer = null;
     // 用户/系统显式停止：进程终止应归因为 ended（stopped），非崩溃
     this._stopRequested = false;
+    this._hasSessionEnd = false;
     // 最近一次 respondAction 失败原因（供 approval_result / 错误事件归因）
     this.lastResponseError = null;
     // V1-019①：截断事件预算（见 MAX_TRUNCATION_EVENTS）——已发送 / 被抑制计数
@@ -266,6 +267,7 @@ export class ManagedSession {
   }
 
   pushEventNow(event) {
+    if (event.event_type === 'session_end') this._hasSessionEnd = true;
     this.lastSeq = event.seq;
     this._onEvent?.(event);
     this._sink(event);
@@ -347,6 +349,15 @@ export class ManagedSession {
         sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
         eventType: 'session_end',
         payload: { reason: 'failed', summary: `${this.agentKey} 进程已退出，但没有可识别的最终答复`, usage: {} },
+      }));
+    }
+    // 有些 CLI 在被强停时来不及输出 result。进程已确认结束后补一个 stopped 终态，
+    // 让云端会话投影和手机状态收敛；已有原生 session_end 则保持原始终态。
+    if (this._stopRequested && this.status === 'ended' && !this._hasSessionEnd) {
+      this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'session_end',
+        payload: { reason: 'stopped', summary: 'Agent 已按停止命令结束', usage: {} },
       }));
     }
     const failed = this.status === 'failed';

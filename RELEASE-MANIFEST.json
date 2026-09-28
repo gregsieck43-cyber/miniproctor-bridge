@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc16",
-  "commit": "8f2921215e91299be6be612f0d1ff9cb9af51277",
+  "version": "0.6.0-rc17",
+  "commit": "69ed3e60e5992c9334fb7001fe57c9a51c813abe",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "7e634b03ce3f8214a4cdd01a05ef7a7fb77a4eddb34b9caadabb210a9214cf8e",
+      "sha256": "43398332b8343172874dc7a9f68c974efef428dd1eec5beb6b36999150351f0c",
       "bytes": 459
     },
     {
@@ -196,8 +196,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "e62286958e51d70c232a06bf0eaa6d50782945a068ce491e0572385b798b46ea",
-      "bytes": 86018
+      "sha256": "440ecc05599db2be4324b07b5eb5450080fd16fc0f6dc77cbbd1eaf813be1e47",
+      "bytes": 86700
     },
     {
       "path": "src/agents/adapter-contract.md",
