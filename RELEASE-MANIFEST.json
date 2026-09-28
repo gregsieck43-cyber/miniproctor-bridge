@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc15",
-  "commit": "d24a8c70c3f3a4af7024274e7ddc9283d913e42c",
+  "version": "0.6.0-rc16",
+  "commit": "8f2921215e91299be6be612f0d1ff9cb9af51277",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "ed304cb28117c72eaf6bbe4b56d5839615e1550f7c0e43a969b67cae507600dc",
+      "sha256": "7e634b03ce3f8214a4cdd01a05ef7a7fb77a4eddb34b9caadabb210a9214cf8e",
       "bytes": 459
     },
     {
@@ -436,8 +436,8 @@
     },
     {
       "path": "src/lib/events.js",
-      "sha256": "891ff6ffdad77784774fbe4c3a99f80bab86fe552cc7852e53f680fb37c1c28e",
-      "bytes": 12707
+      "sha256": "3e93f878898c576d157030958d75dc5fb4a68d9e11122a0b228a505628220772",
+      "bytes": 13283
     },
     {
       "path": "src/lib/inbox.js",

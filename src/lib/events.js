@@ -100,8 +100,8 @@ export function createEvent({
     metadata: meta,
   };
   if (tsCorrected) event.metadata.ts_corrected = true;
-  // TASK-019 ②②：构造即收敛——单事件信封 >7.5KB 时就地截断（outbox/云函数 8KB 之上
-  // 留出安全余量），头部字段保真，正文打 truncated/original_bytes 标记。
+  // TASK-019 ②②：构造即收敛——同时满足云端 payload 6KB 与信封 8KB 两道上限；
+  // 信封目标 7.5KB 留余量，头部字段保真，正文打 truncated/original_bytes 标记。
   return minimizeEventSize(event);
 }
 
@@ -123,6 +123,8 @@ export function validateEvent(event) {
 
 /** 单事件信封序列化目标上限：7.5KB（protocol EVENT_ENVELOPE_TARGET_BYTES），低于云端单事件 8KB 硬上限（syncReport MAX_EVENT_BYTES = protocol EVENT_ENVELOPE_MAX_BYTES）。 */
 export const MAX_EVENT_ENVELOPE_BYTES = 7.5 * 1024;
+/** 单事件 payload 硬上限：6KB（protocol EVENT_PAYLOAD_MAX_BYTES / syncReport MAX_PAYLOAD_BYTES）。 */
+export const MAX_EVENT_PAYLOAD_BYTES = 6 * 1024;
 /** 事件时间戳合理窗：±1 天（protocol TS_WINDOW_MS，与云函数 lib-validate DEFAULT_TS_WINDOW_MS 同值）。 */
 export const EVENT_TS_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** thinking/sensitive 类事件默认不上传正文（TASK-019 ②①，落实《隐私与数据清单》"默认不上传"）。 */
@@ -208,10 +210,13 @@ function jsonBytes(value) {
 export function minimizeEventSize(event, maxBytes = MAX_EVENT_ENVELOPE_BYTES) {
   if (!event || typeof event !== 'object') return event;
   const originalBytes = jsonBytes(event);
-  if (Number.isFinite(originalBytes) && originalBytes <= maxBytes) return event;
+  const originalPayloadBytes = jsonBytes(event.payload || {});
+  if (Number.isFinite(originalBytes) && originalBytes <= maxBytes
+    && originalPayloadBytes <= MAX_EVENT_PAYLOAD_BYTES) return event;
 
   // 预留标记字段与 JSON 转义放大的余量，保证最终（含标记）不超预算
   const budget = Math.max(256, maxBytes - 160);
+  const payloadBudget = Math.min(MAX_EVENT_PAYLOAD_BYTES - 96, budget);
   const suffix = '…[truncated]';
   const suffixBytes = Buffer.byteLength(suffix, 'utf8');
 
@@ -223,22 +228,23 @@ export function minimizeEventSize(event, maxBytes = MAX_EVENT_ENVELOPE_BYTES) {
 
   for (let round = 0; round < 64; round += 1) {
     const total = jsonBytes(event);
-    if (Number.isFinite(total) && total <= budget) break;
+    const payloadBytes = jsonBytes(event.payload || {});
+    if (Number.isFinite(total) && total <= budget && payloadBytes <= payloadBudget) break;
     // 每轮收缩当前最大的一段文本（含 metadata 中可能的大字段）
     const leaves = [];
     collectLeaves(event.payload, leaves);
-    collectLeaves(event.metadata, leaves);
+    if (payloadBytes <= payloadBudget) collectLeaves(event.metadata, leaves);
     if (!leaves.length) break;
     leaves.sort((a, b) => Buffer.byteLength(b, 'utf8') - Buffer.byteLength(a, 'utf8'));
     const target = leaves[0];
     const targetBytes = Buffer.byteLength(target, 'utf8');
-    const excess = total - budget;
+    const excess = Math.max(total - budget, payloadBytes - payloadBudget);
     const keep = Math.max(0, targetBytes - excess - suffixBytes - 16);
     // 就地替换字符串叶子：通过父对象引用替换（collectLeaves 收集时同步记录宿主）
     replaceLeaf(event, target, truncateByCodePoints(target, keep) + suffix);
   }
 
-  if (jsonBytes(event) > maxBytes) {
+  if (jsonBytes(event) > maxBytes || jsonBytes(event.payload || {}) > MAX_EVENT_PAYLOAD_BYTES) {
     // 兜底：仍超限（如海量小字段/不可序列化结构）→ 只保留标记性占位正文
     event.payload = { truncated: true, original_bytes: originalBytes };
   }
