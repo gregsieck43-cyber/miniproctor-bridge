@@ -40,7 +40,7 @@ import { isCodebuddyStreamType, mapCodebuddyRaw } from './codebuddy.js';
 import { isGeminiStreamType, mapGeminiRaw } from './gemini-cli.js';
 import { isQwenStreamType, mapQwenRaw } from './qwen-code.js';
 // V12-A04（适配组4）：cursor-cli print/stream-json 探测与分发（契约 §3 授权的唯一接线点）。
-import { isCursorCliStreamType, mapCursorCliRaw } from './cursor-cli.js';
+import { isCursorCliStreamType, isCursorCliProfileOutput, mapCursorCliRaw } from './cursor-cli.js';
 import { isCopilotCliProfileOutput, mapCopilotCliProfileOutput } from './copilot-cli.js';
 
 const PROFILE_PARSERS = Object.freeze({
@@ -50,6 +50,7 @@ const PROFILE_PARSERS = Object.freeze({
   goose: Object.freeze({ accepts: isGooseStreamType, map: mapGooseRaw, agentType: 'generic' }),
   continue: Object.freeze({ accepts: isContinueHeadlessOutput, map: mapContinueHeadlessOutput, agentType: 'generic' }),
   cline: Object.freeze({ accepts: isClineProfileOutput, map: mapClineProfileOutput, agentType: 'generic' }),
+  'cursor-cli': Object.freeze({ accepts: isCursorCliProfileOutput, map: mapCursorCliRaw, agentType: 'generic' }),
   'kimi-code': Object.freeze({ accepts: isKimiCodeProfileOutput, map: mapKimiCodeProfileOutput, agentType: 'generic' }),
   openclaw: Object.freeze({ accepts: isOpenclawStreamType, map: mapOpenclawRaw, agentType: 'generic' }),
   'copilot-cli': Object.freeze({ accepts: isCopilotCliProfileOutput, map: mapCopilotCliProfileOutput, agentType: 'generic' }),

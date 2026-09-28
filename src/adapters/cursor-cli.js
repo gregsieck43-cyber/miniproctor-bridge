@@ -11,14 +11,14 @@ import { createEvent, sanitizePreview, truncateText } from '../lib/events.js';
 //     {"type":"tool_call","subtype":"started|completed", ...tool_call.writeToolCall/
 //     readToolCall(args.path/result.success...)}、{"type":"result","duration_ms":...}，
 //     以及 --output-format json 单对象含 .result 字段。
-//   - 真实 CLI 往返（V03/L3）未取证：本机未安装 cursor-agent/agent（`command -v` 探测，
-//     `cursor` 命令为 IDE 启动器而非 CLI agent）。帧形状以上述官方文档为依据，未经真实
-//     CLI 复现——V03 取证后按 adapter-contract.md §2.3 升级。
+//   - 2026-09-28 Windows 官方 CLI 2026.09.26-dd393fe 真实输出复核：result 带
+//     subtype=success、usage{inputTokens,outputTokens,cacheReadTokens,cacheWriteTokens}；
+//     最终 assistant 帧无 timestamp_ms/model_call_id。已绑定 profile 按 agentKey 解析。
 //
 // 设计边界：
 //   - 只映射官方记载的帧形状；未记载字段一律落 custom 兜底，不猜测语义（§5.2）；
 //   - print 模式为一次性任务：无中途追加输入通道（append=false），无审批回传协议
-//     （approve=false，绝不生成无法送回 CLI 的审批卡），用量无官方帧记载（usage=false）；
+//     （approve=false，绝不生成无法送回 CLI 的审批卡）；
 //   - 文本输出行不经本解析器（generic.js 文本兜底 → agent_message），本模块只处理
 //     JSON 帧；不伪造工具事件——tool_call 事件仅来自官方 tool_call 帧。
 
@@ -36,9 +36,37 @@ export function isCursorCliStreamType(raw) {
   return false;
 }
 
+/** 已绑定 profile 的产品身份由冻结 agentKey 给出，可接收同族 result/最终 assistant。 */
+export function isCursorCliProfileOutput(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  return ['system', 'user', 'thinking', 'assistant', 'tool_call', 'result'].includes(raw.type);
+}
+
+function safeTokenCount(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function mapUsage(rawUsage) {
+  if (!rawUsage || typeof rawUsage !== 'object') return {};
+  const out = {};
+  const fields = [
+    ['inputTokens', 'input_tokens'], ['outputTokens', 'output_tokens'],
+    ['cacheReadTokens', 'cache_read_input_tokens'],
+    ['cacheWriteTokens', 'cache_creation_input_tokens'],
+  ];
+  for (const [source, target] of fields) {
+    const n = safeTokenCount(rawUsage[source]);
+    if (n !== null) out[target] = n;
+  }
+  return out;
+}
+
 export function mapCursorCliRaw(raw, { sessionId, agentType = 'generic', sequencer }) {
   if (!raw || typeof raw !== 'object') return [];
   const events = [];
+
+  // 不把用户提示词及模型内部思考上行到手机端。
+  if (raw.type === 'user' || raw.type === 'thinking') return [];
 
   // system init：官方记载 {"type":"system","subtype":"init","model":...}。
   // 注意：该形状与 claude-code/gemini-cli 同构，generic.js 分发中仅在 generic 会话
@@ -138,20 +166,18 @@ export function mapCursorCliRaw(raw, { sessionId, agentType = 'generic', sequenc
     return events;
   }
 
-  // result 帧：官方记载 {"type":"result","duration_ms":...}（--output-format json 模式
-  // 单对象另含 .result 字段）。仅 generic 会话经分发到达（claude 专属会话的 result 帧
-  // 由 claude-code 适配器处理，见 generic.js 分支注释）。usage 无官方帧记载，不伪造。
+  // result 帧：实测 success/error 子类型及 token 用量；未知或无用量时保持空对象。
   if (raw.type === 'result') {
     const durationMs = Number.isFinite(raw.duration_ms) ? raw.duration_ms : null;
     events.push(createEvent({
       sessionId, agentType, sequencer,
       eventType: 'session_end',
       payload: {
-        reason: 'completed',
+        reason: raw.is_error === true || raw.subtype === 'error' ? 'error' : 'completed',
         summary: typeof raw.result === 'string' && raw.result
           ? truncateText(raw.result, 1000)
           : durationMs != null ? `任务完成（耗时 ${Math.round(durationMs)}ms）` : '任务完成',
-        usage: {},
+        usage: mapUsage(raw.usage),
       },
     }));
     return events;

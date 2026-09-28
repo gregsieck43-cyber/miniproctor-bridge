@@ -732,21 +732,21 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         "resume": false,
         "approve": false,
         "fileChanges": false,
-        "usage": false
+        "usage": true
       },
       "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "官方 print 模式（agent -p \"<prompt>\" 非交互执行，A04 快照 + 官网 2026-09-25 核对）+ runner 通用 spawn 路径；本机未安装 cursor-agent/agent（command -v 探测，cursor 命令为 IDE 启动器），真实往返未取证（V12-A04，2026-09-26）"
+          "status": "verified",
+          "evidence": "Windows 官方 Cursor CLI 2026.09.26-dd393fe：项目隔离登录，固定 --mode ask -p stream-json 真实模型往返；正常 ProfileStore→AdapterFactory→SessionManager 本机 create，见 A04 证据卡 2026-09-28 增量；其他 OS/手机未验"
         },
         "read": {
-          "status": "pending",
-          "evidence": "解析器 bridge/src/adapters/cursor-cli.js（官方 Headless 文档记载的 stream-json 帧形：tool_call/assistant 标记帧/result）+ fixture 对拍 bridge/test/adapters/cursor-cli-adapter.test.js（官方示例语义构造，synthetic）；CLI 未安装，真实输出未取证"
+          "status": "verified",
+          "evidence": "2026.09.26-dd393fe 真实 assistant/tool_call/result JSONL，已绑定 profile 解析最终回复及令牌用量；正常 profile 本机 read 复验，见 A04 证据卡"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Cursor 实机 stop→子进程退出未取证（CLI 未安装）"
+          "status": "verified",
+          "evidence": "2026.09.26-dd393fe 正常 profile stop_session 结束本次进程树并回执 exited，见 A04 证据卡；手机停止未验"
         },
         "append": {
           "status": "unavailable",
@@ -765,8 +765,8 @@ export const CATALOG_ENTRIES = Object.freeze(  [
           "evidence": "官方 tool_call 帧仅映射 tool_call 事件（write/read 工具+路径，无 diff 载荷），无 file_change 事件通道证据，不伪造（V12-A04）"
         },
         "usage": {
-          "status": "unavailable",
-          "evidence": "官方 result 帧样例仅记载 duration_ms，无 token/费用统计输出证据，无统计不伪造（§8.3，V12-A04）"
+          "status": "verified",
+          "evidence": "2026.09.26-dd393fe 实测 result.usage 提供 inputTokens/outputTokens/cacheReadTokens/cacheWriteTokens；只上行非负安全整数，正常 profile 用量见 A04 证据卡"
         }
       },
       "probe": {
