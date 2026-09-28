@@ -1,4 +1,4 @@
-import { createEvent } from '../lib/events.js';
+import { createEvent, sanitizeSensitiveText, truncateText } from '../lib/events.js';
 
 // Cline CLI（V12-A07）NDJSON 流适配器。
 //
@@ -26,8 +26,9 @@ import { createEvent } from '../lib/events.js';
 //     禁改），会话身份由 session_meta agent_key 承载；
 //   - 桥接默认参数（profile 冻结侧，非本文件职责）：--json --auto-approve false；
 //     绝不默认 --yolo / --auto-approve true（主方案 §6：不照抄官方示例的全权限参数）。
-// 真实 CLI 往返未取证（2026-09-26 本机 command -v cline 未安装）——fixture-only，
-// 详见 docs/release/v1.2/agents/cline.md。
+// 2026-09-28 固定版 3.0.65 Windows 真机观察到 content_start 是逐字增量且带
+// accumulated 全文；只在 content_end/text 产出消息，避免每 token 重复上行。
+// hook_event、run_result 与 done 仅控制生命周期，不重复最终正文；证据见 A07 卡。
 
 export function isClineStreamType(raw) {
   // 帧形状探测：{type:'agent_event', event:{...}}（官方 jq 示例形状）。对 null/数组/非对象安全。
@@ -38,11 +39,26 @@ export function isClineStreamType(raw) {
   );
 }
 
+export function isClineProfileOutput(raw) {
+  return Boolean(raw && typeof raw === 'object' && !Array.isArray(raw)
+    && (isClineStreamType(raw) || raw.type === 'hook_event' || raw.type === 'run_result'));
+}
+
+export function mapClineProfileOutput(raw, context) {
+  if (!isClineProfileOutput(raw)) return [];
+  if (raw.type !== 'agent_event') return [];
+  return mapClineRaw(raw, context);
+}
+
 export function mapClineRaw(raw, { sessionId, agentType = 'generic', sequencer }) {
   if (!isClineStreamType(raw)) return [];
   const event = raw.event;
   const events = [];
-  if (typeof event.text === 'string' && event.text) {
+  if (event.type === 'content_start' || event.type === 'done'
+    || event.type === 'usage' || event.type === 'iteration_start' || event.type === 'iteration_end') return [];
+  // 工具帧无可回写的非 TTY 审批协议，不把工具输出当助手正文。
+  const toolEnd = event.type === 'content_end' && event.contentType !== 'text';
+  if (!toolEnd && typeof event.text === 'string' && event.text) {
     // 文档化映射：event.text → agent_message（jq 示例即按此取最终回复文本）。
     const id = typeof event.id === 'string' && event.id ? event.id : null;
     events.push(createEvent({
@@ -52,7 +68,7 @@ export function mapClineRaw(raw, { sessionId, agentType = 'generic', sequencer }
         message_id: id || `m_${crypto.randomUUID()}`,
         stream_id: id,
         role: 'assistant',
-        content: event.text,
+        content: sanitizeSensitiveText(truncateText(event.text, 6000)),
         content_type: 'text',
         is_final: false,
         stop_reason: null,

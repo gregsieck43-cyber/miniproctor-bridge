@@ -14,6 +14,11 @@ const RECIPES = Object.freeze({
     // 1.5.47 --readonly 仍允许 Bash/MCP；--exclude '*' 在 CLI 旗标最高优先级禁全部工具。
     args: ['--exclude', '*', '--silent', '-p', '--format', 'json'],
   }),
+  cline: Object.freeze({
+    adapterId: 'generic',
+    // 3.0.65 缺省自动批准全部工具；非 TTY 下 false 会拒绝需审批的编辑和命令。
+    args: ['--auto-approve', 'false', '--json', '--retries', '1', '--timeout', '120'],
+  }),
   goose: Object.freeze({
     adapterId: 'generic',
     args: ['run', '--no-profile', '--no-session', '--output-format', 'stream-json', '--max-turns', '2', '--text'],
@@ -41,7 +46,7 @@ const RECIPES = Object.freeze({
 
 function buildRuntime(agentKey, recipe) {
   // These product recipes have only been verified on Windows.
-  if ((agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue') && process.platform !== 'win32') return null;
+  if ((agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline') && process.platform !== 'win32') return null;
   const entry = getCatalogEntry(agentKey);
   if (!entry || entry.adapter_id !== recipe.adapterId) return null;
   const declared = {};
