@@ -35,7 +35,7 @@ import { isCodeartsAgentStreamType, mapCodeartsAgentRaw } from './codearts-agent
 // 的帧——无标记同形帧仍走 claude 分支（归属局限已在适配器头注释与证据卡如实登记，待 V03 取证修订）。
 // 两产品事件 agent_type 固定 'generic'（AGENT_TYPES 白名单未扩，身份由 catalog agent_key 承载）。
 // qoder（V12-A18）官方快照未提供帧 schema，探测器为空集，刻意不加分支（见 src/adapters/qoder.js）。
-import { isKimiCodeStreamType, mapKimiCodeRaw } from './kimi-code.js';
+import { isKimiCodeStreamType, mapKimiCodeRaw, isKimiCodeProfileOutput, mapKimiCodeProfileOutput } from './kimi-code.js';
 import { isCodebuddyStreamType, mapCodebuddyRaw } from './codebuddy.js';
 // V12-A03/A15（适配组2）：gemini-cli / qwen-code stream-json 解析（契约 §3 授权的唯一接线点）。
 import { isGeminiStreamType, mapGeminiRaw } from './gemini-cli.js';
@@ -50,6 +50,7 @@ const PROFILE_PARSERS = Object.freeze({
   goose: Object.freeze({ accepts: isGooseStreamType, map: mapGooseRaw, agentType: 'generic' }),
   continue: Object.freeze({ accepts: isContinueHeadlessOutput, map: mapContinueHeadlessOutput, agentType: 'generic' }),
   cline: Object.freeze({ accepts: isClineProfileOutput, map: mapClineProfileOutput, agentType: 'generic' }),
+  'kimi-code': Object.freeze({ accepts: isKimiCodeProfileOutput, map: mapKimiCodeProfileOutput, agentType: 'generic' }),
   'qwen-code': Object.freeze({ accepts: isQwenStreamType, map: mapQwenRaw, agentType: 'generic' }),
   openhands: Object.freeze({ accepts: isOpenhandsSdkFrame, map: mapOpenhandsSdkFrame, agentType: 'generic' }),
 });

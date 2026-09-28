@@ -1111,48 +1111,48 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
+        "create": true,
         "read": true,
         "stop": true,
-        "append": true,
+        "append": false,
         "resume": false,
-        "approve": true,
-        "fileChanges": true,
-        "usage": true
+        "approve": false,
+        "fileChanges": false,
+        "usage": false
       },
-      "initial_prompt_channel": "stdin",
+      "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "unavailable",
-          "evidence": "无产品专属拉起路径（无启动预设；AdapterFactory 对 adapter_id=generic 拒绝新会话，fail-closed）；初始 prompt 经 Wire prompt 请求（stdin）编码器已实现（bridge/src/adapters/kimi-code.js buildKimiPromptFrame），待 V03 真实 CLI 往返接通"
+          "status": "verified",
+          "evidence": "Windows Kimi Code 2.1.1 官方 npm 固定包，-p --output-format stream-json 与静态只读 Agent 文件；正常 ProfileStore→AdapterFactory→SessionManager 真实 create/read/stop 本机闭环，见 A16 证据卡 2026-09-28 增量；手机/云未验"
         },
         "read": {
-          "status": "pending",
-          "evidence": "L1 fixture：bridge/test/adapters/kimi-code-adapter.test.js + bridge/test/fixtures/kimi-code/（官方 Wire 文档示例帧对拍：TurnBegin→ContentPart→TurnEnd/审批/JSON-RPC 错误/畸形帧隔离）；真实 CLI 往返未取证（V12-A16：本机未安装 kimi，command -v/where.exe 双确认，2026-09-26）"
+          "status": "verified",
+          "evidence": "Windows 2.1.1 真实 DeepSeek 回复与 Read 工具调用输出为 role/content JSONL，profile 解析器仅上行 assistant 文本；正常 profile 实测见 A16 证据卡 2026-09-28 增量"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js 同源路径）；kimi --wire 真实进程停止未验（CLI 未安装，V12-A16）"
+          "status": "verified",
+          "evidence": "Windows 2.1.1 正常 profile 长任务经 stop_session 终止本次进程树，session_stop_result 与 aliveAfter=false 见 A16 证据卡 2026-09-28 增量"
         },
         "append": {
-          "status": "pending",
-          "evidence": "L1 fixture：buildKimiPromptFrame/buildKimiSteerFrame 编码器对拍（官方文档：prompt/steer 为官方中途追加通道）；session-manager 写入接线与真实 CLI 未验（V12-A16）"
+          "status": "unavailable",
+          "evidence": "2.1.1 -p 为一次性回合，旧 Wire steer 编码器不接到 print profile"
         },
         "resume": {
           "status": "unavailable",
           "evidence": "无恢复代码路径：Wire replay 仅本会话历史重放（A16a），非跨进程恢复；CLI -C/--session 会话恢复待 V03 单独取证"
         },
         "approve": {
-          "status": "pending",
-          "evidence": "L1 fixture：buildKimiApprovalResponse 对拍（官方 ApprovalRequest→response: approve|reject[+feedback] 逐字段）；ApprovalRequest→confirm_required 映射对拍；真实 CLI 审批往返未验（V12-A16）"
+          "status": "unavailable",
+          "evidence": "2.1.1 print 模式默认自动权限；静态只读 Agent 文件排除写入/命令工具，未提供手机审批通路"
         },
         "fileChanges": {
-          "status": "pending",
-          "evidence": "L1 fixture：ToolResult.return_value.display[diff]（官方 DisplayBlock.diff）→ file_change 映射对拍；真实 CLI 是否发 diff 块未验（V12-A16）"
+          "status": "unavailable",
+          "evidence": "只读 profile 不允许文件变更；旧 Wire fixture 的 diff 解析不构成 2.1.1 print 能力"
         },
         "usage": {
-          "status": "pending",
-          "evidence": "L1 fixture：StatusUpdate.token_usage（官方 TokenUsage：input_other/output/input_cache_read/input_cache_creation）→ usage 数据路径对拍；真实 CLI 未验（V12-A16）"
+          "status": "unavailable",
+          "evidence": "2.1.1 stream-json 真实回合未见用量帧；不承诺旧 Wire StatusUpdate 格式"
         }
       },
       "probe": {
@@ -1162,7 +1162,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         "timeout_ms": 10000,
         "output_max_bytes": 8192
       },
-      "docs_ref": "xcx/docs/官方资料/A16b-kimi-code-getting-started.md"
+      "docs_ref": "xcx/docs/官方资料/A16c-kimi-code-2.1.1.md"
     },
     {
       "schema_version": 1,

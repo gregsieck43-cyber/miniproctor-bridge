@@ -19,6 +19,12 @@ const RECIPES = Object.freeze({
     // 3.0.65 缺省自动批准全部工具；非 TTY 下 false 会拒绝需审批的编辑和命令。
     args: ['--auto-approve', 'false', '--json', '--retries', '1', '--timeout', '120'],
   }),
+  'kimi-code': Object.freeze({
+    adapterId: 'generic',
+    // 2.1.1 的 -p 默认 auto；固定只读 Agent 文件约束可用工具，实验引擎使文件策略生效。
+    args: ['--agent-file', fileURLToPath(new URL('./kimi-readonly.md', import.meta.url)), '--output-format', 'stream-json', '-p'],
+    env: Object.freeze({ KIMI_CODE_EXPERIMENTAL_FLAG: '1' }),
+  }),
   goose: Object.freeze({
     adapterId: 'generic',
     args: ['run', '--no-profile', '--no-session', '--output-format', 'stream-json', '--max-turns', '2', '--text'],
@@ -46,7 +52,7 @@ const RECIPES = Object.freeze({
 
 function buildRuntime(agentKey, recipe) {
   // These product recipes have only been verified on Windows.
-  if ((agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline') && process.platform !== 'win32') return null;
+  if ((agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline' || agentKey === 'kimi-code') && process.platform !== 'win32') return null;
   const entry = getCatalogEntry(agentKey);
   if (!entry || entry.adapter_id !== recipe.adapterId) return null;
   const declared = {};

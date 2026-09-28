@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc8",
-  "commit": "33af4d061cde106cfff635f3fe2db7da50a3ea5e",
+  "version": "0.6.0-rc9",
+  "commit": "e9d6e793ed5ce1e4fba6819a50e501bdfb2478f6",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "1f70751800231ef7b766cb72f4422f7c36c76fb803cb42a9879008dad9e34521",
+      "sha256": "0beb192b775a2ab9748bd3ad2e67e2db639de5da6d277d01c11d14d0aae80863",
       "bytes": 458
     },
     {
@@ -116,8 +116,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "2c81935e036f3c694c97378284894360f151c51c613da013dbdc9b4fc640889c",
-      "bytes": 15104
+      "sha256": "ab2cb1c98f634f9e0ab5b6998a12c38ecdc4ffc71fd8bcee1ba31d179e4a46e8",
+      "bytes": 15275
     },
     {
       "path": "src/adapters/goose.js",
@@ -136,8 +136,8 @@
     },
     {
       "path": "src/adapters/kimi-code.js",
-      "sha256": "f271c858ea18ba3db610b0429c68ec0f97332526e0976f4ae9af5c3753fa997d",
-      "bytes": 19980
+      "sha256": "ee7da124cc826cf603ab7f922b55526058bf5b8e1e40921fbe1cc557a5853b13",
+      "bytes": 20741
     },
     {
       "path": "src/adapters/kiro-cli.js",
@@ -296,8 +296,8 @@
     },
     {
       "path": "src/agents/catalog-entries/kimi-code.json",
-      "sha256": "d1cc7d07c72b465cf331c5ff43d3e1712581a37cf797dbce892c7ed5d2efc1c6",
-      "bytes": 2787
+      "sha256": "1e64d627e7b857eb09e47b5d878813154018c71982777af8213186cb3946def3",
+      "bytes": 2253
     },
     {
       "path": "src/agents/catalog-entries/kiro-cli.json",
@@ -351,13 +351,18 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "ed319a17c46dc561601b1331c52fb783f7d5237925d9244d204802fbd53a7961",
-      "bytes": 80903
+      "sha256": "e3395bae585fa98869d1cc2059a90bbb88b50706172cfa7987767131e485b9af",
+      "bytes": 80369
     },
     {
       "path": "src/agents/identify.js",
       "sha256": "b195b5d63ca735d9c484fae0af6028d787f844774762e9a731fa7e4070c5e014",
       "bytes": 15747
+    },
+    {
+      "path": "src/agents/kimi-readonly.md",
+      "sha256": "e27e4c1277cf7d8713cb1afdafa27b576595c0eb41e845ee8feb71f8c33754cb",
+      "bytes": 265
     },
     {
       "path": "src/agents/openhands-sdk-worker.py",
@@ -366,8 +371,8 @@
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "5f9ab404afa85e02076a5ce12a415f6baa61c5f776033b4286f58f9f9ca0ed87",
-      "bytes": 3482
+      "sha256": "d4f4f82127907a61ad281ff2b3291c80c3e6135f3c30da3da2aa2bd4c3d02032",
+      "bytes": 3883
     },
     {
       "path": "src/agents/profile-store.js",

@@ -9,13 +9,42 @@ import { createEvent, getEventPolicy, redactThinkingEvent, sanitizePreview, trun
 //   - 响应 {"jsonrpc":"2.0","id":...,"result"|"error"}                     —— 对客户端 initialize/prompt/steer/cancel/replay 的应答
 //   官方明确「旧客户端可跳过 initialize 直接发 prompt」——bridge 初始 prompt 走 prompt 请求（stdin 通道）。
 //
-// 诚实边界（V12-A16 取证状态）：本适配器为纯解析/编码实现（零 IO），帧样例全部来自官方文档示例
-// 与其派生（脱敏 fixtures）；真实 CLI 往返未取证（本机未安装 kimi，command -v/where.exe 双确认），
-// 相关能力一律 pending，未经 V03 真实往返不得翻 verified（adapter-contract.md §2.3）。
+// 历史 Wire 路径保留给旧格式；2.1.1 的 -p stream-json 已改成 role/content JSONL，
+// 产品 profile 用下方独立解析器，避免把旧 Wire fixture 当作新版实测。
 // 事件 agent_type 取 'generic'：AGENT_TYPES 枚举冻结为 claude-code/codex/generic（protocol/schema.cjs），
 // 新协议形态按契约 §1 归入最接近的现有 adapter_id，事件归属用 catalog agent_key 区分。
 
 const RPC_VERSION = '2.0';
+
+/** Kimi Code 2.1.1 -p --output-format stream-json；只在已绑定 kimi-code profile 下认领。 */
+export function isKimiCodeProfileOutput(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  if (raw.role === 'meta') return raw.type === 'system.version' || raw.type === 'session.resume_hint';
+  if (raw.role === 'assistant') return typeof raw.content === 'string' || Array.isArray(raw.tool_calls);
+  return raw.role === 'tool' && typeof raw.tool_call_id === 'string';
+}
+
+export function mapKimiCodeProfileOutput(raw, { sessionId, agentType = 'generic', sequencer } = {}) {
+  if (!isKimiCodeProfileOutput(raw)) return [];
+  // 2.1.1 的 meta 为 CLI 版本/本机恢复提示；tool 帧可能含完整文件正文，只上行最终答复。
+  if (raw.role !== 'assistant' || typeof raw.content !== 'string' || !raw.content) return [];
+  try {
+    return [createEvent({
+      sessionId, agentType, sequencer,
+      eventType: 'agent_message',
+      payload: {
+        message_id: `m_kimi_${sequencer.next()}`,
+        stream_id: null,
+        role: 'assistant',
+        content: truncateText(raw.content, 7000),
+        content_type: 'text',
+        is_final: !Array.isArray(raw.tool_calls) || raw.tool_calls.length === 0,
+      },
+    })];
+  } catch {
+    return [];
+  }
+}
 
 /** 探测 Kimi Wire JSON-RPC 帧：jsonrpc=2.0 且带 method（请求/通知）或 id（响应）。 */
 export function isKimiCodeStreamType(raw) {
@@ -378,16 +407,16 @@ export function buildKimiApprovalResponse({ requestId, approvalId, decision, fee
 
 /** 声明层能力（V12-A16；与 catalog-entries/kimi-code.json 同步，执行门禁另经 capabilities.js 开放视图）。 */
 export const KIMI_CODE_CAPABILITIES = Object.freeze({
-  create: false, // 无产品专属拉起路径（无启动预设；AdapterFactory 对 adapter_id=generic 拒绝新会话），待 V03 接通
-  read: true, // Wire 帧解析器已实现（fixture 对拍）
-  stop: true, // runner 进程树终止为 bridge 自有能力（generic 同源）
-  append: true, // prompt/steer 编码器已实现（session-manager 写入接线待 V03）
-  resume: false, // 无恢复代码路径（replay 仅本会话历史重放，非跨进程恢复）
-  approve: true, // 审批应答编码器已实现（forwardDecision 接线待 V03）
-  fileChanges: true, // DisplayBlock.diff → file_change 映射已实现
-  usage: true, // StatusUpdate.token_usage → usage 数据路径已实现
+  create: true,
+  read: true,
+  stop: true,
+  append: false, // 2.1.1 print 模式无中途追加输入通路；旧 Wire 编码器不用于此 profile
+  resume: false,
+  approve: false, // print 模式默认 auto；由静态只读 Agent 文件移除变更工具
+  fileChanges: false,
+  usage: false, // 2.1.1 stream-json 本轮未见用量帧
   integrationMode: 'stdio',
-  initialPromptChannel: 'stdin',
+  initialPromptChannel: 'launch-args',
 });
 
 /* ---------------- 内部工具 ---------------- */
