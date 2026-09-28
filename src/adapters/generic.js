@@ -31,11 +31,12 @@ import { isCodeartsAgentStreamType, mapCodeartsAgentRaw } from './codearts-agent
 // kimi 帧为 JSON-RPC 2.0 信封（jsonrpc/method/id），与现有全部探测器零重叠，无条件认领；
 // codebuddy init/assistant/result 与 claude stream-json 同形（官方声明对齐 CC v2.1.88），仅在
 // generic 桶内认领「官方文档化 cbc 专属标记」（_requestId/_meta 会话请求 ID/rewind 扩展字段）
-// 的帧——无标记同形帧仍走 claude 分支（归属局限已在适配器头注释与证据卡如实登记，待 V03 取证修订）。
+// 的帧——无 profile 时无标记同形帧仍走 claude 分支；绑定 codebuddy profile 后按冻结
+// 产品身份接 2.159.0 真流（system/init 无 _requestId），不会误标 claude。
 // 两产品事件 agent_type 固定 'generic'（AGENT_TYPES 白名单未扩，身份由 catalog agent_key 承载）。
 // qoder（V12-A18）官方快照未提供帧 schema，探测器为空集，刻意不加分支（见 src/adapters/qoder.js）。
 import { isKimiCodeStreamType, mapKimiCodeRaw, isKimiCodeProfileOutput, mapKimiCodeProfileOutput } from './kimi-code.js';
-import { isCodebuddyStreamType, mapCodebuddyRaw } from './codebuddy.js';
+import { isCodebuddyStreamType, mapCodebuddyRaw, isCodebuddyProfileOutput, mapCodebuddyProfileOutput } from './codebuddy.js';
 // V12-A03/A15（适配组2）：gemini-cli / qwen-code stream-json 解析（契约 §3 授权的唯一接线点）。
 import { isGeminiStreamType, mapGeminiRaw } from './gemini-cli.js';
 import { isQwenStreamType, mapQwenRaw } from './qwen-code.js';
@@ -56,6 +57,7 @@ const PROFILE_PARSERS = Object.freeze({
   'kimi-code': Object.freeze({ accepts: isKimiCodeProfileOutput, map: mapKimiCodeProfileOutput, agentType: 'generic' }),
   openclaw: Object.freeze({ accepts: isOpenclawStreamType, map: mapOpenclawRaw, agentType: 'generic' }),
   'copilot-cli': Object.freeze({ accepts: isCopilotCliProfileOutput, map: mapCopilotCliProfileOutput, agentType: 'generic' }),
+  codebuddy: Object.freeze({ accepts: isCodebuddyProfileOutput, map: mapCodebuddyProfileOutput, agentType: 'generic' }),
   'qwen-code': Object.freeze({ accepts: isQwenStreamType, map: mapQwenRaw, agentType: 'generic' }),
   openhands: Object.freeze({ accepts: isOpenhandsSdkFrame, map: mapOpenhandsSdkFrame, agentType: 'generic' }),
 });

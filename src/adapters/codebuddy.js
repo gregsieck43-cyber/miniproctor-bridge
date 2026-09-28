@@ -15,7 +15,8 @@ import { createEvent, getEventPolicy, redactThinkingEvent, sanitizePreview, trun
 //
 // 探测边界（诚实登记）：cbc 帧 init/assistant/result 与 Claude stream-json 同形，仅凭帧形状无法区分；
 // 本适配器只认领「官方文档化 cbc 专属标记」的帧（_requestId / _meta 会话请求 ID / rewind 扩展应答字段），
-// 未带标记的同形帧仍走 claude 映射——真实 CLI 取证（V03）后按实测流修订。probe 不与 claude/codex 抢帧。
+// 未带标记的同形帧在无 profile 的通用探测中仍走 claude 映射；已绑定 codebuddy profile
+// 时按冻结产品身份独立路由（2.159.0 真流 init 无 _requestId），不与其他产品抢帧。
 //
 // 事件 agent_type 取 'generic'：AGENT_TYPES 冻结为 claude-code/codex/generic（protocol/schema.cjs），
 // 新协议形态按契约 §1 归入最接近的现有 adapter_id。
@@ -44,6 +45,23 @@ export function isCodebuddyStreamType(raw) {
     if (body && typeof body === 'object' && (body.historyRewound !== undefined || body.fileRewindError !== undefined)) return true;
   }
   return false;
+}
+
+/** 已绑定 codebuddy profile 才使用：2.159.0 的 system/init 无专属标记，不能靠全局探测识别。 */
+export function isCodebuddyProfileOutput(raw) {
+  return Boolean(raw && typeof raw === 'object' && !Array.isArray(raw)
+    && typeof raw.type === 'string' && CBC_STREAM_TYPES.has(raw.type));
+}
+
+export function mapCodebuddyProfileOutput(raw, { sessionId, sequencer }) {
+  if (!isCodebuddyProfileOutput(raw)) return [];
+  const ctx = { sessionId, sequencer, agentType: 'generic' };
+  try {
+    // 固定只读配方无法执行 Write/Edit；tool_use 是模型请求，不是文件已改变的证据。
+    return mapCbcFrame(raw, ctx).filter((event) => event.event_type !== 'file_change');
+  } catch {
+    return fallbackEvent(ctx, 'cbc_raw', 'CodeBuddy 已绑定帧解析异常，已按未知帧兜底', null);
+  }
 }
 
 export function mapCodebuddyRaw(raw, { sessionId, agentType = 'generic', sequencer }) {
@@ -141,7 +159,9 @@ function mapSystem(raw, ctx) {
         custom_type: 'system',
         system_subtype: 'init',
         fallback_text: '会话已初始化',
-        data: { model: raw.model || null, tools: Array.isArray(raw.tools) ? raw.tools.slice(0, 20) : [] },
+        // 2.159.0 的 init.tools 仍列出 61 个注册工具，即使 --tools 只准 Read/Grep/Glob。
+        // 不把注册表误报为本会话授权清单；权限取决于固定启动配方与负向实测。
+        data: { model: raw.model || null, registered_tool_count: Array.isArray(raw.tools) ? raw.tools.length : null },
       },
     })];
   }
@@ -299,14 +319,14 @@ export function buildCodebuddyUserFrame({ text, conversationRequestId } = {}) {
 
 /** 声明层能力（V12-A17；与 catalog-entries/codebuddy.json 同步，执行门禁另经 capabilities.js 开放视图）。 */
 export const CODEBUDDY_CAPABILITIES = Object.freeze({
-  create: false, // 无产品专属拉起路径（无启动预设；AdapterFactory 对 adapter_id=generic 拒绝新会话），待 V03 接通
-  read: true, // stream-json 帧解析器已实现（官方文档示例帧 fixture 对拍）
-  stop: true, // runner 进程树终止为 bridge 自有能力（generic 同源）
+  create: true, // 固定产品启动配方由 product-runtime 提供，正常 profile 本机验收见 A17 卡
+  read: true, // 2.159.0 真实模型 Read/Glob 与正常 profile 答复已验
+  stop: true, // 正常 profile 活跃任务 stop_session 返回 exited=true，事后无残留进程
   append: true, // stream-json 输入多轮 user 帧编码器已实现（官方文档化多轮通道；session-manager 接线待 V03）
   resume: false, // --resume/--continue 为 CLI flag，bridge 无恢复重拉代码路径，不声明
   approve: false, // 官方 headless 无双向审批回调（--permission-prompt-tool 明确不支持）
   fileChanges: true, // 编辑类 tool_use → file_change（官方声明消息模式对齐 CC v2.1.88）
-  usage: true, // result 统计 + task_progress.usage 官方示例帧映射已实现
+  usage: true, // 真实 result 用量与正常 profile session_end 四项 token 统计已对拍
   integrationMode: 'stdio',
   initialPromptChannel: 'launch-args',
 });

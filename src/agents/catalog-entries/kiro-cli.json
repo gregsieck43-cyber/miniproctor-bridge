@@ -19,14 +19,14 @@
   },
   "initial_prompt_channel": null,
   "verification": {
-    "create": { "status": "pending", "evidence": "解析器+fixture 就绪（bridge/test/adapters/kiro-cli-adapter.test.js + test/fixtures/kiro-cli/）；真实 CLI 往返未取证（2026-09-26 本机 command -v kiro-cli 未安装，且需 KIRO_API_KEY）；capabilities.js 无声明层行（V12 简报禁改），AdapterFactory 现阶段 fail-closed 拒绝实例化。文档化初始 prompt 通道为 launch-args（--no-interactive 必须携带位置 prompt），create 验证前不开放" },
-    "read": { "status": "pending", "evidence": "仅解析 fixture（文本行→agent_message，bridge/test/adapters/kiro-cli-adapter.test.js + test/fixtures/kiro-cli/text-sample.txt）；官方快照仅记载文本输出、无结构化帧格式（docs_ref A13），解析走文本路径不伪造工具事件；真实 CLI 往返未取证" },
-    "stop": { "status": "pending", "evidence": "bridge runner 进程树终止为公共能力（test/runner*.test.js）；真实 CLI 下受控停止未验证（kiro-cli 未安装）" },
+    "create": { "status": "pending", "evidence": "2026-09-29 官方 Windows CLI 2.24.1 MSI 已项目内下载并验 manifest SHA-256 与 AWS 签名，但未执行安装；官方默认写 C 盘系统目录。headless chat --no-interactive 需要 KIRO_API_KEY，用户无可创建 Key 的付费订阅；真实模型与正常 profile create 未验。解析器 fixture 不能代替运行证据，能力保持关闭" },
+    "read": { "status": "pending", "evidence": "2026-09-29 官方 headless 已支持 --output-format stream-json（V2/V3 JSONL），旧文本快照过时；当前仅有 synthetic 文本 fixture，无真实 JSONL schema 对拍或模型读取证据。ACP 另有 JSON-RPC 接口，本桥未接入；不开放 read" },
+    "stop": { "status": "pending", "evidence": "bridge runner 进程树终止仅是公共能力；kiro-cli 2.24.1 MSI 未执行、真实 CLI 任务未运行，受控停止与 stream-json V3 中断终态未验" },
     "append": { "status": "unavailable", "evidence": "官方 Limitations 明确「No mid-session user input is possible」（docs_ref A13）" },
-    "resume": { "status": "unavailable", "evidence": "官方快照未记载 headless 会话恢复通道；无实现路径" },
+    "resume": { "status": "unavailable", "evidence": "headless 未验证恢复通道；官方 ACP 文档有 session/load，但本桥未接 Kiro ACP，也无真实会话恢复证据" },
     "approve": { "status": "unavailable", "evidence": "--trust-all-tools/--trust-tools 为预先放行而非双向审批通道（docs_ref A13）；桥接默认不追加 --trust-all-tools，headless 下无批准交互" },
-    "fileChanges": { "status": "unavailable", "evidence": "官方快照未记载文件变更帧；不伪造工具事件" },
-    "usage": { "status": "unavailable", "evidence": "官方快照未记载 token 统计输出；无统计不伪造（§8.3）" }
+    "fileChanges": { "status": "unavailable", "evidence": "当前 stream-json 存在，但完整事件 schema 与真实文件变更帧未对拍；不伪造工具事件" },
+    "usage": { "status": "unavailable", "evidence": "当前 stream-json 未与真实模型对拍，未核实 token 统计帧；无统计不伪造（§8.3）" }
   },
   "probe": {
     "version_args": ["--version"],

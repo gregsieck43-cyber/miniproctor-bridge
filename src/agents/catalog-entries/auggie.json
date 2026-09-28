@@ -19,14 +19,14 @@
   },
   "initial_prompt_channel": "launch-args",
   "verification": {
-    "create": { "status": "pending", "evidence": "官方 print 模式（auggie --print \"<instruction>\" 单次运行打印 stdout，A12 快照）+ runner 通用 spawn 路径；CLI 本机未安装，真实往返未取证（V12-A12，2026-09-25）" },
-    "read": { "status": "pending", "evidence": "解析器 bridge/src/adapters/auggie.js（print stdout 纯文本行→agent_message）+ fixture 对拍 bridge/test/adapters/auggie-adapter.test.js（官方示例语义构造，synthetic）；CLI 未安装，真实输出未取证" },
-    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Auggie 实机 stop→子进程退出未取证（CLI 未安装）" },
+    "create": { "status": "pending", "evidence": "官方 @augmentcode/auggie 0.36.0 已项目内固定安装，Windows 原生 version/help 成功；用户无账号，隔离 account status 为未登录。官方仅列 Windows WSL，print 会跳过交互索引确认；真实模型 profile 与索引授权未验" },
+    "read": { "status": "pending", "evidence": "旧 print 文本解析器仅 synthetic fixture 对拍；0.36.0 官方还支持 --output-format json 与 --quiet，未登录无真实模型输出，read 未验（docs/release/v1.2/agents/auggie.md）" },
+    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力；Auggie 无认证、无真实模型任务，正常 profile stop→子进程退出未取证" },
     "append": { "status": "unavailable", "evidence": "print 模式单次运行无中途追加输入通道证据（A12 快照，V12-A12）" },
-    "resume": { "status": "unavailable", "evidence": "print 模式无会话恢复旗标证据，未实测能力一律 false（A12 快照，V12-A12）" },
-    "approve": { "status": "unavailable", "evidence": "print 模式无审批回写通道证据（A12 快照，V12-A12）" },
-    "fileChanges": { "status": "unavailable", "evidence": "print 模式无文件变更输出证据，不伪造工具事件（A12 快照，V12-A12）" },
-    "usage": { "status": "unavailable", "evidence": "无 token 统计输出证据，无统计不伪造（§8.3，A12 快照，V12-A12）" }
+    "resume": { "status": "unavailable", "evidence": "0.36.0 官方有 --resume，但桥接 print 路径无恢复实现；未验能力保持 false" },
+    "approve": { "status": "unavailable", "evidence": "0.36.0 ACP 为 JSON-RPC，但桥接 print 路径无审批回写实现；工具列表禁用实测不等于审批闭环" },
+    "fileChanges": { "status": "unavailable", "evidence": "真实模型输出未取证，不伪造文件变更事件" },
+    "usage": { "status": "unavailable", "evidence": "官方 --show-cost 为费用摘要，未取得真实 token 计数；无统计不伪造" }
   },
   "probe": {
     "version_args": ["--version"],

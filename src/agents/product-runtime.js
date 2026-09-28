@@ -7,6 +7,7 @@ import { AGENT_PRESETS } from '../lib/config.js';
 import { getCatalogEntry } from './catalog.js';
 
 const OPENCLAW_CONFIG_PATH = fileURLToPath(new URL('./openclaw-readonly.json', import.meta.url));
+const CODEBUDDY_EMPTY_MCP_PATH = fileURLToPath(new URL('./codebuddy-empty-mcp.json', import.meta.url));
 const OPENCLAW_STATE_PLACEHOLDER = '__MINIPROCTOR_OPENCLAW_STATE_DIR__';
 
 const RECIPES = Object.freeze({
@@ -56,6 +57,22 @@ const RECIPES = Object.freeze({
       COPILOT_MODEL: 'deepseek-chat',
     }),
   }),
+  codebuddy: Object.freeze({
+    adapterId: 'generic',
+    // 2.159.0：只读工具白名单实测 Read/Glob 可用、Write/Edit/Bash 不可用；无 MCP 和会话持久化。
+    args: ['-p', '--output-format', 'stream-json', '--tools', 'Read,Grep,Glob',
+      '--permission-mode', 'dontAsk', '--setting-sources', 'user', '--strict-mcp-config',
+      '--mcp-config', CODEBUDDY_EMPTY_MCP_PATH, '--no-session-persistence'],
+    env: Object.freeze({
+      CODEBUDDY_BASE_URL: 'https://api.deepseek.com', CODEBUDDY_MODEL: 'deepseek-flash',
+      CODEBUDDY_BIG_SLOW_MODEL: 'deepseek-flash', CODEBUDDY_SMALL_FAST_MODEL: 'deepseek-flash',
+      CODEBUDDY_CODE_SUBAGENT_MODEL: 'deepseek-flash', CODEBUDDY_IS_SANDBOX: '0',
+      CODEBUDDY_AUTH_TOKEN: '', CODEBUDDY_DISABLE_AUTO_MEMORY: '1',
+      CODEBUDDY_CODE_DISABLE_BACKGROUND_TASKS: '1', CODEBUDDY_SKIP_BUILTIN_MARKETPLACE: '1',
+      DISABLE_AUTOUPDATER: '1', DISABLE_TELEMETRY: '1', DISABLE_ERROR_REPORTING: '1',
+      OTEL_TRACES_EXPORTER: 'none',
+    }),
+  }),
   goose: Object.freeze({
     adapterId: 'generic',
     args: ['run', '--no-profile', '--no-session', '--output-format', 'stream-json', '--max-turns', '2', '--text'],
@@ -83,7 +100,7 @@ const RECIPES = Object.freeze({
 
 function buildRuntime(agentKey, recipe) {
   // These product recipes have only been verified on Windows.
-  if ((agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline' || agentKey === 'cursor-cli' || agentKey === 'kimi-code' || agentKey === 'openclaw' || agentKey === 'copilot-cli') && process.platform !== 'win32') return null;
+  if ((agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline' || agentKey === 'cursor-cli' || agentKey === 'kimi-code' || agentKey === 'openclaw' || agentKey === 'copilot-cli' || agentKey === 'codebuddy') && process.platform !== 'win32') return null;
   const entry = getCatalogEntry(agentKey);
   if (!entry || entry.adapter_id !== recipe.adapterId) return null;
   const declared = {};
@@ -118,7 +135,7 @@ export function getProductRuntime(agentKey) {
 
 /** 只计算本机启动参数；目录由 SessionManager 在工作区授权后创建。 */
 export function prepareProductLaunch(spec, { sessionId, dataDir } = {}) {
-  if (spec.agentKey !== 'openclaw' && spec.agentKey !== 'copilot-cli') {
+  if (spec.agentKey !== 'openclaw' && spec.agentKey !== 'copilot-cli' && spec.agentKey !== 'codebuddy') {
     return { args: [...spec.args], productEnv: { ...(spec.productEnv || {}) }, stateDir: null };
   }
   if (!/^s_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(sessionId || '')) {
@@ -126,6 +143,23 @@ export function prepareProductLaunch(spec, { sessionId, dataDir } = {}) {
   }
   if (typeof dataDir !== 'string' || !path.isAbsolute(dataDir)) {
     throw new TypeError('产品 dataDir 必须为 bridge 本机绝对路径');
+  }
+  if (spec.agentKey === 'codebuddy') {
+    const runtime = getProductRuntime('codebuddy');
+    if (!runtime || JSON.stringify(spec.args) !== JSON.stringify(runtime.args)) {
+      throw new TypeError('CodeBuddy CLI 必须使用固定只读启动配方');
+    }
+    const stateDir = path.join(path.resolve(dataDir), 'codebuddy-runs', sessionId);
+    return {
+      args: [...runtime.args], stateDir,
+      productEnv: {
+        ...(spec.productEnv || {}), ...runtime.env,
+        HOME: stateDir, USERPROFILE: stateDir, APPDATA: stateDir, LOCALAPPDATA: stateDir,
+        XDG_CONFIG_HOME: stateDir, XDG_CACHE_HOME: stateDir, XDG_DATA_HOME: stateDir,
+        TEMP: stateDir, TMP: stateDir,
+        NODE_COMPILE_CACHE: path.join(path.resolve(dataDir), 'codebuddy-node-cache'),
+      },
+    };
   }
   if (spec.agentKey === 'copilot-cli') {
     const runtime = getProductRuntime('copilot-cli');

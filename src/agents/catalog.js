@@ -156,15 +156,15 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "create": {
           "status": "pending",
-          "evidence": "官方 print 模式（auggie --print \"<instruction>\" 单次运行打印 stdout，A12 快照）+ runner 通用 spawn 路径；CLI 本机未安装，真实往返未取证（V12-A12，2026-09-25）"
+          "evidence": "官方 @augmentcode/auggie 0.36.0 已项目内固定安装，Windows 原生 version/help 成功；用户无账号，隔离 account status 为未登录。官方仅列 Windows WSL，print 会跳过交互索引确认；真实模型 profile 与索引授权未验"
         },
         "read": {
           "status": "pending",
-          "evidence": "解析器 bridge/src/adapters/auggie.js（print stdout 纯文本行→agent_message）+ fixture 对拍 bridge/test/adapters/auggie-adapter.test.js（官方示例语义构造，synthetic）；CLI 未安装，真实输出未取证"
+          "evidence": "旧 print 文本解析器仅 synthetic fixture 对拍；0.36.0 官方还支持 --output-format json 与 --quiet，未登录无真实模型输出，read 未验（docs/release/v1.2/agents/auggie.md）"
         },
         "stop": {
           "status": "pending",
-          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Auggie 实机 stop→子进程退出未取证（CLI 未安装）"
+          "evidence": "runner 进程树终止为 bridge 自有能力；Auggie 无认证、无真实模型任务，正常 profile stop→子进程退出未取证"
         },
         "append": {
           "status": "unavailable",
@@ -172,19 +172,19 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "print 模式无会话恢复旗标证据，未实测能力一律 false（A12 快照，V12-A12）"
+          "evidence": "0.36.0 官方有 --resume，但桥接 print 路径无恢复实现；未验能力保持 false"
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "print 模式无审批回写通道证据（A12 快照，V12-A12）"
+          "evidence": "0.36.0 ACP 为 JSON-RPC，但桥接 print 路径无审批回写实现；工具列表禁用实测不等于审批闭环"
         },
         "fileChanges": {
           "status": "unavailable",
-          "evidence": "print 模式无文件变更输出证据，不伪造工具事件（A12 快照，V12-A12）"
+          "evidence": "真实模型输出未取证，不伪造文件变更事件"
         },
         "usage": {
           "status": "unavailable",
-          "evidence": "无 token 统计输出证据，无统计不伪造（§8.3，A12 快照，V12-A12）"
+          "evidence": "官方 --show-cost 为费用摘要，未取得真实 token 计数；无统计不伪造"
         }
       },
       "probe": {
@@ -401,7 +401,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
+        "create": true,
         "read": true,
         "stop": true,
         "append": true,
@@ -413,16 +413,16 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "unavailable",
-          "evidence": "无产品专属拉起路径（无启动预设；AdapterFactory 对 adapter_id=generic 拒绝新会话，fail-closed）；官方 headless 形态为 codebuddy -p \"<prompt>\"（launch-args 通道），待 V03 真实 CLI 往返接通"
+          "status": "verified",
+          "evidence": "2026-09-29 Windows @tencent-ai/codebuddy-code 2.159.0：固定 -p/stream-json/Read,Grep,Glob/dontAsk/空 MCP/隔离会话配置与 BYOK DeepSeek；真实模型和正常 ProfileStore→AdapterFactory→SessionManager profile create/read/stop 已实跑，细节见 docs/release/v1.2/agents/codebuddy.md；仅 Windows 本机开放"
         },
         "read": {
-          "status": "pending",
-          "evidence": "L1 fixture：bridge/test/adapters/codebuddy-adapter.test.js + bridge/test/fixtures/codebuddy/（官方无头模式文档示例帧对拍：init/assistant/result/task_*/control_response/畸形帧隔离）；探测仅认领带 cbc 专属标记（_requestId 等）的帧，真实 CLI 往返未取证（V12-A17：本机未安装 codebuddy/cbc，command -v/where.exe 双确认，2026-09-26）"
+          "status": "verified",
+          "evidence": "2.159.0 真实模型经 Read/Glob 读取隔离文件标记并产生 assistant/result；绑定 profile 的 init/assistant/result 由产品解析器处理，正常 profile 消息可读。Write/Edit/Bash 白名单外，写文件负向探针未产生目标文件；见 A17 证据卡"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js 同源路径）；codebuddy 真实进程停止未验（CLI 未安装，V12-A17）"
+          "status": "verified",
+          "evidence": "2.159.0 正常 profile 活跃任务执行 stop_session，runner 仅终止本会话进程树并返回退出回执；见 A17 证据卡"
         },
         "append": {
           "status": "pending",
@@ -441,8 +441,8 @@ export const CATALOG_ENTRIES = Object.freeze(  [
           "evidence": "L1 fixture：Edit/Write tool_use → file_change 映射对拍（官方声明消息模式对齐 Claude Code v2.1.88）；真实 CLI 是否发帧未验（V12-A17）"
         },
         "usage": {
-          "status": "pending",
-          "evidence": "L1 fixture：result 统计 + system/task_progress.usage{total_tokens,tool_uses,duration_ms}（官方示例帧）映射对拍；真实 CLI 未验（V12-A17）"
+          "status": "verified",
+          "evidence": "2026-09-29 CodeBuddy 2.159.0 真实 result/success 含 input_tokens/output_tokens/cache_read_input_tokens/cache_creation_input_tokens；正常 profile session_end 保留四项计数，见 A17 证据卡。仅 Windows 本机开放"
         }
       },
       "probe": {
@@ -1187,15 +1187,15 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "create": {
           "status": "pending",
-          "evidence": "解析器+fixture 就绪（bridge/test/adapters/kiro-cli-adapter.test.js + test/fixtures/kiro-cli/）；真实 CLI 往返未取证（2026-09-26 本机 command -v kiro-cli 未安装，且需 KIRO_API_KEY）；capabilities.js 无声明层行（V12 简报禁改），AdapterFactory 现阶段 fail-closed 拒绝实例化。文档化初始 prompt 通道为 launch-args（--no-interactive 必须携带位置 prompt），create 验证前不开放"
+          "evidence": "2026-09-29 官方 Windows CLI 2.24.1 MSI 已项目内下载并验 manifest SHA-256 与 AWS 签名，但未执行安装；官方默认写 C 盘系统目录。headless chat --no-interactive 需要 KIRO_API_KEY，用户无可创建 Key 的付费订阅；真实模型与正常 profile create 未验。解析器 fixture 不能代替运行证据，能力保持关闭"
         },
         "read": {
           "status": "pending",
-          "evidence": "仅解析 fixture（文本行→agent_message，bridge/test/adapters/kiro-cli-adapter.test.js + test/fixtures/kiro-cli/text-sample.txt）；官方快照仅记载文本输出、无结构化帧格式（docs_ref A13），解析走文本路径不伪造工具事件；真实 CLI 往返未取证"
+          "evidence": "2026-09-29 官方 headless 已支持 --output-format stream-json（V2/V3 JSONL），旧文本快照过时；当前仅有 synthetic 文本 fixture，无真实 JSONL schema 对拍或模型读取证据。ACP 另有 JSON-RPC 接口，本桥未接入；不开放 read"
         },
         "stop": {
           "status": "pending",
-          "evidence": "bridge runner 进程树终止为公共能力（test/runner*.test.js）；真实 CLI 下受控停止未验证（kiro-cli 未安装）"
+          "evidence": "bridge runner 进程树终止仅是公共能力；kiro-cli 2.24.1 MSI 未执行、真实 CLI 任务未运行，受控停止与 stream-json V3 中断终态未验"
         },
         "append": {
           "status": "unavailable",
@@ -1203,7 +1203,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "官方快照未记载 headless 会话恢复通道；无实现路径"
+          "evidence": "headless 未验证恢复通道；官方 ACP 文档有 session/load，但本桥未接 Kiro ACP，也无真实会话恢复证据"
         },
         "approve": {
           "status": "unavailable",
@@ -1211,11 +1211,11 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "fileChanges": {
           "status": "unavailable",
-          "evidence": "官方快照未记载文件变更帧；不伪造工具事件"
+          "evidence": "当前 stream-json 存在，但完整事件 schema 与真实文件变更帧未对拍；不伪造工具事件"
         },
         "usage": {
           "status": "unavailable",
-          "evidence": "官方快照未记载 token 统计输出；无统计不伪造（§8.3）"
+          "evidence": "当前 stream-json 未与真实模型对拍，未核实 token 统计帧；无统计不伪造（§8.3）"
         }
       },
       "probe": {

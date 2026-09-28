@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc13",
-  "commit": "be2697ce9931dcc4a65a472ccba6337eee2d35b5",
+  "version": "0.6.0-rc14",
+  "commit": "1f87eb12e36a32891f6ab0eb199d10ec299db3a0",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "69e91f045e60d9c2498d8407f30a6149568a4a416e9fa05e13602a96255f3eee",
+      "sha256": "0dffcc48b365f2a1012e44854514ae10dfc39754681a83e94ca97bf65d497fbc",
       "bytes": 459
     },
     {
@@ -51,8 +51,8 @@
     },
     {
       "path": "src/adapters/auggie.js",
-      "sha256": "82a5b4997bdac3e70ff6a10c3b459bc5769c767ed116a52f42884e7d5b352c34",
-      "bytes": 4218
+      "sha256": "feb963a2c9ff8a59eceaaa4fb86d4129e8cdc01330d6bfc19537c929ce49d5c3",
+      "bytes": 4254
     },
     {
       "path": "src/adapters/capabilities.js",
@@ -76,8 +76,8 @@
     },
     {
       "path": "src/adapters/codebuddy.js",
-      "sha256": "01eae282a4a261f46d11e8691e791e4a31a99ee3e3168bd8f62104980218268c",
-      "bytes": 15217
+      "sha256": "f602305bc0a4470bde6a448cacad391d9ccd7de56cf3772c45c838b8307100bc",
+      "bytes": 16349
     },
     {
       "path": "src/adapters/codex.js",
@@ -116,8 +116,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "0a8b6825658e4113982342fd345ace18c4f0a074e2b5109fced1bc87481c1544",
-      "bytes": 15845
+      "sha256": "3e9518f3e476cea7a0878ea7f52b082fd1c2128e9f81546be21041cdd337f416",
+      "bytes": 16071
     },
     {
       "path": "src/adapters/goose.js",
@@ -141,8 +141,8 @@
     },
     {
       "path": "src/adapters/kiro-cli.js",
-      "sha256": "cb9f7a7a6802419b8313d5542a5ea04f0c748d8bd974527cb522d220747aeaaf",
-      "bytes": 4715
+      "sha256": "222324bf1754fbd321167b02afe72171d14961efe910219f9a9c7baf71134d58",
+      "bytes": 4696
     },
     {
       "path": "src/adapters/openclaw.js",
@@ -221,8 +221,8 @@
     },
     {
       "path": "src/agents/catalog-entries/auggie.json",
-      "sha256": "587143cdf6fae84b469091627edfcfb411ca58c9e39a64bb78299238076bee6b",
-      "bytes": 2111
+      "sha256": "7903276308234a5e00277db099131380be4de4945b23c50f6bf3078a0bb85bf7",
+      "bytes": 2136
     },
     {
       "path": "src/agents/catalog-entries/claude-code.json",
@@ -241,8 +241,8 @@
     },
     {
       "path": "src/agents/catalog-entries/codebuddy.json",
-      "sha256": "2a79a7ff8a7dc9e4d16cee8e4c5e6eb00c0d9060eb3080b190b7336243ad2e8b",
-      "bytes": 2769
+      "sha256": "32bd750a6777c3a74508d285acea8446afb529dc4df0cc568551b1e0a0266ead",
+      "bytes": 2779
     },
     {
       "path": "src/agents/catalog-entries/codex.json",
@@ -301,8 +301,8 @@
     },
     {
       "path": "src/agents/catalog-entries/kiro-cli.json",
-      "sha256": "ef2a103954d348d5c78ac91f173e4a306f648b82f46b9120f40bc786b0b6bf6d",
-      "bytes": 2418
+      "sha256": "606103ece19fe08498617dca79600582cdab0f381cc636f76754a54c3938e843",
+      "bytes": 2478
     },
     {
       "path": "src/agents/catalog-entries/openclaw.json",
@@ -351,8 +351,13 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "d7327f86ea393fe99be6a34f79375c27b41ccbcad7e82c78b550c6514a3ff9e2",
-      "bytes": 79753
+      "sha256": "7adb4fa96ab9dbaa56d09c81cdaa1918775d90ce5e951968ce00419415bbea4b",
+      "bytes": 79848
+    },
+    {
+      "path": "src/agents/codebuddy-empty-mcp.json",
+      "sha256": "e93fc8db2b1bd77107fe6c758bca9545fa864cf7cce8ab93a7b2b93a1d566a7b",
+      "bytes": 18
     },
     {
       "path": "src/agents/identify.js",
@@ -376,8 +381,8 @@
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "1ec7e5bf0384042c96b2ac77f5fde3117caefb3fc962349c4784ce00d483ed70",
-      "bytes": 7954
+      "sha256": "65231db08bd261c49b92a0d2a0785c51d088ccfdde68ec0fd5b507d9381e1d95",
+      "bytes": 9923
     },
     {
       "path": "src/agents/profile-store.js",
