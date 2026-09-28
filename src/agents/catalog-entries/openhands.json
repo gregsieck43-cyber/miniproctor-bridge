@@ -8,30 +8,30 @@
   "adapter_id": "generic",
   "integration_mode": "stdio",
   "capabilities": {
-    "create": false,
-    "read": false,
-    "stop": false,
+    "create": true,
+    "read": true,
+    "stop": true,
     "append": false,
     "resume": false,
-    "approve": false,
+    "approve": true,
     "fileChanges": false,
     "usage": false
   },
-  "initial_prompt_channel": null,
+  "initial_prompt_channel": "launch-args",
   "verification": {
-    "create": { "status": "unavailable", "evidence": "无合规可控通路（V12-A25 核验，2026-09-26）：官方 headless 模式强制 always-approve（官方原文 cannot be changed—--llm-approve is not available in headless mode），对任意动作全自动批准且该页未记载受限 sandbox/正式取消接口，不符合最小权限，不作为默认实现（docs_ref 快照 + 在线复核）" },
-    "read": { "status": "pending", "evidence": "L1 fixture 对拍已实现（官方记载的 action/observation 帧）：xcx/bridge/test/adapters/openhands-adapter.test.js + test/fixtures/openhands/；真实 CLI JSONL 帧流未取证（本机未安装 CLI），最终回复帧形状官方快照未记载（SDK 事件类模型与 CLI JSONL 形状不可混用）" },
-    "stop": { "status": "pending", "evidence": "bridge 通用进程树终止能力（runner）CI 持续验证 bridge/test/runner.test.js / runner-windows.test.js；因 create 无合规通路，本产品真实 create/read/stop 往返未取证" },
-    "append": { "status": "unavailable", "evidence": "官方 headless 为一次性任务执行（--task/--file），无中途追加输入接口记载" },
-    "resume": { "status": "unavailable", "evidence": "官方快照未记载恢复既有会话接口" },
-    "approve": { "status": "unavailable", "evidence": "headless 强制 always-approve 且 --llm-approve 不可用（官方原文），无审批回写通道；适配器绝不伪造审批按钮（fixture 断言 actions 为空）" },
-    "fileChanges": { "status": "unavailable", "evidence": "官方帧文档未记载文件变更事件结构（write action 仅含 path，入工具预览）；无已实现 file_change 映射路径" },
-    "usage": { "status": "unavailable", "evidence": "官方 headless --json 输出未记载 token 用量字段，无统计不伪造（§8.3）" }
+    "create": { "status": "verified", "evidence": "2026-09-28 Windows：bridge ManagedSession 启动隔离 Python/OpenHands SDK 1.49.6 + LiteLLM 1.93.1 进程，初始 prompt 经静态 worker 配方传入；本机 DeepSeek 真实会话创建，见 docs/release/v1.2/agents/openhands.md" },
+    "read": { "status": "verified", "evidence": "同次 bridge→SDK 真请求，agent_message=OPENHANDS_BRIDGE_OK、session_end completed、session_exit ended，三事件由独立 SDK JSONL 解析器生成；见 docs/release/v1.2/agents/openhands.md" },
+    "stop": { "status": "verified", "evidence": "2026-09-28 第二个真实 bridge→SDK 任务在 started 后停止，runner 返回 exited=true、reason=force-killed、taskkill_exit_code=0；SDK interrupt 的 PAUSED 不计作此证据，见 docs/release/v1.2/agents/openhands.md" },
+    "append": { "status": "unavailable", "evidence": "当前 SDK worker 只接收 launch-args 初始 prompt；未实现中途 send_text" },
+    "resume": { "status": "unavailable", "evidence": "当前 SDK worker 不恢复已结束进程的会话" },
+    "approve": { "status": "verified", "evidence": "2026-09-28 bridge confirm_required 仅展示终端命令预览，经 respondAction approve 回写后 SDK 执行 Write-Output BRIDGE_APPROVED_OK，tool_result success/最终回复/进程退出；deny 实测阻止文件创建。手机回写仍未验，见 docs/release/v1.2/agents/openhands.md" },
+    "fileChanges": { "status": "unavailable", "evidence": "当前 SDK worker 不生成 file_change；只展示动作及完成状态，不能把工具调用伪装为文件变更" },
+    "usage": { "status": "unavailable", "evidence": "测试模型 DeepSeek Flash 在 LiteLLM 成本表未映射；worker 不上报可核验 token/cost，不能伪造（§8.3）" }
   },
   "probe": {
     "version_args": ["--version"],
     "timeout_ms": 10000,
     "output_max_bytes": 8192
   },
-  "docs_ref": "xcx/docs/官方资料/A25-openhands-cli-headless.md"
+  "docs_ref": "xcx/docs/官方资料/A25-openhands-sdk.md"
 }

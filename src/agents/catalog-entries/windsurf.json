@@ -19,9 +19,9 @@
   },
   "initial_prompt_channel": null,
   "verification": {
-    "create": { "status": "unavailable", "evidence": "无官方外部新建通道：官方 hooks 入口跳转 Devin 文档，仅 hooks≠create/read/stop（§5.2）；观察解析器骨架 xcx/bridge/src/adapters/windsurf.js（hook 帧翻译，L1 对拍 test/adapters/windsurf-adapter.test.js）；本机 command -v windsurf 未安装（2026-09-26）；证据卡 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）" },
-    "read": { "status": "unavailable", "evidence": "hook 由 Cascade 主动触发且不保证触发（任务卡边界），非稳定输出流；解析器骨架 xcx/bridge/src/adapters/windsurf.js（post_cascade_response→agent_message 为 L1 路径）；真实触发未取证；证据卡 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）" },
-    "stop": { "status": "unavailable", "evidence": "hook 进程归 Cascade 所有，bridge 无进程树可停；官方无受控停止接口；证据卡 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）" },
+    "create": { "status": "pending", "evidence": "2026-09-27 用户接受 Devin CLI 官方继任通路；CLI 3000.11.3 已校验解压，但隔离环境 auth status 报 Failed to determine config directory，bridge 真实创建未验。旧 Hooks 观察面不能创建；见 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）" },
+    "read": { "status": "pending", "evidence": "Devin CLI 官方 -p/ACP 为候选输出通路，尚无真实账号回复与 bridge/手机读取证据。旧 Cascade hook 观察不构成稳定输出流；见 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）" },
+    "stop": { "status": "pending", "evidence": "候选 Devin CLI 子进程或 ACP 指定会话停止尚未实测；旧 hook 进程不归 bridge 控制。不得按文档推定 verified；见 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）" },
     "append": { "status": "unavailable", "evidence": "hooks 为单向观察，无追加输入通道；证据卡 xcx/docs/release/v1.2/agents/windsurf.md" },
     "resume": { "status": "unavailable", "evidence": "无会话恢复接口（trajectory_id 仅出现在 hook 载荷，无外部恢复 API）；证据卡 xcx/docs/release/v1.2/agents/windsurf.md" },
     "approve": { "status": "unavailable", "evidence": "hook 退出码 0/2 是 hook 脚本对 Cascade 的协议（pre-hook 阻断动作），非外部审批回写通道；证据卡 xcx/docs/release/v1.2/agents/windsurf.md" },

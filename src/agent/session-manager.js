@@ -215,6 +215,7 @@ export class ManagedSession {
     // 见 CLOSE-007，OpenCode 1.18.20 的真实探针见 V12-A05 证据卡。未绑定产品的
     // generic 会话以及需要 stdin 双向帧的 Claude 会话保持原行为。
     if (this.agentType === 'codex' || (this.profileId
+      && this.agentKey !== 'openhands' // SDK 工具审批需保留 stdin 控制回写
       && this.capabilities.initialPromptChannel === 'launch-args'
       && this.capabilities.append === false)) {
       try { this.runner.stdin?.end(); } catch { /* stdin 已关闭/不可用则忽略 */ }

@@ -129,6 +129,15 @@ const RELEASE_README = `miniproctor bridge 发行包
   6. node src/main.js run --no-initial-session  # 驻留接收手机任务，不启动默认 Agent
   （可另配语音识别：node tools/setup-asr.cjs）
 
+OpenHands Agent SDK（可选；Windows Python 3.14 本机通路已验）：
+  node tools/setup-openhands.cjs --workspace <Agent 项目目录> --python <Python 3.14 路径>
+  # 依赖安装到 <Agent 项目目录>/.deps/openhands-v12，缓存与临时文件也在该项目内。
+  # 将该虚拟环境的 .deps/openhands-v12/Scripts/python.exe 用作 OpenHands profile 的 --command。
+  # 启动 bridge 前在本机进程环境设置 OPENHANDS_LLM_MODEL 与 OPENHANDS_LLM_API_KEY，
+  # 自定义 API 还需 OPENHANDS_LLM_BASE_URL；不要把密钥放进小程序、profile 或命令行。
+  # 工具动作使用 AlwaysConfirm，经小程序审批后才执行；未完成逐产品手机/真云验收，
+  # 当前发行包仍为技术预发行，不代表 27 款 Agent 全量发布放行。
+
 发行完整性：
   node tools/verify-release.cjs --installed <安装目录>
   （按包内 RELEASE-MANIFEST.json 逐文件校验 sha256；下载侧校验见发布页 sha256 / 接入提示词）

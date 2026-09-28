@@ -528,7 +528,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "logo_asset": "assets/agents/comate.png",
       "lifecycle": "active",
       "adapter_id": "generic",
-      "integration_mode": "manual-report",
+      "integration_mode": "local-api",
       "capabilities": {
         "create": false,
         "read": false,
@@ -542,16 +542,16 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "initial_prompt_channel": null,
       "verification": {
         "create": {
-          "status": "unavailable",
-          "evidence": "Zulu 为 IDE 内 MCP 客户端，MCP 客户端能力≠外部可控制（§6 A23）；快照无 headless CLI/受控新建接口（xcx/docs/官方资料/A23-comate-zulu-mcp.md，2026-09-25）；解析器骨架 xcx/bridge/src/adapters/comate.js（探测恒 false）；本机 command -v comate/zulu 未安装（2026-09-26）；证据卡 xcx/docs/release/v1.2/agents/comate.md（BLOCKED 待产品决策）"
+          "status": "pending",
+          "evidence": "官方 @comate/comatecli 2.0.0 本机 serve API 在隔离 Ask 模式真实 POST /api/v1/conversations/init 返回会话 ID；Agent 模式关闭自动审批参数仍无审批执行 write_file，bridge local-api 后端未接线，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27"
         },
         "read": {
-          "status": "unavailable",
-          "evidence": "无外部事件流/报告通道文档；解析器骨架 xcx/bridge/src/adapters/comate.js 防御式 custom 兜底；文本行最终回复经 generic 兜底通路（test/adapters/comate-adapter.test.js，L1 对拍）；证据卡 xcx/docs/release/v1.2/agents/comate.md（BLOCKED）"
+          "status": "pending",
+          "evidence": "同一真实 serve 会话 SSE task_done=completed，history=done 且正文 COMATE_API_OK；bridge 未解析/上报该流，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27"
         },
         "stop": {
-          "status": "unavailable",
-          "evidence": "官方无受控停止/取消接口文档；证据卡 xcx/docs/release/v1.2/agents/comate.md（BLOCKED 待产品决策）"
+          "status": "pending",
+          "evidence": "同一 serve 实例对运行会话 POST /api/v1/conversations/{id}/cancel 后 SSE/history=cancelled 且 active=false；普通 CLI Ctrl+C 留 running，bridge 未接正式取消 API，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27"
         },
         "append": {
           "status": "unavailable",
@@ -581,7 +581,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         "timeout_ms": 10000,
         "output_max_bytes": 8192
       },
-      "docs_ref": "xcx/docs/官方资料/A23-comate-zulu-mcp.md"
+      "docs_ref": "xcx/docs/官方资料/A23-comate-cli.md"
     },
     {
       "schema_version": 1,
@@ -1363,48 +1363,48 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
-        "read": false,
-        "stop": false,
+        "create": true,
+        "read": true,
+        "stop": true,
         "append": false,
         "resume": false,
-        "approve": false,
+        "approve": true,
         "fileChanges": false,
         "usage": false
       },
-      "initial_prompt_channel": null,
+      "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "unavailable",
-          "evidence": "无合规可控通路（V12-A25 核验，2026-09-26）：官方 headless 模式强制 always-approve（官方原文 cannot be changed—--llm-approve is not available in headless mode），对任意动作全自动批准且该页未记载受限 sandbox/正式取消接口，不符合最小权限，不作为默认实现（docs_ref 快照 + 在线复核）"
+          "status": "verified",
+          "evidence": "2026-09-28 Windows：bridge ManagedSession 启动隔离 Python/OpenHands SDK 1.49.6 + LiteLLM 1.93.1 进程，初始 prompt 经静态 worker 配方传入；本机 DeepSeek 真实会话创建，见 docs/release/v1.2/agents/openhands.md"
         },
         "read": {
-          "status": "pending",
-          "evidence": "L1 fixture 对拍已实现（官方记载的 action/observation 帧）：xcx/bridge/test/adapters/openhands-adapter.test.js + test/fixtures/openhands/；真实 CLI JSONL 帧流未取证（本机未安装 CLI），最终回复帧形状官方快照未记载（SDK 事件类模型与 CLI JSONL 形状不可混用）"
+          "status": "verified",
+          "evidence": "同次 bridge→SDK 真请求，agent_message=OPENHANDS_BRIDGE_OK、session_end completed、session_exit ended，三事件由独立 SDK JSONL 解析器生成；见 docs/release/v1.2/agents/openhands.md"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "bridge 通用进程树终止能力（runner）CI 持续验证 bridge/test/runner.test.js / runner-windows.test.js；因 create 无合规通路，本产品真实 create/read/stop 往返未取证"
+          "status": "verified",
+          "evidence": "2026-09-28 第二个真实 bridge→SDK 任务在 started 后停止，runner 返回 exited=true、reason=force-killed、taskkill_exit_code=0；SDK interrupt 的 PAUSED 不计作此证据，见 docs/release/v1.2/agents/openhands.md"
         },
         "append": {
           "status": "unavailable",
-          "evidence": "官方 headless 为一次性任务执行（--task/--file），无中途追加输入接口记载"
+          "evidence": "当前 SDK worker 只接收 launch-args 初始 prompt；未实现中途 send_text"
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "官方快照未记载恢复既有会话接口"
+          "evidence": "当前 SDK worker 不恢复已结束进程的会话"
         },
         "approve": {
-          "status": "unavailable",
-          "evidence": "headless 强制 always-approve 且 --llm-approve 不可用（官方原文），无审批回写通道；适配器绝不伪造审批按钮（fixture 断言 actions 为空）"
+          "status": "verified",
+          "evidence": "2026-09-28 bridge confirm_required 仅展示终端命令预览，经 respondAction approve 回写后 SDK 执行 Write-Output BRIDGE_APPROVED_OK，tool_result success/最终回复/进程退出；deny 实测阻止文件创建。手机回写仍未验，见 docs/release/v1.2/agents/openhands.md"
         },
         "fileChanges": {
           "status": "unavailable",
-          "evidence": "官方帧文档未记载文件变更事件结构（write action 仅含 path，入工具预览）；无已实现 file_change 映射路径"
+          "evidence": "当前 SDK worker 不生成 file_change；只展示动作及完成状态，不能把工具调用伪装为文件变更"
         },
         "usage": {
           "status": "unavailable",
-          "evidence": "官方 headless --json 输出未记载 token 用量字段，无统计不伪造（§8.3）"
+          "evidence": "测试模型 DeepSeek Flash 在 LiteLLM 成本表未映射；worker 不上报可核验 token/cost，不能伪造（§8.3）"
         }
       },
       "probe": {
@@ -1414,7 +1414,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         "timeout_ms": 10000,
         "output_max_bytes": 8192
       },
-      "docs_ref": "xcx/docs/官方资料/A25-openhands-cli-headless.md"
+      "docs_ref": "xcx/docs/官方资料/A25-openhands-sdk.md"
     },
     {
       "schema_version": 1,
@@ -1764,16 +1764,16 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "initial_prompt_channel": null,
       "verification": {
         "create": {
-          "status": "unavailable",
-          "evidence": "无官方外部新建通道：官方 hooks 入口跳转 Devin 文档，仅 hooks≠create/read/stop（§5.2）；观察解析器骨架 xcx/bridge/src/adapters/windsurf.js（hook 帧翻译，L1 对拍 test/adapters/windsurf-adapter.test.js）；本机 command -v windsurf 未安装（2026-09-26）；证据卡 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）"
+          "status": "pending",
+          "evidence": "2026-09-27 用户接受 Devin CLI 官方继任通路；CLI 3000.11.3 已校验解压，但隔离环境 auth status 报 Failed to determine config directory，bridge 真实创建未验。旧 Hooks 观察面不能创建；见 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）"
         },
         "read": {
-          "status": "unavailable",
-          "evidence": "hook 由 Cascade 主动触发且不保证触发（任务卡边界），非稳定输出流；解析器骨架 xcx/bridge/src/adapters/windsurf.js（post_cascade_response→agent_message 为 L1 路径）；真实触发未取证；证据卡 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）"
+          "status": "pending",
+          "evidence": "Devin CLI 官方 -p/ACP 为候选输出通路，尚无真实账号回复与 bridge/手机读取证据。旧 Cascade hook 观察不构成稳定输出流；见 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）"
         },
         "stop": {
-          "status": "unavailable",
-          "evidence": "hook 进程归 Cascade 所有，bridge 无进程树可停；官方无受控停止接口；证据卡 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）"
+          "status": "pending",
+          "evidence": "候选 Devin CLI 子进程或 ACP 指定会话停止尚未实测；旧 hook 进程不归 bridge 控制。不得按文档推定 verified；见 xcx/docs/release/v1.2/agents/windsurf.md（BLOCKED）"
         },
         "append": {
           "status": "unavailable",

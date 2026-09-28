@@ -14,6 +14,7 @@ import { mapKiroCliRaw, mapKiroCliTextLine } from './kiro-cli.js';
 // （契约 §3 授权的唯一接线点）。两者均为 fixture 级解析器（真实 CLI 往返未取证，能力声明全
 // false），接线只保证「若 CLI 发帧则能解析」，不扩大任何能力（§5.2）。
 import { isOpenhandsStreamType, mapOpenhandsRaw } from './openhands.js';
+import { isOpenhandsSdkFrame, mapOpenhandsSdkFrame } from './openhands-sdk.js';
 import { isOpenclawStreamType, mapOpenclawRaw } from './openclaw.js';
 // V12-A19/A20/A21（适配组7）：qoder-cn / trae-cli / codearts-agent 探测与分发（契约 §3 唯一接线点）。
 // 三产品输出帧 schema 均无官方文档（快照 A19a/A20b/A21 缺口已如实登记），探测器只认「显式自报
@@ -45,6 +46,7 @@ const PROFILE_PARSERS = Object.freeze({
   codex: Object.freeze({ accepts: isCodexStreamType, map: mapCodexRaw, agentType: 'codex' }),
   opencode: Object.freeze({ accepts: isOpenCodeStreamType, map: mapOpenCodeRaw, agentType: 'generic' }),
   'qwen-code': Object.freeze({ accepts: isQwenStreamType, map: mapQwenRaw, agentType: 'generic' }),
+  openhands: Object.freeze({ accepts: isOpenhandsSdkFrame, map: mapOpenhandsSdkFrame, agentType: 'generic' }),
 });
 
 export function lineToEvent(line, { sessionId, agentType = 'generic', agentKey = null, sequencer }) {

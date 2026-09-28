@@ -6,7 +6,7 @@
   "logo_asset": "assets/agents/comate.png",
   "lifecycle": "active",
   "adapter_id": "generic",
-  "integration_mode": "manual-report",
+  "integration_mode": "local-api",
   "capabilities": {
     "create": false,
     "read": false,
@@ -19,9 +19,9 @@
   },
   "initial_prompt_channel": null,
   "verification": {
-    "create": { "status": "unavailable", "evidence": "Zulu 为 IDE 内 MCP 客户端，MCP 客户端能力≠外部可控制（§6 A23）；快照无 headless CLI/受控新建接口（xcx/docs/官方资料/A23-comate-zulu-mcp.md，2026-09-25）；解析器骨架 xcx/bridge/src/adapters/comate.js（探测恒 false）；本机 command -v comate/zulu 未安装（2026-09-26）；证据卡 xcx/docs/release/v1.2/agents/comate.md（BLOCKED 待产品决策）" },
-    "read": { "status": "unavailable", "evidence": "无外部事件流/报告通道文档；解析器骨架 xcx/bridge/src/adapters/comate.js 防御式 custom 兜底；文本行最终回复经 generic 兜底通路（test/adapters/comate-adapter.test.js，L1 对拍）；证据卡 xcx/docs/release/v1.2/agents/comate.md（BLOCKED）" },
-    "stop": { "status": "unavailable", "evidence": "官方无受控停止/取消接口文档；证据卡 xcx/docs/release/v1.2/agents/comate.md（BLOCKED 待产品决策）" },
+    "create": { "status": "pending", "evidence": "官方 @comate/comatecli 2.0.0 本机 serve API 在隔离 Ask 模式真实 POST /api/v1/conversations/init 返回会话 ID；Agent 模式关闭自动审批参数仍无审批执行 write_file，bridge local-api 后端未接线，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27" },
+    "read": { "status": "pending", "evidence": "同一真实 serve 会话 SSE task_done=completed，history=done 且正文 COMATE_API_OK；bridge 未解析/上报该流，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27" },
+    "stop": { "status": "pending", "evidence": "同一 serve 实例对运行会话 POST /api/v1/conversations/{id}/cancel 后 SSE/history=cancelled 且 active=false；普通 CLI Ctrl+C 留 running，bridge 未接正式取消 API，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27" },
     "append": { "status": "unavailable", "evidence": "无追加输入通道文档；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
     "resume": { "status": "unavailable", "evidence": "无会话恢复接口文档；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
     "approve": { "status": "unavailable", "evidence": "MCP 工具批准为 IDE 内弹窗交互，无外部回写通道；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
@@ -33,5 +33,5 @@
     "timeout_ms": 10000,
     "output_max_bytes": 8192
   },
-  "docs_ref": "xcx/docs/官方资料/A23-comate-zulu-mcp.md"
+  "docs_ref": "xcx/docs/官方资料/A23-comate-cli.md"
 }

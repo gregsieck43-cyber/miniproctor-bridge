@@ -1,4 +1,5 @@
 /** 本机受信任的产品启动配方；目录条目本身不含可执行参数。 */
+import { fileURLToPath } from 'node:url';
 import { CAPABILITY_KEYS } from '../adapters/capabilities.js';
 import { AIDER_SCRIPT_FLAGS } from '../adapters/aider.js';
 import { AGENT_PRESETS } from '../lib/config.js';
@@ -22,9 +23,15 @@ const RECIPES = Object.freeze({
       IFLOW_disableAutoUpdate: 'true',
     }),
   }),
+  openhands: Object.freeze({
+    adapterId: 'generic',
+    args: [fileURLToPath(new URL('./openhands-sdk-worker.py', import.meta.url))],
+  }),
 });
 
 function buildRuntime(agentKey, recipe) {
+  // The pinned SDK wheel and bridge worker have only been verified on Windows.
+  if (agentKey === 'openhands' && process.platform !== 'win32') return null;
   const entry = getCatalogEntry(agentKey);
   if (!entry || entry.adapter_id !== recipe.adapterId) return null;
   const declared = {};

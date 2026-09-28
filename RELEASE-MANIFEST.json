@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc4",
-  "commit": "522223777bbee831546e09a9a7752f74fd7b9e5d",
+  "version": "0.6.0-rc5",
+  "commit": "19c9803b0d76c46c812073cd8f3d59015a38ec31",
   "files": [
     {
       "path": "config.example.json",
@@ -31,13 +31,13 @@
     },
     {
       "path": "package.json",
-      "sha256": "6006abf9e0fee8f61979c7135e09ba71e5cd23ff49249b882ae02fb0ada8497b",
+      "sha256": "1d2ef04cb0749468231f67979c9e7d8b16cd0b4532076c643fbed573102ccd52",
       "bytes": 442
     },
     {
       "path": "README-RELEASE.txt",
-      "sha256": "a3c8eaa57762378af57c0a2635a51b805021d7b0afd57818b662d0fd5dd54455",
-      "bytes": 2392
+      "sha256": "61d04ccdf94ba9a45183b7a265bc9fc38fb4e54839b07bcf371e4562e34a2876",
+      "bytes": 3184
     },
     {
       "path": "src/adapters/aider.js",
@@ -116,8 +116,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "4e40e1ac494b93c2cac83ad8b5e3adc6fea8a153b9fa7600f2fef0a7ac79bca9",
-      "bytes": 14386
+      "sha256": "abefadd14c247cb9ef061eb17171af75a3e433e42534aad2e3cb1318f9dec50d",
+      "bytes": 14577
     },
     {
       "path": "src/adapters/goose.js",
@@ -153,6 +153,11 @@
       "path": "src/adapters/opencode.js",
       "sha256": "5fcb499f1f5cbafda75f9b162712fb29eed857aa646472dc977a8470f5e2be55",
       "bytes": 8944
+    },
+    {
+      "path": "src/adapters/openhands-sdk.js",
+      "sha256": "6fb5adce88944bd767907b59af0caaf328ff9d9c6abe7e3c4e52a6f0f727a38c",
+      "bytes": 4426
     },
     {
       "path": "src/adapters/openhands.js",
@@ -191,8 +196,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "f7bec07ef5d01334d07d0097a1c331eb888aba9673713f48b85479a0b85cae4f",
-      "bytes": 83555
+      "sha256": "e50b6eccbe1bb79a553f46da2c0c19992cb1323b0ea65112792f1bc26521f1d1",
+      "bytes": 83644
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -246,8 +251,8 @@
     },
     {
       "path": "src/agents/catalog-entries/comate.json",
-      "sha256": "7939a670ef6541131cdb2b89b436bd2e7deef21f206e7dc14bcc64f10c0cd5b9",
-      "bytes": 2395
+      "sha256": "431a739d17e35d6d7a6fd7d07607956b37d11f6f9e399b2ac4774a0b27f667f9",
+      "bytes": 2318
     },
     {
       "path": "src/agents/catalog-entries/continue.json",
@@ -311,8 +316,8 @@
     },
     {
       "path": "src/agents/catalog-entries/openhands.json",
-      "sha256": "cde6fbafb043c3014b430b4d2931cbf1535b050a29c5bc41f8e68a47f38dd0a5",
-      "bytes": 2519
+      "sha256": "96560185691c2feaf3dc82e248892c704a11c5f1fe42c7208ceb1f934d14fded",
+      "bytes": 2444
     },
     {
       "path": "src/agents/catalog-entries/qoder-cn.json",
@@ -341,13 +346,13 @@
     },
     {
       "path": "src/agents/catalog-entries/windsurf.json",
-      "sha256": "5e26808de65738c7fcd173bcc4c46f2d297b3ccc86020512477fe00c527e8d1a",
-      "bytes": 2654
+      "sha256": "8c44f71e909e7ed601edc5816593f4de4b57a98ebfe4a0da2341b8dbf2e1bea6",
+      "bytes": 2520
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "d6c881fa3ad5e3acaa206bbd49990352136c0b598f3b0dcfec3a077c22d45553",
-      "bytes": 81153
+      "sha256": "e9207451183a74cf0accab2e8b4240ba0b0c1e315d4af98656e81aa45c514cae",
+      "bytes": 80867
     },
     {
       "path": "src/agents/identify.js",
@@ -355,9 +360,14 @@
       "bytes": 15747
     },
     {
+      "path": "src/agents/openhands-sdk-worker.py",
+      "sha256": "5ec5a882f97e0d64ef13d4399d074df17df424e8cc22e5395e4b28dbdb156624",
+      "bytes": 7605
+    },
+    {
       "path": "src/agents/product-runtime.js",
-      "sha256": "e68026093cf917ce1635e912911dd5610ceaefde440782e869f8b3f430965f1d",
-      "bytes": 2375
+      "sha256": "33e25cec798a3a7e330e192937367a60918fc841af9e2df241fb9296adbeb038",
+      "bytes": 2717
     },
     {
       "path": "src/agents/profile-store.js",
@@ -491,8 +501,8 @@
     },
     {
       "path": "tools/make-release.cjs",
-      "sha256": "e2b4f72fdcc430011772b703967aac84f5c0c47c16d2458e9351a602a86461bc",
-      "bytes": 15554
+      "sha256": "96c0ba245bb3730b4afad4bbadab4977e8dcd2fcb2be61265b1347dd4703747e",
+      "bytes": 16355
     },
     {
       "path": "tools/mock-relay.mjs",
@@ -500,9 +510,24 @@
       "bytes": 4647
     },
     {
+      "path": "tools/openhands-requirements-win-py314.lock",
+      "sha256": "2f6728c0f7e08a1d2f0308a22a7c8c6d2e9db61e8427f55d08f02f6d75c30a63",
+      "bytes": 3825
+    },
+    {
+      "path": "tools/openhands-requirements.in",
+      "sha256": "d0a9e0eacb1ccc77180b2f8b3a7172b17573ed60ebb8550086b4018c138c0060",
+      "bytes": 62
+    },
+    {
       "path": "tools/setup-asr.cjs",
       "sha256": "7f33d7763d089b08ee9f8910064ae1e7355291167b5558b9af581584059c26c5",
       "bytes": 4691
+    },
+    {
+      "path": "tools/setup-openhands.cjs",
+      "sha256": "33d3ede0311ff9671e50d899d92fcd4406de32dab792fed539fe1c46ae60c76e",
+      "bytes": 5385
     },
     {
       "path": "tools/setup-wizard.cjs",
