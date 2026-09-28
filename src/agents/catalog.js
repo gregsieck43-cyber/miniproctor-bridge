@@ -672,16 +672,16 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "官方程序化模式（copilot -p \"<prompt>\" 单次执行后退出，A06 快照）+ runner 通用 spawn 路径；本机未安装 copilot（where/command -v 双探测），真实往返未取证（V12-A06，2026-09-26）"
+          "status": "verified",
+          "evidence": "Windows Copilot CLI 1.0.88：项目内固定 BYOK DeepSeek 只读配方，真实模型 JSONL 最终回复；正常 ProfileStore→AdapterFactory→SessionManager 本机 create 已复验（2026-09-28 A06 卡）"
         },
         "read": {
-          "status": "pending",
-          "evidence": "解析器 bridge/src/adapters/copilot-cli.js（官方未记载机器可读帧结构，fail-closed：文本行走 generic 兜底 agent_message，JSON 行落 custom 观察兜底）+ fixture 对拍 bridge/test/adapters/copilot-cli-adapter.test.js（synthetic）；CLI 未安装，真实输出未取证"
+          "status": "verified",
+          "evidence": "1.0.88 真实 --output-format=json 帧形 assistant.message/result；绑定产品解析器只上行完整最终内容，正常 profile 本机 read 已复验；手机/云未验（A06 卡）"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Copilot 实机 stop→子进程退出未取证（CLI 未安装）"
+          "status": "verified",
+          "evidence": "Windows 1.0.88 正常 profile stop_session 仅终止本次进程树，exited/taskkill 证据见 A06 卡；手机 stop 未验"
         },
         "append": {
           "status": "unavailable",
@@ -689,7 +689,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "A06 快照与参考页均无 headless 会话恢复旗标记载，未实测能力一律 false（V12-A06）"
+          "evidence": "新版 CLI 命令参考包含 --resume，但 bridge 尚未实现或实测产品绑定恢复；能力继续 false（V12-A06）"
         },
         "approve": {
           "status": "unavailable",
@@ -701,7 +701,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "usage": {
           "status": "unavailable",
-          "evidence": "官方记载 credits 按 token 计费但无输出用量帧记载，无统计不伪造（§8.3，V12-A06）"
+          "evidence": "1.0.88 JSONL result.usage 实测为 premiumRequests/duration/codeChanges，无输入输出 token 数；不把请求数冒充 token，用量能力继续 false（A06 卡）"
         }
       },
       "probe": {
@@ -711,7 +711,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         "timeout_ms": 10000,
         "output_max_bytes": 8192
       },
-      "docs_ref": "xcx/docs/官方资料/A06-copilot-cli-about.md"
+      "docs_ref": "xcx/docs/官方资料/A06b-copilot-cli-1.0.88.md"
     },
     {
       "schema_version": 1,

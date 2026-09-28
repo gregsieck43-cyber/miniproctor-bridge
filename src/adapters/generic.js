@@ -12,9 +12,8 @@ import { mapAuggieRaw, mapAuggieTextLine } from './auggie.js';
 import { isClineStreamType, mapClineRaw, isClineProfileOutput, mapClineProfileOutput } from './cline.js';
 import { isFactoryDroidStreamType, mapFactoryDroidRaw } from './factory-droid.js';
 import { mapKiroCliRaw, mapKiroCliTextLine } from './kiro-cli.js';
-// V12-A25/A27（适配组10）：openhands --json JSONL / openclaw agent exec --json 稳定信封
-// （契约 §3 授权的唯一接线点）。两者均为 fixture 级解析器（真实 CLI 往返未取证，能力声明全
-// false），接线只保证「若 CLI 发帧则能解析」，不扩大任何能力（§5.2）。
+// V12-A25/A27：OpenHands SDK 与 OpenClaw 本机真实 profile 已取证；能力由各产品目录
+// verification 门控。旧 headless 观察解析器保留历史兼容，不据此扩大能力。
 import { isOpenhandsStreamType, mapOpenhandsRaw } from './openhands.js';
 import { isOpenhandsSdkFrame, mapOpenhandsSdkFrame } from './openhands-sdk.js';
 import { isOpenclawStreamType, mapOpenclawRaw } from './openclaw.js';
@@ -42,6 +41,7 @@ import { isGeminiStreamType, mapGeminiRaw } from './gemini-cli.js';
 import { isQwenStreamType, mapQwenRaw } from './qwen-code.js';
 // V12-A04（适配组4）：cursor-cli print/stream-json 探测与分发（契约 §3 授权的唯一接线点）。
 import { isCursorCliStreamType, mapCursorCliRaw } from './cursor-cli.js';
+import { isCopilotCliProfileOutput, mapCopilotCliProfileOutput } from './copilot-cli.js';
 
 const PROFILE_PARSERS = Object.freeze({
   'claude-code': Object.freeze({ accepts: isClaudeStreamType, map: mapClaudeRaw, agentType: 'claude-code' }),
@@ -52,6 +52,7 @@ const PROFILE_PARSERS = Object.freeze({
   cline: Object.freeze({ accepts: isClineProfileOutput, map: mapClineProfileOutput, agentType: 'generic' }),
   'kimi-code': Object.freeze({ accepts: isKimiCodeProfileOutput, map: mapKimiCodeProfileOutput, agentType: 'generic' }),
   openclaw: Object.freeze({ accepts: isOpenclawStreamType, map: mapOpenclawRaw, agentType: 'generic' }),
+  'copilot-cli': Object.freeze({ accepts: isCopilotCliProfileOutput, map: mapCopilotCliProfileOutput, agentType: 'generic' }),
   'qwen-code': Object.freeze({ accepts: isQwenStreamType, map: mapQwenRaw, agentType: 'generic' }),
   openhands: Object.freeze({ accepts: isOpenhandsSdkFrame, map: mapOpenhandsSdkFrame, agentType: 'generic' }),
 });
@@ -164,7 +165,7 @@ export function lineToEvent(line, { sessionId, agentType = 'generic', agentKey =
   }
   // V12-A27：openclaw agent exec --json 稳定信封（布尔 ok + status/final/payloads/error），
   // 布尔 ok 判别与全部 type 帧产品无重叠；plain 模式（stdout 纯文本）不认领，落文本兜底。
-  // 能力全 false（真实 CLI 往返未取证，V12-A27）。
+  // 当前本机能力仍由产品目录 verification 限定，不能由裸信封形状扩大。
   if (isOpenclawStreamType(raw)) {
     return mapOpenclawRaw(raw, { sessionId, agentType, sequencer });
   }

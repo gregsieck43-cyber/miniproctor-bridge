@@ -37,6 +37,20 @@ const RECIPES = Object.freeze({
       '--code-mode', 'direct', '--timeout', '120', '--json'],
     env: Object.freeze({ OPENCLAW_CONFIG_READONLY: '1', OPENCLAW_OFFLINE: '1', OPENCLAW_LOAD_SHELL_ENV: '0' }),
   }),
+  'copilot-cli': Object.freeze({
+    adapterId: 'generic',
+    // 1.0.88：BYOK 离线模式不连接 GitHub；仅暴露只读工具，禁内置 MCP/远程控制。
+    args: ['--output-format=json', '--available-tools=view,grep,glob', '--deny-tool=write,shell,url',
+      '--no-custom-instructions', '--disable-builtin-mcps', '--no-remote', '--no-remote-export',
+      '--no-ask-user', '--disallow-temp-dir', '--secret-env-vars=COPILOT_PROVIDER_API_KEY',
+      '--no-color', '-p'],
+    env: Object.freeze({
+      COPILOT_AUTO_UPDATE: 'false', COPILOT_OFFLINE: 'true',
+      COPILOT_PROVIDER_BASE_URL: 'https://api.deepseek.com',
+      COPILOT_PROVIDER_TYPE: 'openai', COPILOT_PROVIDER_WIRE_API: 'completions',
+      COPILOT_MODEL: 'deepseek-chat',
+    }),
+  }),
   goose: Object.freeze({
     adapterId: 'generic',
     args: ['run', '--no-profile', '--no-session', '--output-format', 'stream-json', '--max-turns', '2', '--text'],
@@ -64,7 +78,7 @@ const RECIPES = Object.freeze({
 
 function buildRuntime(agentKey, recipe) {
   // These product recipes have only been verified on Windows.
-  if ((agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline' || agentKey === 'kimi-code' || agentKey === 'openclaw') && process.platform !== 'win32') return null;
+  if ((agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline' || agentKey === 'kimi-code' || agentKey === 'openclaw' || agentKey === 'copilot-cli') && process.platform !== 'win32') return null;
   const entry = getCatalogEntry(agentKey);
   if (!entry || entry.adapter_id !== recipe.adapterId) return null;
   const declared = {};
@@ -99,14 +113,32 @@ export function getProductRuntime(agentKey) {
 
 /** 只计算本机启动参数；目录由 SessionManager 在工作区授权后创建。 */
 export function prepareProductLaunch(spec, { sessionId, dataDir } = {}) {
-  if (spec.agentKey !== 'openclaw') {
+  if (spec.agentKey !== 'openclaw' && spec.agentKey !== 'copilot-cli') {
     return { args: [...spec.args], productEnv: { ...(spec.productEnv || {}) }, stateDir: null };
   }
   if (!/^s_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(sessionId || '')) {
-    throw new TypeError('OpenClaw sessionId 非 bridge UUID');
+    throw new TypeError('产品 sessionId 非 bridge UUID');
   }
   if (typeof dataDir !== 'string' || !path.isAbsolute(dataDir)) {
-    throw new TypeError('OpenClaw dataDir 必须为 bridge 本机绝对路径');
+    throw new TypeError('产品 dataDir 必须为 bridge 本机绝对路径');
+  }
+  if (spec.agentKey === 'copilot-cli') {
+    const runtime = getProductRuntime('copilot-cli');
+    if (!runtime || JSON.stringify(spec.args) !== JSON.stringify(runtime.args)) {
+      throw new TypeError('Copilot CLI 必须使用固定只读启动配方');
+    }
+    const stateDir = path.join(path.resolve(dataDir), 'copilot-runs', sessionId);
+    return {
+      args: [...runtime.args], stateDir,
+      productEnv: {
+        ...(spec.productEnv || {}), ...runtime.env,
+        COPILOT_HOME: path.join(stateDir, 'home'),
+        COPILOT_CACHE_HOME: path.join(path.resolve(dataDir), 'copilot-cache'),
+        HOME: stateDir, USERPROFILE: stateDir, APPDATA: stateDir, LOCALAPPDATA: stateDir,
+        XDG_CONFIG_HOME: stateDir, TEMP: stateDir, TMP: stateDir,
+        NODE_COMPILE_CACHE: path.join(path.resolve(dataDir), 'copilot-node-cache'),
+      },
+    };
   }
   if (!spec.args.includes(OPENCLAW_STATE_PLACEHOLDER)) {
     throw new TypeError('OpenClaw 启动配方缺少状态目录占位符');
