@@ -5,6 +5,7 @@ import { isWindsurfStreamType, mapWindsurfRaw } from './windsurf.js';
 // V12-A05/A11/A12（适配组3）：opencode/amp/auggie 探测与分发（契约 §3 授权的唯一接线点）。
 import { isOpenCodeStreamType, mapOpenCodeRaw } from './opencode.js';
 import { isGooseStreamType, mapGooseRaw } from './goose.js';
+import { isContinueHeadlessOutput, mapContinueHeadlessOutput } from './continue.js';
 import { mapAmpRaw, mapAmpTextLine } from './amp.js';
 import { mapAuggieRaw, mapAuggieTextLine } from './auggie.js';
 // V12-A07/A10/A13（适配组5）：cline NDJSON / droid exec JSON / kiro-cli 文本（契约 §3 授权的唯一接线点）。
@@ -47,6 +48,7 @@ const PROFILE_PARSERS = Object.freeze({
   codex: Object.freeze({ accepts: isCodexStreamType, map: mapCodexRaw, agentType: 'codex' }),
   opencode: Object.freeze({ accepts: isOpenCodeStreamType, map: mapOpenCodeRaw, agentType: 'generic' }),
   goose: Object.freeze({ accepts: isGooseStreamType, map: mapGooseRaw, agentType: 'generic' }),
+  continue: Object.freeze({ accepts: isContinueHeadlessOutput, map: mapContinueHeadlessOutput, agentType: 'generic' }),
   'qwen-code': Object.freeze({ accepts: isQwenStreamType, map: mapQwenRaw, agentType: 'generic' }),
   openhands: Object.freeze({ accepts: isOpenhandsSdkFrame, map: mapOpenhandsSdkFrame, agentType: 'generic' }),
 });
@@ -61,8 +63,8 @@ export function lineToEvent(line, { sessionId, agentType = 'generic', agentKey =
   const profileParser = hasProfileKey && Object.hasOwn(PROFILE_PARSERS, agentKey)
     ? PROFILE_PARSERS[agentKey] : null;
   if (hasProfileKey) {
-    if (profileParser?.accepts(raw)) {
-      return profileParser.map(raw, { sessionId, agentType: profileParser.agentType, sequencer });
+    if (profileParser?.accepts(raw, line)) {
+      return profileParser.map(raw, { sessionId, agentType: profileParser.agentType, sequencer, line });
     }
     return [createEvent({
       sessionId, agentType: profileParser?.agentType || 'generic', sequencer,

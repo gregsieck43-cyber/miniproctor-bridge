@@ -607,16 +607,16 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "官方 headless 模式（cn -p \"<prompt>\" 单任务执行后打印响应退出，A08 快照 + 官网 2026-09-25 核对一致）+ runner 通用 spawn 路径；本机未安装 cn（where/command -v 双探测），真实往返未取证（V12-A08，2026-09-26）"
+          "status": "verified",
+          "evidence": "2026-09-28 Windows Continue CLI 1.5.47 官方 npm 包项目隔离安装；DeepSeek OpenAI-compatible 配置下 --exclude '*' --silent -p --format json 真实返回 CONTINUE_NO_TOOLS_OK；禁用全部工具以避免 --readonly 仍放行 Bash/MCP。正常 profile 闭环见 A08 证据卡"
         },
         "read": {
-          "status": "pending",
-          "evidence": "解析器 bridge/src/adapters/continue.js（官方未记载 --format json 的 JSON schema，fail-closed：文本行走 generic 兜底 agent_message，JSON 行落 custom 观察兜底）+ fixture 对拍 bridge/test/adapters/continue-adapter.test.js（synthetic）；CLI 未安装，真实输出未取证"
+          "status": "verified",
+          "evidence": "2026-09-28 Continue CLI 1.5.47 真实单行 JSON 输出 {response:...} 与模型原生 {reply:...}；仅绑定 continue profile 定向解析为最终消息，其他 JSON 原文展示，未知文本 fail-closed。正常 profile 读回见 A08 证据卡"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Continue 实机 stop→子进程退出未取证（CLI 未安装）"
+          "status": "verified",
+          "evidence": "2026-09-28 Windows 实跑 AgentRunner 对活跃 cn.cmd 进程树强停，停止前 alive=true，taskkill_exit_code=0、exited=true、停止后 alive=false；安全静态配方下正常 profile stop 见 A08 证据卡"
         },
         "append": {
           "status": "unavailable",
