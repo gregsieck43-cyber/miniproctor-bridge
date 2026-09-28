@@ -1,28 +1,77 @@
-import { createEvent } from '../lib/events.js';
+import { createEvent, sanitizeSensitiveText } from '../lib/events.js';
 
-// V12-A24（Goose）——文本型产品适配器（adapter-contract.md §3 接口）。
-//
-// 官方快照（xcx/docs/官方资料/A24-goose-readme.md，2026-09-25 抓取）为迁移后官方仓库
-// aaif-goose/goose 的 README：桌面/CLI/API 三形态、多 provider、70+ MCP 扩展——但未提供
-// CLI 一次性任务的参数形态，也未提供任何结构化事件流文档。因此按契约 §3 实现
-// "保守探针 + 兜底映射"：
-//   1. isGooseStreamType 恒返回 false——官方未定义帧契约，不得把巧合 JSON 声称为 goose
-//      事件，也不得抢占 claude-code/codex 的帧（主方案 §5.2 能力不能由名称推断）；
-//   2. goose 会话的文本输出经 generic.js 既有兜底呈现（agent_message、is_final=true）；
-//   3. mapGooseRaw 仅供契约对拍与官方协议文档落地后的接线：对象帧一律落 custom 兜底
-//      事件（custom_type='goose_raw'），任何畸形输入不抛出（返回数组，可为空）。
-// 边界（卡面 A24）：扩展/MCP 权限不由手机增加——本文件不提供任何参数构造接口，启动
-// 规格只能来自本机 profile 冻结 spec（adapter-factory.js）；多 provider 仍是同一 goose
-// 产品下不同 profile，不按 provider 拆分身份。
-// generic.js 不增探测分支：探针无可达帧，增行即死分支（V12-A24 执行报告有说明）。
+const STREAM_CHUNK_CHARS = 512;
+const pendingBySequencer = new WeakMap();
 
+function flushMessage({ sessionId, agentType, sequencer }, state, isFinal = false) {
+  if (!state?.text) return [];
+  const content = sanitizeSensitiveText(state.text);
+  state.text = '';
+  return [createEvent({
+    sessionId, agentType, sequencer, eventType: 'agent_message',
+    payload: {
+      message_id: state.id, stream_id: state.id, role: 'assistant',
+      content, content_type: 'text', is_final: isFinal,
+    },
+  })];
+}
+
+// V12-A24：Goose 1.52.0 Windows stream-json 解析器。2026-09-26 README 级调查只
+// 建立了保守兜底；2026-09-28 官方固定包、真实模型输出和 bridge profile 验证后增加
+// message/complete 帧映射。仅绑定 goose profile 识别，未知帧不透传正文；无 profile
+// 的全局探测仍不认领 Goose 帧。产品静态配方强制 chat/no-profile，禁用工具和扩展，
+// 手机不能传入额外启动参数。其他模式、其他 OS 均未验证。
+
+// Goose 1.52.0 Windows `run --output-format stream-json` 真机帧：message 为同一 id 的
+// 文本片段；complete 带 token 计数。仅绑定 goose profile 时由 generic.js 调用，
+// 不参与无 profile 的全局探测，避免与其他产品的同名帧碰撞。
 export function isGooseStreamType(raw) {
-  // 官方快照未定义结构化帧契约（见文件头注释）——任何输入都不声称是 goose 事件帧。
-  return false;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  try {
+    if (raw.type === 'message') {
+      return raw.message?.role === 'assistant' && Array.isArray(raw.message?.content)
+        && raw.message.content.some((item) => item?.type === 'text' && typeof item.text === 'string');
+    }
+    return raw.type === 'complete' && Number.isSafeInteger(raw.input_tokens)
+      && raw.input_tokens >= 0 && Number.isSafeInteger(raw.output_tokens)
+      && raw.output_tokens >= 0;
+  } catch {
+    return false;
+  }
 }
 
 export function mapGooseRaw(raw, { sessionId, agentType = 'generic', sequencer }) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+  if (isGooseStreamType(raw) && raw.type === 'message') {
+    const id = typeof raw.message.id === 'string' && raw.message.id
+      ? raw.message.id.slice(0, 128) : `goose_${sequencer.value + 1}`;
+    let state = pendingBySequencer.get(sequencer);
+    const events = [];
+    if (state && state.id !== id) events.push(...flushMessage({ sessionId, agentType, sequencer }, state, true));
+    if (!state || state.id !== id) state = { id, text: '' };
+    for (const item of raw.message.content) {
+      if (item?.type !== 'text' || typeof item.text !== 'string') continue;
+      state.text += item.text;
+      while (state.text.length >= STREAM_CHUNK_CHARS) {
+        const chunk = { id: state.id, text: state.text.slice(0, STREAM_CHUNK_CHARS) };
+        state.text = state.text.slice(STREAM_CHUNK_CHARS);
+        events.push(...flushMessage({ sessionId, agentType, sequencer }, chunk));
+      }
+    }
+    pendingBySequencer.set(sequencer, state);
+    return events;
+  }
+  if (isGooseStreamType(raw) && raw.type === 'complete') {
+    const pending = pendingBySequencer.get(sequencer);
+    pendingBySequencer.delete(sequencer);
+    return [...flushMessage({ sessionId, agentType, sequencer }, pending, true), createEvent({
+      sessionId, agentType, sequencer, eventType: 'session_end',
+      payload: {
+        reason: 'completed', summary: 'Goose 回合结束',
+        usage: { input_tokens: raw.input_tokens, output_tokens: raw.output_tokens },
+      },
+    })];
+  }
   const frameType = safeFrameType(raw);
   return [createEvent({
     sessionId, agentType, sequencer,

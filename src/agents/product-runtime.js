@@ -9,6 +9,11 @@ const RECIPES = Object.freeze({
   'claude-code': Object.freeze({ adapterId: 'claude-code', args: AGENT_PRESETS['claude-code'].args }),
   codex: Object.freeze({ adapterId: 'codex', args: AGENT_PRESETS.codex.args }),
   opencode: Object.freeze({ adapterId: 'generic', args: ['run', '--format', 'json'] }),
+  goose: Object.freeze({
+    adapterId: 'generic',
+    args: ['run', '--no-profile', '--no-session', '--output-format', 'stream-json', '--max-turns', '2', '--text'],
+    env: Object.freeze({ GOOSE_MODE: 'chat' }),
+  }),
   'qwen-code': Object.freeze({
     adapterId: 'generic',
     args: ['--bare', '--approval-mode', 'default', '--output-format', 'stream-json', '--prompt'],
@@ -31,7 +36,7 @@ const RECIPES = Object.freeze({
 
 function buildRuntime(agentKey, recipe) {
   // The pinned SDK wheel and bridge worker have only been verified on Windows.
-  if (agentKey === 'openhands' && process.platform !== 'win32') return null;
+  if ((agentKey === 'openhands' || agentKey === 'goose') && process.platform !== 'win32') return null;
   const entry = getCatalogEntry(agentKey);
   if (!entry || entry.adapter_id !== recipe.adapterId) return null;
   const declared = {};

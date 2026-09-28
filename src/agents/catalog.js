@@ -918,28 +918,28 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
-        "read": false,
-        "stop": false,
+        "create": true,
+        "read": true,
+        "stop": true,
         "append": false,
         "resume": false,
         "approve": false,
         "fileChanges": false,
-        "usage": false
+        "usage": true
       },
-      "initial_prompt_channel": null,
+      "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "解析器 fixture 对拍（bridge/test/adapters/goose-adapter.test.js）；真实 CLI 往返未取证（本机未安装 goose，V12-A24 探测 2026-09-26），工厂 verified create 门槛未过"
+          "status": "verified",
+          "evidence": "2026-09-28 Windows Goose 1.52.0 官方包 SHA-256 13f51e2294a8c92ce440988beb1873ed688e33d8fc72c0f75755b2ed5b3d54bc；隔离 CLI + DeepSeek 真实初始 prompt 返回 GOOSE_PROBE_OK；静态配方强制 chat/no-profile/no-session，详见 docs/release/v1.2/agents/goose.md。手机待验"
         },
         "read": {
-          "status": "pending",
-          "evidence": "文本行经 generic 兜底呈现 + 畸形输入隔离 fixture（bridge/test/adapters/goose-adapter.test.js）；真实 CLI 往返未取证（本机未安装 goose，V12-A24 探测 2026-09-26）"
+          "status": "verified",
+          "evidence": "2026-09-28 真实 Goose stream-json message 片段与 complete 用量帧读回，绑定 goose profile 独立解析；见 docs/release/v1.2/agents/goose.md"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "进程树终止为 generic 既有能力（runner*.test.js）；goose 真实进程未实测，V12-A24 探测 2026-09-26"
+          "status": "verified",
+          "evidence": "2026-09-28 AgentRunner 定向停止真实 Goose 活跃输出进程：停止前 alive，taskkill_exit_code=0、exited=true、停止后不存活；见 docs/release/v1.2/agents/goose.md；手机待验"
         },
         "append": {
           "status": "unavailable",
@@ -958,8 +958,8 @@ export const CATALOG_ENTRIES = Object.freeze(  [
           "evidence": "官方快照无结构化文件变更事件文档，文本型产品不伪造工具事件（声明 false）"
         },
         "usage": {
-          "status": "unavailable",
-          "evidence": "官方快照无用量统计文档，无统计不伪造（声明 false）"
+          "status": "verified",
+          "evidence": "2026-09-28 真实 stream-json complete 帧 input_tokens=370/output_tokens=5；仅映射 token，不上报费用；见 docs/release/v1.2/agents/goose.md"
         }
       },
       "probe": {
