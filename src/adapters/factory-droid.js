@@ -1,4 +1,4 @@
-import { createEvent } from '../lib/events.js';
+import { createEvent, sanitizeSensitiveText } from '../lib/events.js';
 
 // Factory Droid（V12-A10）`droid exec` JSON 输出适配器。
 //
@@ -20,8 +20,12 @@ import { createEvent } from '../lib/events.js';
 //   - approve：双向 stream-jsonrpc 协议有 droid.request_permission 服务端请求（快照
 //     「Build custom flows on raw JSON-RPC」），本项目未实现该协议 → 声明 false。
 //
+// 2026-09-28 Windows 0.174.0 未登录实测：result/failure 帧新增 usage 四种 token 计数。
+// 用户登录需短信验证，未完成，成功帧仍未实测；create/read/stop 能力保持关闭。
 // 设计立场与已知取舍：
-//   - 只映射文档化 result 帧 → session_end；无 token 统计字段，usage 恒 {}（无统计不伪造 §8.3）；
+//   - 绑定 profile 的成功 result 将最终文本映射 agent_message + session_end；未绑定分支
+//     保持原 session_end 语义，避免同形帧改变其他产品行为；失败帧仅 session_end；
+//     usage 仅接受真实帧的非负安全整数，缺失时 {}（无统计不伪造 §8.3）；
 //   - result 帧与 Claude Code result 帧高度同形（Factory 沿用了该格式），且 gemini/qwen
 //     （stream-json 同源族）亦有 result 形帧。分发上本探测分支排在 claude 之前（generic.js
 //     唯一接线点），靠「缺少 usage / total_cost_usd / cost_usd / duration_api_ms 键」排除
@@ -30,8 +34,7 @@ import { createEvent } from '../lib/events.js';
 //     各分支对 result 的映射语义一致（session_end），该取舍记录于证据卡与任务报告；
 //   - agentType 固定 'generic'——AGENT_TYPES 白名单未扩（events.js:34 / protocol/schema.cjs:130
 //     禁改），会话身份由 session_meta agent_key 承载。
-// 真实 CLI 往返未取证（2026-09-26 本机 command -v droid 未安装；真实往返还需 FACTORY_API_KEY
-// 账号）——fixture-only，详见 docs/release/v1.2/agents/factory-droid.md。
+// 真实模型往返仍未取证，详见 docs/release/v1.2/agents/factory-droid.md。
 
 // Claude result 帧特有、Droid 文档化 result 帧没有的键（用于同形帧甄别）。
 const CLAUDE_ONLY_RESULT_KEYS = Object.freeze(['usage', 'total_cost_usd', 'cost_usd', 'duration_api_ms']);
@@ -49,16 +52,48 @@ export function isFactoryDroidStreamType(raw) {
   return true;
 }
 
-export function mapFactoryDroidRaw(raw, { sessionId, agentType = 'generic', sequencer }) {
-  if (!isFactoryDroidStreamType(raw)) return [];
-  return [createEvent({
+/** 绑定 profile 后，产品身份由启动规格给出；0.174.0 的 result 可包含 usage。 */
+export function isFactoryDroidProfileOutput(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  return raw.type === 'result'
+    && typeof raw.is_error === 'boolean'
+    && Number.isFinite(raw.duration_ms)
+    && Number.isFinite(raw.num_turns)
+    && typeof raw.session_id === 'string' && raw.session_id.length > 0
+    && typeof raw.result === 'string';
+}
+
+function mapUsage(rawUsage) {
+  if (!rawUsage || typeof rawUsage !== 'object' || Array.isArray(rawUsage)) return {};
+  const usage = {};
+  for (const key of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) {
+    const value = rawUsage[key];
+    if (Number.isSafeInteger(value) && value >= 0) usage[key] = value;
+  }
+  return usage;
+}
+
+export function mapFactoryDroidRaw(raw, { sessionId, agentType = 'generic', sequencer, profileBound = false }) {
+  if (!isFactoryDroidProfileOutput(raw)) return [];
+  const failed = raw.is_error || raw.subtype === 'error' || raw.subtype === 'failure';
+  const result = sanitizeSensitiveText(raw.result);
+  const events = [];
+  if (profileBound && !failed && result) events.push(createEvent({
+    sessionId, agentType, sequencer,
+    eventType: 'agent_message',
+    payload: {
+      message_id: `m_droid_${sequencer.next()}`, stream_id: null, role: 'assistant',
+      content: result, content_type: 'text', is_final: true, stop_reason: null,
+    },
+  }));
+  events.push(createEvent({
     sessionId, agentType, sequencer,
     eventType: 'session_end',
     payload: {
-      // is_error 文档化布尔 + subtype 文档化取值 success；失败语义归 error，不猜其他 subtype。
-      reason: raw.is_error === true || raw.subtype === 'error' ? 'error' : 'completed',
-      summary: String(raw.result).slice(0, 1000),
-      usage: {},
+      reason: failed ? 'error' : 'completed',
+      summary: result.slice(0, 1000),
+      usage: mapUsage(raw.usage),
     },
-  })];
+  }));
+  return events;
 }

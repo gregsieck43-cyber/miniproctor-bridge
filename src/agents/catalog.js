@@ -93,15 +93,15 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "create": {
           "status": "pending",
-          "evidence": "官方 execute 模式（amp -x \"<prompt>\" 发消息→等回合结束→打印最终消息→退出，A11 快照）+ runner 通用 spawn 路径；CLI 本机未安装，真实往返未取证（V12-A11，2026-09-25）"
+          "evidence": "官方 @ampcode/cli 固定版 0.0.1790603400-g668411 已在项目内安装，Windows 原生 exe 的 version/help 返回成功并确认 -x；用户无账号/API Key，tools list 进入设备登录等待后已停止。官方说明默认工具不请求批准，安全配方及真实模型 profile create 未验"
         },
         "read": {
           "status": "pending",
-          "evidence": "解析器 bridge/src/adapters/amp.js（execute stdout 纯文本行→agent_message）+ fixture 对拍 bridge/test/adapters/amp-adapter.test.js（官方示例语义构造，synthetic）；CLI 未安装，真实输出未取证"
+          "evidence": "解析器 bridge/src/adapters/amp.js 与 synthetic fixture 对拍通过；当前 CLI 无账号/API Key，未取得真实模型最终 stdout（docs/release/v1.2/agents/amp.md）"
         },
         "stop": {
           "status": "pending",
-          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js 覆盖通用路径）；Amp 实机 stop→子进程退出未取证（CLI 未安装）"
+          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner*.test.js）；Amp 无认证、无真实模型任务，正常 profile stop→子进程退出未取证"
         },
         "append": {
           "status": "unavailable",
@@ -803,15 +803,15 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "create": {
           "status": "pending",
-          "evidence": "解析器+fixture 就绪（bridge/test/adapters/factory-droid-adapter.test.js + test/fixtures/factory-droid/）；真实 CLI 往返未取证（2026-09-26 本机 command -v droid 未安装，且需 FACTORY_API_KEY 账号）；capabilities.js 无声明层行（V12 简报禁改），AdapterFactory 现阶段 fail-closed 拒绝实例化。文档化初始 prompt 通道为 launch-args（exec 位置参数），create 验证前不开放；桥接默认不追加 --auto/--skip-permissions-unsafe（exec 默认只读 spec 模式）"
+          "evidence": "官方 Windows CLI 0.174.0 已在项目内固定版安装并校验；未认证只读 exec 返回失败帧及退出码 1。用户账号需短信验证，未完成登录；正常 profile 真实 create 未验，AdapterFactory 继续 fail-closed。文档化初始 prompt 通道为 launch-args（exec 位置参数），禁用 --auto/--skip-permissions-unsafe"
         },
         "read": {
           "status": "pending",
-          "evidence": "仅解析 fixture（--output-format json 的 result 帧→session_end，bridge/test/adapters/factory-droid-adapter.test.js + test/fixtures/factory-droid/output-samples.jsonl）；帧形状证据为快照「json」节样例（docs_ref A10）；真实 CLI 往返未取证"
+          "evidence": "0.174.0 真实失败帧包含 usage 四字段；绑定 profile 解析器已补最终文本映射，成功样本仅为结构测试。无真实模型答复，read 未验（docs/release/v1.2/agents/factory-droid.md）"
         },
         "stop": {
           "status": "pending",
-          "evidence": "bridge runner 进程树终止为公共能力（test/runner*.test.js）；真实 CLI 下受控停止未验证（droid 未安装）"
+          "evidence": "bridge runner 进程树终止为公共能力（test/runner*.test.js）；真实 Factory 模型任务及正常 profile 受控停止未验证"
         },
         "append": {
           "status": "unavailable",
@@ -830,8 +830,8 @@ export const CATALOG_ENTRIES = Object.freeze(  [
           "evidence": "官方快照未记载文件变更帧；result 帧字段不含文件变更（docs_ref A10）"
         },
         "usage": {
-          "status": "unavailable",
-          "evidence": "文档化 result 帧无 token 统计字段（仅 duration_ms/num_turns），usage 恒空对象（无统计不伪造 §8.3）"
+          "status": "pending",
+          "evidence": "0.174.0 未认证真实 result/failure 帧新增 usage{input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens}，均为 0；成功模型计数未验，能力保持关闭"
         }
       },
       "probe": {

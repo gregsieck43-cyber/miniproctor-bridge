@@ -10,7 +10,7 @@ import { mapAmpRaw, mapAmpTextLine } from './amp.js';
 import { mapAuggieRaw, mapAuggieTextLine } from './auggie.js';
 // V12-A07/A10/A13（适配组5）：cline NDJSON / droid exec JSON / kiro-cli 文本（契约 §3 授权的唯一接线点）。
 import { isClineStreamType, mapClineRaw, isClineProfileOutput, mapClineProfileOutput } from './cline.js';
-import { isFactoryDroidStreamType, mapFactoryDroidRaw } from './factory-droid.js';
+import { isFactoryDroidStreamType, isFactoryDroidProfileOutput, mapFactoryDroidRaw } from './factory-droid.js';
 import { mapKiroCliRaw, mapKiroCliTextLine } from './kiro-cli.js';
 // V12-A25/A27：OpenHands SDK 与 OpenClaw 本机真实 profile 已取证；能力由各产品目录
 // verification 门控。旧 headless 观察解析器保留历史兼容，不据此扩大能力。
@@ -50,6 +50,8 @@ const PROFILE_PARSERS = Object.freeze({
   goose: Object.freeze({ accepts: isGooseStreamType, map: mapGooseRaw, agentType: 'generic' }),
   continue: Object.freeze({ accepts: isContinueHeadlessOutput, map: mapContinueHeadlessOutput, agentType: 'generic' }),
   cline: Object.freeze({ accepts: isClineProfileOutput, map: mapClineProfileOutput, agentType: 'generic' }),
+  'factory-droid': Object.freeze({ accepts: isFactoryDroidProfileOutput,
+    map: (raw, ctx) => mapFactoryDroidRaw(raw, { ...ctx, profileBound: true }), agentType: 'generic' }),
   'cursor-cli': Object.freeze({ accepts: isCursorCliProfileOutput, map: mapCursorCliRaw, agentType: 'generic' }),
   'kimi-code': Object.freeze({ accepts: isKimiCodeProfileOutput, map: mapKimiCodeProfileOutput, agentType: 'generic' }),
   openclaw: Object.freeze({ accepts: isOpenclawStreamType, map: mapOpenclawRaw, agentType: 'generic' }),

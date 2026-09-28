@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc12",
-  "commit": "eee1050b8c76b7ee56d222d410fb329e6d8e7bbd",
+  "version": "0.6.0-rc13",
+  "commit": "be2697ce9931dcc4a65a472ccba6337eee2d35b5",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "8305ef647097efab510301310f8971975871ec5ca93b7007fd33eea1b747f794",
+      "sha256": "69e91f045e60d9c2498d8407f30a6149568a4a416e9fa05e13602a96255f3eee",
       "bytes": 459
     },
     {
@@ -106,8 +106,8 @@
     },
     {
       "path": "src/adapters/factory-droid.js",
-      "sha256": "96095151c83b9f3da9e85c9c1aff711695237c8bf64adb59b6fd3649d02c5f28",
-      "bytes": 4427
+      "sha256": "f555c47e6688290539304c51dfddbebf99b4ba71382d427b60afac294d783f09",
+      "bytes": 5990
     },
     {
       "path": "src/adapters/gemini-cli.js",
@@ -116,8 +116,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "ca6c54ad9db1921a7eab6c1923e5e7a23b677e9bf60a43e8f94c981186efbee8",
-      "bytes": 15639
+      "sha256": "0a8b6825658e4113982342fd345ace18c4f0a074e2b5109fced1bc87481c1544",
+      "bytes": 15845
     },
     {
       "path": "src/adapters/goose.js",
@@ -216,8 +216,8 @@
     },
     {
       "path": "src/agents/catalog-entries/amp.json",
-      "sha256": "ea40bfd00e1f8502f99f9328fb08452221e26426e39c293df90b45e5f80aa980",
-      "bytes": 2168
+      "sha256": "85f8ea2ef3f4b68bef825cab501e9532c6ae762244bb067c3876509744a4564f",
+      "bytes": 2216
     },
     {
       "path": "src/agents/catalog-entries/auggie.json",
@@ -271,8 +271,8 @@
     },
     {
       "path": "src/agents/catalog-entries/factory-droid.json",
-      "sha256": "70e1f16b7f443ae09651e8c4a89c1e9491781eaa84db2b0074a22363589cddea",
-      "bytes": 2736
+      "sha256": "bc4ba98e7811642a720da34abdd1e88a6063dc8898cadc4d3e7d5e5c85ae5156",
+      "bytes": 2586
     },
     {
       "path": "src/agents/catalog-entries/gemini-cli.json",
@@ -351,8 +351,8 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "fd988ef915b54cc37afac9a8f04f10412c60399d5bf8e8fa0aa7214e613fcb56",
-      "bytes": 79855
+      "sha256": "d7327f86ea393fe99be6a34f79375c27b41ccbcad7e82c78b550c6514a3ff9e2",
+      "bytes": 79753
     },
     {
       "path": "src/agents/identify.js",
