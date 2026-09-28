@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc14",
-  "commit": "1f87eb12e36a32891f6ab0eb199d10ec299db3a0",
+  "version": "0.6.0-rc15",
+  "commit": "d24a8c70c3f3a4af7024274e7ddc9283d913e42c",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "0dffcc48b365f2a1012e44854514ae10dfc39754681a83e94ca97bf65d497fbc",
+      "sha256": "ed304cb28117c72eaf6bbe4b56d5839615e1550f7c0e43a969b67cae507600dc",
       "bytes": 459
     },
     {
@@ -71,8 +71,8 @@
     },
     {
       "path": "src/adapters/codearts-agent.js",
-      "sha256": "bc1ac1637b2bae33767b6d43f123006bc4d4e30f460b0588fa120606c8f847c8",
-      "bytes": 10319
+      "sha256": "15db6b4b3ae90738f00884f8448e1ee7459a96eec0788da8f63d1d7405b77943",
+      "bytes": 10431
     },
     {
       "path": "src/adapters/codebuddy.js",
@@ -86,8 +86,8 @@
     },
     {
       "path": "src/adapters/comate.js",
-      "sha256": "dc79311121fad1097f9fb608ed3fca38ea42de78e0e3cb2236e3bb6496582fa5",
-      "bytes": 2959
+      "sha256": "fe0225d4c6867658fe631d2beb0d51b34d2c75a7ed876a29faa371b46de93ebc",
+      "bytes": 2374
     },
     {
       "path": "src/adapters/continue.js",
@@ -131,8 +131,8 @@
     },
     {
       "path": "src/adapters/junie.js",
-      "sha256": "96a2474212471469fffbfa2518f743ab1aa3b3649a8f9a1d1139164d1e3563ca",
-      "bytes": 2712
+      "sha256": "2cb81e47f987593a852a7afd31eb67249742f78f04f40efd1ec10a6a6340bb80",
+      "bytes": 2670
     },
     {
       "path": "src/adapters/kimi-code.js",
@@ -156,8 +156,8 @@
     },
     {
       "path": "src/adapters/openhands-sdk.js",
-      "sha256": "6fb5adce88944bd767907b59af0caaf328ff9d9c6abe7e3c4e52a6f0f727a38c",
-      "bytes": 4426
+      "sha256": "a77dbefb28fe524b6a9a8ba13cc984d3b243da7d8933d283471af3d5ba515fbb",
+      "bytes": 4613
     },
     {
       "path": "src/adapters/openhands.js",
@@ -166,13 +166,13 @@
     },
     {
       "path": "src/adapters/qoder-cn.js",
-      "sha256": "2de1d3f7ad21f8141609e2a0b91cb246051038831abe6a2aa134fdabcd885b4e",
-      "bytes": 9849
+      "sha256": "62b9fb683561f457e9a14c0e844338c7065235b9690136dc5d545078ee6e69c3",
+      "bytes": 10011
     },
     {
       "path": "src/adapters/qoder.js",
-      "sha256": "246547b7db14fa0796fc6749ffa47dac2b70f0b856ace438b31671f9110c850c",
-      "bytes": 4216
+      "sha256": "cc3f8b176c82810c3a110de95b50ae936983914352038bf4b59e7dbc10e8040b",
+      "bytes": 4251
     },
     {
       "path": "src/adapters/qwen-code.js",
@@ -196,8 +196,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "1247e1e1fd3b777f8b5e0a8a5dd9c0addd120f192faa5a8e04c20199ed814b2c",
-      "bytes": 85735
+      "sha256": "e62286958e51d70c232a06bf0eaa6d50782945a068ce491e0572385b798b46ea",
+      "bytes": 86018
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -236,8 +236,8 @@
     },
     {
       "path": "src/agents/catalog-entries/codearts-agent.json",
-      "sha256": "10e7a461b7ae5865db95f8dbb2f28a51068cfec068c9f772f0a2fb33ddb15ca5",
-      "bytes": 2654
+      "sha256": "65408f6f4f99dcdadde8927e606a97ba9352f8688beed392c8523b9107fc5083",
+      "bytes": 2707
     },
     {
       "path": "src/agents/catalog-entries/codebuddy.json",
@@ -251,8 +251,8 @@
     },
     {
       "path": "src/agents/catalog-entries/comate.json",
-      "sha256": "431a739d17e35d6d7a6fd7d07607956b37d11f6f9e399b2ac4774a0b27f667f9",
-      "bytes": 2318
+      "sha256": "fe3b16f2e2f21a9f0e6cb80a440fdb6629138d4b94d2a8a4ed35c15887d51174",
+      "bytes": 2364
     },
     {
       "path": "src/agents/catalog-entries/continue.json",
@@ -291,8 +291,8 @@
     },
     {
       "path": "src/agents/catalog-entries/junie.json",
-      "sha256": "34c50137cc1d366a40b9f4b810c708f0b13cc5983a4f5c5e13c8f9f17c0efe99",
-      "bytes": 2090
+      "sha256": "798617adbdd7b89c509a05ba162530ec05deb82644a42c497995dc1713e80472",
+      "bytes": 2043
     },
     {
       "path": "src/agents/catalog-entries/kimi-code.json",
@@ -321,13 +321,13 @@
     },
     {
       "path": "src/agents/catalog-entries/qoder-cn.json",
-      "sha256": "1e426a6b4d0dc8b108eb6cc5c916adf91ab79ed7e85ebe8fe2846ad08ad71abb",
-      "bytes": 2369
+      "sha256": "ecf412f6521278b707943c01f7cdbf37d1a1dd74f535dc182a8302f20d86db85",
+      "bytes": 2527
     },
     {
       "path": "src/agents/catalog-entries/qoder.json",
-      "sha256": "1b488b1bb49140956dde57c51b2555b5c2ff437f1f3d55c3c8c1a08a8bed8de5",
-      "bytes": 2550
+      "sha256": "8d352fdfee9eeef4d50f50fb68f60089df0cb1ea62589c2f7bfa9a3ff366d024",
+      "bytes": 2660
     },
     {
       "path": "src/agents/catalog-entries/qwen-code.json",
@@ -351,8 +351,8 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "7adb4fa96ab9dbaa56d09c81cdaa1918775d90ce5e951968ce00419415bbea4b",
-      "bytes": 79848
+      "sha256": "e9870161da60723ad653d8c6e61a3d839162707fd63ebda86dfc5bb16cfceec0",
+      "bytes": 80168
     },
     {
       "path": "src/agents/codebuddy-empty-mcp.json",
@@ -376,8 +376,8 @@
     },
     {
       "path": "src/agents/openhands-sdk-worker.py",
-      "sha256": "5ec5a882f97e0d64ef13d4399d074df17df424e8cc22e5395e4b28dbdb156624",
-      "bytes": 7605
+      "sha256": "d17e2665434d8d24780bbbe598d9c96658d6c8461b3d006c3b633ef354d4eb0b",
+      "bytes": 7815
     },
     {
       "path": "src/agents/product-runtime.js",
@@ -516,8 +516,8 @@
     },
     {
       "path": "tools/make-release.cjs",
-      "sha256": "96c0ba245bb3730b4afad4bbadab4977e8dcd2fcb2be61265b1347dd4703747e",
-      "bytes": 16355
+      "sha256": "e89c45e816b3a8ff0b40a32030c170e81838d899fd67a337d8974b4068bac49e",
+      "bytes": 16404
     },
     {
       "path": "tools/mock-relay.mjs",
@@ -556,8 +556,8 @@
     },
     {
       "path": "tools/verify-release.cjs",
-      "sha256": "57f146998e2f74d3982175ac8c33d81cd22350443b34ca5b2df8f77337326d79",
-      "bytes": 10313
+      "sha256": "15ec6f4bc7e0f7e90b22a514f3ac477220b1489c601bb9ab422efee249436e36",
+      "bytes": 10470
     }
   ]
 }

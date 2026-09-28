@@ -6,8 +6,9 @@ import { createEvent } from '../lib/events.js';
 //   - A18a-qoder-run-in-scripts.md：headless 模式 `qoder -p "<prompt>"`（prompt 走参数或 stdin）；
 //     `--output-format` 支持 text（默认，纯文本结果）/ json（含 result 与 Metadata 的单 JSON 对象）/
 //     stream-json（逐行 JSON 消息流）；`--input-format stream-json` 可持续发送「Structured Messages」。
-//   - A18b-qoder-permissions.md：headless（-p）下任何需要确认的操作（ask）一律自动拒绝；
-//     SDK（stdio 协议）有 canUseTool 回调、ACP 有 requestPermission——均为其他集成模式，本卡未实现；
+//   - A18b-qoder-permissions.md：普通文本 headless（-p）的 ask 自动拒绝；
+//     当前官方文档另说明 stream-json 由 Host Program 驱动时可转发确认请求，
+//     SDK（stdio 协议）有 canUseTool 回调、ACP 有 requestPermission——本卡均未实现；
 //     --yolo/bypass_permissions 仅限完全受信环境（本适配器不设置任何权限放行参数）。
 //
 // 诚实边界（不编造接口）：官方快照【没有给出】json/stream-json 的帧 schema（无字段/无示例帧）。
@@ -15,9 +16,9 @@ import { createEvent } from '../lib/events.js';
 //   1) 探测函数为「空集」——不认领任何帧，避免与 claude/codex/kimi/codebuddy 探测抢帧或误归因；
 //   2) 不实现任何工具事件映射（generic 式文本产品不伪造工具事件）；
 //   3) 运行时读取路径 = generic 行流兜底（文本行 → agent_message；未知 JSON → custom raw_json）；
-//   4) headless ask 自动拒绝是官方文档化行为——不提供审批回写通道，approve=false。
-// stream-json 帧 schema 与 json 单对象结构待 V03 真实 CLI 取证（本机未安装 qoder，
-// command -v/where.exe 双确认）后，按实测流补充映射并把能力逐项翻入验证层（adapter-contract.md §2.3）。
+//   4) 本卡冻结的纯文本 headless ask 自动拒绝——不提供审批回写通道，approve=false。
+// stream-json 帧 schema 与 json 单对象结构待 V03 真实 CLI 取证（2026-09-29 仅固定 npm
+// 兼容包 1.1.64 的 version/help，无认证模型往返）后，按实测流补充映射并把能力逐项翻入验证层。
 //
 // 事件 agent_type 取 'generic'：AGENT_TYPES 冻结为 claude-code/codex/generic（protocol/schema.cjs）。
 
@@ -60,7 +61,7 @@ export const QODER_CAPABILITIES = Object.freeze({
   stop: true, // runner 进程树终止为 bridge 自有能力（generic 同源）
   append: false, // stream-json 输入官方仅述及存在，消息 schema 未提供——无编码路径，不声明
   resume: false, // --session-id 为 CLI flag，bridge 无恢复重拉代码路径，不声明
-  approve: false, // headless ask 一律自动拒绝（官方文档化）；SDK canUseTool / ACP requestPermission 未实现
+  approve: false, // 冻结的纯文本 headless ask 自动拒绝；stream-json Host / SDK / ACP 回写未实现
   fileChanges: false, // 无帧 schema，无 file_change 映射路径
   usage: false, // json 输出含 Metadata 但字段未文档化，无统计路径（无统计不伪造，§8.3）
   integrationMode: 'stdio',

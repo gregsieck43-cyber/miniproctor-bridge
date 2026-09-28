@@ -555,6 +555,9 @@ export class ManagedSession {
     this._stopRequested = true;
     this.clearAllDeadlineTimers();
     this.pendingInputs.clear();
+    // OpenHands 在待审批时以 stdin 作为控制通道。先告知受控停止，再关管道，
+    // 否则 SDK 会把 EOF 误报成审批通道故障，手机端显示任务失败。
+    if (this.agentKey === 'openhands') this.runner.sendJson({ type: 'control_stop' });
     return this.runner.stop();
   }
 }

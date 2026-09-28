@@ -68,7 +68,7 @@ function gitCommit() {
 
 /** 递归收集待打包文件（排除密钥/数据/模型/临时物/点文件/本机日志）。rel 一律正斜杠。 */
 function collectFiles(dir, base = '') {
-  const EXCLUDE_DIR = new Set(['node_modules', 'data', 'asr', '.tmp', 'test', 'dist']);
+  const EXCLUDE_DIR = new Set(['node_modules', 'data', 'asr', '.tmp', 'test', 'dist', '__pycache__']);
   const EXCLUDE_FILE = new Set([
     'config.json', 'device.json', 'package-lock.json',
     'pair.log', 'run.log', 'audit.log', IN_PACKAGE_MANIFEST,
@@ -78,7 +78,7 @@ function collectFiles(dir, base = '') {
     if (entry.name.startsWith('.')) continue; // .tmp-*.mjs 等调试残留不进发行包
     if (entry.isDirectory()) {
       if (!EXCLUDE_DIR.has(entry.name)) out.push(...collectFiles(path.join(dir, entry.name), base ? `${base}/${entry.name}` : entry.name));
-    } else if (!EXCLUDE_FILE.has(entry.name)) {
+    } else if (!EXCLUDE_FILE.has(entry.name) && !/\.py[co]$/i.test(entry.name)) {
       out.push({ abs: path.join(dir, entry.name), rel: base ? `${base}/${entry.name}` : entry.name });
     }
   }

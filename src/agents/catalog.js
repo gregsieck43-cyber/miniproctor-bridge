@@ -355,11 +355,11 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "read": {
           "status": "pending",
-          "evidence": "L1 解析 fixture：bridge/test/adapters/codearts-agent-adapter.test.js（候选契约对拍；官方快照 A21 未记载 run --format json 事件帧 schema，真实 CLI 帧未取证，本机未安装 codearts）"
+          "evidence": "L1 解析 fixture：bridge/test/adapters/codearts-agent-adapter.test.js 为候选契约；2026-09-29 官方 Windows 26.9.11 包签名及隔离 version/help 通过，但无 AK/SK、未调用模型，真实 JSON 事件帧未取证"
         },
         "stop": {
           "status": "pending",
-          "evidence": "bridge 进程树终止为 agent 无关代码路径（bridge/test/runner.test.js、runner-windows.test.js）；产品级真实停止未取证（CLI 未安装）"
+          "evidence": "bridge 进程树终止为 agent 无关代码路径（bridge/test/runner.test.js、runner-windows.test.js）；2026-09-29 仅固定 CLI version/help，产品级真实会话停止未验"
         },
         "append": {
           "status": "unavailable",
@@ -367,7 +367,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "官方存在 run --sessionID <id>/--continue 恢复通道与 export/import 会话 JSON（A21），但适配器未实现恢复映射路径且真实 CLI 未验证——声明 false"
+          "evidence": "26.9.11 实际 run --help 提供 --session/-s 与 --continue/-c，官方旧快照的 --sessionID 拼写与本机不符；bridge 未实现恢复映射，真实模型未验证——声明 false"
         },
         "approve": {
           "status": "unavailable",
@@ -543,7 +543,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "create": {
           "status": "pending",
-          "evidence": "官方 @comate/comatecli 2.0.0 本机 serve API 在隔离 Ask 模式真实 POST /api/v1/conversations/init 返回会话 ID；Agent 模式关闭自动审批参数仍无审批执行 write_file，bridge local-api 后端未接线，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27"
+          "evidence": "官方 @comate/comatecli 2.0.0 的 serve API 隔离 Ask 模式真实返回会话 ID；2026-09-29 复查无参数 serve 会话 API 403，SaaS License 显式参数会暴露于进程 argv；Agent 模式 write_file 曾绕过审批。bridge 未接线，不能开放。见 A23 证据卡"
         },
         "read": {
           "status": "pending",
@@ -551,7 +551,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "stop": {
           "status": "pending",
-          "evidence": "同一 serve 实例对运行会话 POST /api/v1/conversations/{id}/cancel 后 SSE/history=cancelled 且 active=false；普通 CLI Ctrl+C 留 running，bridge 未接正式取消 API，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27"
+          "evidence": "同一 serve 实例取消 API 真实返回 cancelled/active=false；单次 run Ctrl+C 留 running。当前 SaaS 认证缺不暴露 License 于 argv 的正式 serve 启动方式，bridge 未接取消 API，不能开放。见 A23 证据卡"
         },
         "append": {
           "status": "unavailable",
@@ -563,7 +563,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "MCP 工具批准为 IDE 内弹窗交互，无外部回写通道；证据卡 xcx/docs/release/v1.2/agents/comate.md"
+          "evidence": "CLI 2.0.0 的 run_command 有 requires_action 与 --reject 实测，但 write_file 在禁自动批准下仍无审批执行；bridge 未接线，不能声明通用批准能力。见 A23 证据卡"
         },
         "fileChanges": {
           "status": "unavailable",
@@ -1059,35 +1059,35 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "create": {
           "status": "pending",
-          "evidence": "解析器 fixture 对拍（bridge/test/adapters/junie-adapter.test.js）；真实 CLI 往返未取证（本机未安装 junie，V12-A26 探测 2026-09-26），工厂 verified create 门槛未过；CLI 官方标 EAP，版本锁定待定"
+          "evidence": "Windows 官方 CLI 26.9.22 (3419.7) 签名及隔离 version/help 已验（2026-09-29）；无凭据/模型任务，正常 profile create 未验；非交互项目输入安全配方未冻结"
         },
         "read": {
           "status": "pending",
-          "evidence": "文本行经 generic 兜底呈现 + 畸形输入隔离 fixture（bridge/test/adapters/junie-adapter.test.js）；真实 CLI 往返未取证（本机未安装 junie，V12-A26 探测 2026-09-26）"
+          "evidence": "官方和本机帮助支持 json-stream，但帧 schema、真实模型读回及桥接映射未验；现有 fixture 仅合成文本兜底"
         },
         "stop": {
           "status": "pending",
-          "evidence": "进程树终止为 generic 既有能力（runner*.test.js）；junie 真实进程未实测，V12-A26 探测 2026-09-26"
+          "evidence": "runner 通用进程树终止已有测试；Junie 真实任务及正常 profile 停止未验"
         },
         "append": {
           "status": "unavailable",
-          "evidence": "官方 headless 快照仅一次性位置参数提示，无会话中途追加输入通道文档（声明 false）"
+          "evidence": "CLI 有交互模式及自身会话机制，但 bridge 无会话中途追加输入通路（声明 false）"
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "无实现路径（声明 false）；headless 与 JetBrains IDE 旧对话不互通（卡面 A26）"
+          "evidence": "当前 CLI 有 --session-id/--resume；bridge 未实现 Junie 恢复，JetBrains IDE 旧对话不由此接管（声明 false）"
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "官方快照无审批回写协议文档（声明 false）"
+          "evidence": "非交互项目输入默认信任；未有经验证的逐项审批回写与只读安全配方（声明 false）"
         },
         "fileChanges": {
           "status": "unavailable",
-          "evidence": "官方快照无结构化文件变更事件文档，文本型产品不伪造工具事件（声明 false）"
+          "evidence": "json-stream 可选但真实文件变更帧 schema/映射未取证，不伪造工具事件（声明 false）"
         },
         "usage": {
           "status": "unavailable",
-          "evidence": "官方快照无用量统计文档，无统计不伪造（声明 false）"
+          "evidence": "未取得真实用量帧或统计映射，无统计不伪造（声明 false）"
         }
       },
       "probe": {
@@ -1447,23 +1447,23 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "read": {
           "status": "pending",
-          "evidence": "L1 解析 fixture：bridge/test/adapters/qoder-cn-adapter.test.js（候选契约对拍；官方快照 A19a 未记载 headless 输出帧 schema，真实 CLI 帧未取证，本机未安装 qodercn/qoderclicn）"
+          "evidence": "L1 解析 fixture：bridge/test/adapters/qoder-cn-adapter.test.js 为候选契约；2026-09-29 项目内 npm 兼容包 1.1.64 version/help 已验，但无认证模型及真实 stream-json 帧，解析形状仍未确认"
         },
         "stop": {
           "status": "pending",
-          "evidence": "bridge 进程树终止为 agent 无关代码路径（bridge/test/runner.test.js、runner-windows.test.js）；产品级真实停止未取证（CLI 未安装）"
+          "evidence": "bridge 进程树终止为 agent 无关代码路径（bridge/test/runner.test.js、runner-windows.test.js）；2026-09-29 仅固定包 version/help，产品级真实会话停止未验"
         },
         "append": {
           "status": "unavailable",
-          "evidence": "官方无 headless 中途追加输入通道文档（A19a），无实现路径（声明 false）"
+          "evidence": "当前官方资料已有 --input-format stream-json 持续结构化输入，但消息 schema 和 bridge 编码路径未验证/未实现（声明 false）"
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "A19a /resume 仅 TUI 命令，无 headless 恢复通道文档；无实现路径（声明 false）"
+          "evidence": "当前官方参数有 --session-id/--resume；bridge 无恢复重拉实现，真实运行未验（声明 false）"
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "官方无审批帧/回写协议文档（A19a）；适配器将 control_request 候选帧降级为诊断事件，不映射 confirm_required（手机端不出现虚假审批按钮，§5.2）"
+          "evidence": "纯文本 headless 的 ask 自动拒绝；当前官方资料另称 Host 驱动 stream-json 可转发确认请求，但本 bridge 无 Qoder CN 回写协议。适配器将 control_request 候选帧降级为诊断，不映射 confirm_required"
         },
         "fileChanges": {
           "status": "unavailable",
@@ -1510,11 +1510,11 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "read": {
           "status": "pending",
-          "evidence": "文本输出（官方 text 默认格式）经 generic 行流路径读取（bridge/test/adapters/qoder-adapter.test.js fixture 对拍）；官方快照未给出 json/stream-json 帧 schema——探测为空集、不伪造结构化事件；真实 CLI 往返未取证（V12-A18：本机未安装 qoder，command -v/where.exe 双确认，2026-09-26）"
+          "evidence": "文本输出（官方 text 默认格式）经 generic 行流路径读取（bridge/test/adapters/qoder-adapter.test.js fixture 对拍）；官方资料未给出 json/stream-json 帧 schema——探测为空集、不伪造结构化事件。2026-09-29 项目内固定 npm 兼容包 1.1.64 的 version/help 已验；无认证模型往返，真实读仍未取证"
         },
         "stop": {
           "status": "pending",
-          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js 同源路径）；qoder 真实进程停止未验（CLI 未安装，V12-A18）"
+          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js 同源路径）；2026-09-29 仅固定包 version/help，qoder 真实会话进程停止未验"
         },
         "append": {
           "status": "unavailable",
@@ -1526,7 +1526,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "headless（-p）下任何 ask 一律自动拒绝（A18a/A18b 官方文档化行为）；SDK canUseTool 回调与 ACP requestPermission 为其他集成模式（A18b），本卡未实现，不混合宣传"
+          "evidence": "普通纯文本 headless（-p）下 ask 自动拒绝；2026-09-29 官方文档补充 stream-json 由 Host Program 驱动时可转发确认请求，但本 bridge 未实现对应回写协议。SDK canUseTool 与 ACP requestPermission 属其他集成模式；不可宣传手机远程审批"
         },
         "fileChanges": {
           "status": "unavailable",

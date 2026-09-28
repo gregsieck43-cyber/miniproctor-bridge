@@ -19,14 +19,14 @@
   },
   "initial_prompt_channel": null,
   "verification": {
-    "create": { "status": "pending", "evidence": "解析器 fixture 对拍（bridge/test/adapters/junie-adapter.test.js）；真实 CLI 往返未取证（本机未安装 junie，V12-A26 探测 2026-09-26），工厂 verified create 门槛未过；CLI 官方标 EAP，版本锁定待定" },
-    "read": { "status": "pending", "evidence": "文本行经 generic 兜底呈现 + 畸形输入隔离 fixture（bridge/test/adapters/junie-adapter.test.js）；真实 CLI 往返未取证（本机未安装 junie，V12-A26 探测 2026-09-26）" },
-    "stop": { "status": "pending", "evidence": "进程树终止为 generic 既有能力（runner*.test.js）；junie 真实进程未实测，V12-A26 探测 2026-09-26" },
-    "append": { "status": "unavailable", "evidence": "官方 headless 快照仅一次性位置参数提示，无会话中途追加输入通道文档（声明 false）" },
-    "resume": { "status": "unavailable", "evidence": "无实现路径（声明 false）；headless 与 JetBrains IDE 旧对话不互通（卡面 A26）" },
-    "approve": { "status": "unavailable", "evidence": "官方快照无审批回写协议文档（声明 false）" },
-    "fileChanges": { "status": "unavailable", "evidence": "官方快照无结构化文件变更事件文档，文本型产品不伪造工具事件（声明 false）" },
-    "usage": { "status": "unavailable", "evidence": "官方快照无用量统计文档，无统计不伪造（声明 false）" }
+    "create": { "status": "pending", "evidence": "Windows 官方 CLI 26.9.22 (3419.7) 签名及隔离 version/help 已验（2026-09-29）；无凭据/模型任务，正常 profile create 未验；非交互项目输入安全配方未冻结" },
+    "read": { "status": "pending", "evidence": "官方和本机帮助支持 json-stream，但帧 schema、真实模型读回及桥接映射未验；现有 fixture 仅合成文本兜底" },
+    "stop": { "status": "pending", "evidence": "runner 通用进程树终止已有测试；Junie 真实任务及正常 profile 停止未验" },
+    "append": { "status": "unavailable", "evidence": "CLI 有交互模式及自身会话机制，但 bridge 无会话中途追加输入通路（声明 false）" },
+    "resume": { "status": "unavailable", "evidence": "当前 CLI 有 --session-id/--resume；bridge 未实现 Junie 恢复，JetBrains IDE 旧对话不由此接管（声明 false）" },
+    "approve": { "status": "unavailable", "evidence": "非交互项目输入默认信任；未有经验证的逐项审批回写与只读安全配方（声明 false）" },
+    "fileChanges": { "status": "unavailable", "evidence": "json-stream 可选但真实文件变更帧 schema/映射未取证，不伪造工具事件（声明 false）" },
+    "usage": { "status": "unavailable", "evidence": "未取得真实用量帧或统计映射，无统计不伪造（声明 false）" }
   },
   "probe": {
     "version_args": ["--version"],

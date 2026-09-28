@@ -7,7 +7,7 @@
  *   校验项：
  *     1) zip 文件 sha256 与 manifest.zip.sha256 一致；
  *     2) 全部条目名为正斜杠、无路径穿越（../）、无绝对路径；
- *     3) 禁止物断言：config.json / device.json / .env / node_modules / data/ / asr/ / .tmp/ /
+ *     3) 禁止物断言：config.json / device.json / .env / node_modules / data/ / asr/ / .tmp/ / __pycache__ /
  *        任意点文件（.env、.tmp-* 调试残留等隐藏条目）/ 根级 *.log 一律不得出现；
  *     4) zip 内文件集合与 manifest.files 完全一致（无缺失、无多余）；
  *     5) 解压后逐文件 sha256 + 字节数与 manifest 一致。
@@ -27,7 +27,7 @@ const { execFileSync } = require('node:child_process');
 
 const FORBIDDEN_BASENAMES = new Set(['config.json', 'device.json', '.env']);
 // asr/（本机语音模型）、.tmp/（构建/调试残留）与 make-release collectFiles 的排除目录对齐（CLOSE-015）
-const FORBIDDEN_SEGMENTS = new Set(['node_modules', 'data', 'asr', '.tmp']);
+const FORBIDDEN_SEGMENTS = new Set(['node_modules', 'data', 'asr', '.tmp', '__pycache__']);
 
 function sha256File(p) {
   return crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
@@ -50,6 +50,7 @@ function checkZipEntryNames(names) {
     if (parts.some((seg) => seg.startsWith('.'))) problems.push(`点文件/隐藏条目不得打包（.env/.tmp-* 等调试残留）：${name}`);
     if (FORBIDDEN_BASENAMES.has(parts[parts.length - 1])) problems.push(`禁止打包的本机文件出现在包内：${name}`);
     if (parts.some((seg) => FORBIDDEN_SEGMENTS.has(seg))) problems.push(`禁止打包的目录出现在包内：${name}`);
+    if (/\.py[co]$/i.test(parts[parts.length - 1])) problems.push(`禁止打包的 Python 字节码出现在包内：${name}`);
     if (parts.length === 1 && /\.log$/i.test(name)) problems.push(`禁止打包的本机日志出现在包内：${name}`);
   }
   return problems;

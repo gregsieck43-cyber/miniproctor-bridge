@@ -4,7 +4,7 @@ import { createEvent, redactThinkingEvent, sanitizePreview } from '../lib/events
 // 编排简报候选命令 codearts-agent 与官方文档不符，以事实为准：探测应先 codearts、后 codearts-agent，
 // 本适配器不依赖命令名）。
 // 官方资料：xcx/docs/官方资料/A21-codeartsagent-cli.md：
-//   - `codearts run [message]` 非交互运行（`--format default|json`、`--sessionID <id>`/`--continue`
+//   - `codearts run [message]` 非交互运行（`--format default|json`、`--session <id>`/`--continue`
 //     恢复会话、`--auto`/`--sandbox` Bash 工具模式、`--model`/`--agent`/`--file`）；
 //   - `codearts session list --format json`；`codearts export [sessionID]` 以 JSON 打印会话数据；
 //   - 会话 ID 形如 `ses_07885a8e7ffe8ESvH4zV1BdFJw`（文档示例）；
@@ -15,6 +15,7 @@ import { createEvent, redactThinkingEvent, sanitizePreview } from '../lib/events
 // serve/attach（local-api）通路不声明不实现——官方自带"可能存在未授权访问/代码泄露风险"警示，
 // 未经独立认证设计不得默认启用。export/import 仅作恢复通道候选，不做数据透传。
 //
+// 2026-09-29 官方 Windows 26.9.11 实机 --help 确认 --session/-s（旧文档 --sessionID 拼写已变）。
 // 官方资料缺口（如实登记，不编造接口）：`run --format json` 的**事件帧 schema 未在快照中记载**。
 // 解析器按"候选契约"实现通用类型化帧（session/message/tool/error/result），真实帧形状须 V03
 // 真实 CLI 往返取证后修正 fixture。未取证前：
@@ -31,7 +32,7 @@ const SELF_REPORT_VALUES = Object.freeze(['codearts-agent', 'codearts', 'codeart
 /** 能力声明（声明层口径：代码路径是否存在；权威开放视图=capabilities.js 两层视图，本文件为逐产品登记副本）。
  * read=解析器已实现；stop=bridge runner 进程树终止（agent 无关代码路径）；
  * create=false：官方存在 `codearts run` 非交互入口，但 bridge 拉起参数模板未接线且真实 CLI 未验证；
- * resume=false：官方存在 `run --sessionID/--continue` 恢复通道，适配器未实现映射路径；
+ * resume=false：26.9.11 存在 `run --session/--continue` 恢复通道，适配器未实现映射路径；
  * approve/fileChanges/usage=false：无帧协议文档。 */
 export const CODEARTS_AGENT_CAPABILITIES = Object.freeze({
   create: false, read: true, stop: true, append: false, resume: false, approve: false,

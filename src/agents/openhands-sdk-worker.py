@@ -147,6 +147,10 @@ async def main():
                     response = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                if response.get("type") == "control_stop":
+                    conversation.reject_pending_actions("Bridge stopped the session")
+                    emit("stopped")
+                    return 0
                 if (response.get("type") != "control_response"
                         or response.get("response", {}).get("request_id") != request_id):
                     continue

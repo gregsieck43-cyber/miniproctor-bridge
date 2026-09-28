@@ -1,30 +1,25 @@
 import { createEvent, sanitizePreview } from '../lib/events.js';
 
-// 百度 Comate / Zulu（V12-A23）解析器骨架——状态 BLOCKED 待产品决策（MCP 客户端≠外部可控制）。
+// 百度 Comate / Zulu（V12-A23）解析器骨架——状态 BLOCKED，local-api 未接线。
 //
-// 官方资料事实（xcx/docs/官方资料/A23-comate-zulu-mcp.md，快照 2026-09-25，来源
-// https://comate.baidu.com/docs/IDE功能/MCP/）：Zulu 是 IDE 内置 Agent，作为 **MCP 客户端**
-// 消费用户配置的 MCP Server（.comate/mcp.json，stdio/SSE/Streamable HTTP 三种传输）；
-// 工具调用由模型自主决策并在 IDE 内弹窗请求用户批准。该文档描述的是「Zulu 能调用工具」，
-// 不是「外部程序能新建/读取/停止 Zulu 会话」——方向恰好相反（§6 A23：MCP 客户端能调用
-// 工具不证明外部可控制 IDE）。快照未记载任何 headless CLI、外部事件流或取消接口。
-// 本机探测（2026-09-26）：`command -v comate` / `comate-cli` / `zulu` 均未安装，
-// 无 CLI 往返可取证——详见 docs/release/v1.2/agents/comate.md。
+// 2026-09-25 的 MCP 快照只描述 Zulu→外部工具方向，不能据此解析为外部控制帧。
+// 后续官方 @comate/comatecli 2.0.0 的 serve HTTP/SSE 在本机 Ask 模式已取证
+// create/read/stop；但正式安全启动仍受 License argv 暴露、Agent 写文件审批旁路、
+// bridge local-api 生命周期/取消接口未实现所阻。见 docs/release/v1.2/agents/comate.md。
 //
-// 设计立场（任务卡：「无受控 create/read/stop 通路→BLOCKED 待产品决策」）：
-//   - isComateStreamType 刻意恒 false——无官方外部帧格式，不伪造探测器；
+// 设计立场（安全与正式接线未达标，故能力全关）：
+//   - isComateStreamType 刻意恒 false——真实 local-api SSE 帧尚未实现映射，不伪造探测器；
 //     若照抄 MCP JSON-RPC 形状做探测，会把「Zulu 调用别人的 MCP Server」误当成
 //     「外部控制 Zulu」，语义倒置且有误路由风险，禁止；
 //   - mapComateRaw 防御式兜底：仅当被显式调用时输出单个 custom 观察事件
 //     （脱敏预览），绝不伪造 agent_message / tool_call / confirm_required / session_end；
 //   - 能力全 false（catalog 声明与 capabilities.js 无行=generic fail-closed 一致）；
-//     integrationMode='manual-report'（当前唯一 conceivable 通道是人工回报，
-//     同样未实现、未验证——证据卡如实记载待产品决策）。
+//     integrationMode='local-api' 只记录候选集成形态，不表示 bridge 已接入。
 //   - agentType 固定 'generic'——AGENT_TYPES 白名单未扩（events.js:34），不擅改公共协议。
 
 export function isComateStreamType(raw) {
-  // V12-A23 BLOCKED：官方无外部受控帧格式（Zulu 是 MCP 客户端而非 MCP 服务端），
-  // 不猜测帧形状；恒 false 保证未知 JSON 不被打上 Comate 语义（fail-closed，不伪造）。
+  // V12-A23 BLOCKED：真实 local-api 帧尚未接线；旧 MCP JSON-RPC 是反向工具调用，
+  // 恒 false 保证未知 JSON 不被打上 Comate 语义（fail-closed，不伪造）。
   void raw;
   return false;
 }

@@ -20,11 +20,11 @@
   "initial_prompt_channel": "launch-args",
   "verification": {
     "create": { "status": "unavailable", "evidence": "无产品专属拉起路径（无启动预设；AdapterFactory 对 adapter_id=generic 拒绝新会话，fail-closed）；官方 headless 形态为 qoder -p \"<prompt>\"（launch-args 通道，A18a），待 V03 真实 CLI 往返接通" },
-    "read": { "status": "pending", "evidence": "文本输出（官方 text 默认格式）经 generic 行流路径读取（bridge/test/adapters/qoder-adapter.test.js fixture 对拍）；官方快照未给出 json/stream-json 帧 schema——探测为空集、不伪造结构化事件；真实 CLI 往返未取证（V12-A18：本机未安装 qoder，command -v/where.exe 双确认，2026-09-26）" },
-    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js 同源路径）；qoder 真实进程停止未验（CLI 未安装，V12-A18）" },
+    "read": { "status": "pending", "evidence": "文本输出（官方 text 默认格式）经 generic 行流路径读取（bridge/test/adapters/qoder-adapter.test.js fixture 对拍）；官方资料未给出 json/stream-json 帧 schema——探测为空集、不伪造结构化事件。2026-09-29 项目内固定 npm 兼容包 1.1.64 的 version/help 已验；无认证模型往返，真实读仍未取证" },
+    "stop": { "status": "pending", "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js 同源路径）；2026-09-29 仅固定包 version/help，qoder 真实会话进程停止未验" },
     "append": { "status": "unavailable", "evidence": "官方仅述及 --input-format stream-json 存在（A18a），未给出 Structured Messages 的消息 schema——无编码路径，不声明；待 V03 取证" },
     "resume": { "status": "unavailable", "evidence": "--session-id 为官方 CLI flag（A18a），bridge 无恢复重拉代码路径，不声明；待 V03 单独取证" },
-    "approve": { "status": "unavailable", "evidence": "headless（-p）下任何 ask 一律自动拒绝（A18a/A18b 官方文档化行为）；SDK canUseTool 回调与 ACP requestPermission 为其他集成模式（A18b），本卡未实现，不混合宣传" },
+    "approve": { "status": "unavailable", "evidence": "普通纯文本 headless（-p）下 ask 自动拒绝；2026-09-29 官方文档补充 stream-json 由 Host Program 驱动时可转发确认请求，但本 bridge 未实现对应回写协议。SDK canUseTool 与 ACP requestPermission 属其他集成模式；不可宣传手机远程审批" },
     "fileChanges": { "status": "unavailable", "evidence": "无帧 schema，无 file_change 映射路径（generic 式文本产品不伪造工具事件）" },
     "usage": { "status": "unavailable", "evidence": "json 输出含 Metadata 但字段未文档化（A18a），无统计路径——无统计不伪造（§8.3）" }
   },

@@ -19,12 +19,12 @@
   },
   "initial_prompt_channel": null,
   "verification": {
-    "create": { "status": "pending", "evidence": "官方 @comate/comatecli 2.0.0 本机 serve API 在隔离 Ask 模式真实 POST /api/v1/conversations/init 返回会话 ID；Agent 模式关闭自动审批参数仍无审批执行 write_file，bridge local-api 后端未接线，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27" },
+    "create": { "status": "pending", "evidence": "官方 @comate/comatecli 2.0.0 的 serve API 隔离 Ask 模式真实返回会话 ID；2026-09-29 复查无参数 serve 会话 API 403，SaaS License 显式参数会暴露于进程 argv；Agent 模式 write_file 曾绕过审批。bridge 未接线，不能开放。见 A23 证据卡" },
     "read": { "status": "pending", "evidence": "同一真实 serve 会话 SSE task_done=completed，history=done 且正文 COMATE_API_OK；bridge 未解析/上报该流，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27" },
-    "stop": { "status": "pending", "evidence": "同一 serve 实例对运行会话 POST /api/v1/conversations/{id}/cancel 后 SSE/history=cancelled 且 active=false；普通 CLI Ctrl+C 留 running，bridge 未接正式取消 API，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27" },
+    "stop": { "status": "pending", "evidence": "同一 serve 实例取消 API 真实返回 cancelled/active=false；单次 run Ctrl+C 留 running。当前 SaaS 认证缺不暴露 License 于 argv 的正式 serve 启动方式，bridge 未接取消 API，不能开放。见 A23 证据卡" },
     "append": { "status": "unavailable", "evidence": "无追加输入通道文档；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
     "resume": { "status": "unavailable", "evidence": "无会话恢复接口文档；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
-    "approve": { "status": "unavailable", "evidence": "MCP 工具批准为 IDE 内弹窗交互，无外部回写通道；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
+    "approve": { "status": "unavailable", "evidence": "CLI 2.0.0 的 run_command 有 requires_action 与 --reject 实测，但 write_file 在禁自动批准下仍无审批执行；bridge 未接线，不能声明通用批准能力。见 A23 证据卡" },
     "fileChanges": { "status": "unavailable", "evidence": "无文件变更事件通道文档；证据卡 xcx/docs/release/v1.2/agents/comate.md" },
     "usage": { "status": "unavailable", "evidence": "无 token/用量统计字段文档；无统计不伪造（§8.3）；证据卡 xcx/docs/release/v1.2/agents/comate.md" }
   },

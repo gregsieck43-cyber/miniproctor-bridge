@@ -88,6 +88,11 @@ export function mapOpenhandsSdkFrame(raw, { sessionId, sequencer }) {
         ...common, eventType: 'session_end',
         payload: { reason: 'completed', summary: 'OpenHands 回合结束', usage: {} },
       })];
+    case 'stopped':
+      return [createEvent({
+        ...common, eventType: 'session_end',
+        payload: { reason: 'stopped', summary: 'OpenHands 已停止', usage: {} },
+      })];
     case 'error':
       return [createEvent({
         ...common, eventType: 'error',

@@ -20,10 +20,10 @@
   "initial_prompt_channel": "launch-args",
   "verification": {
     "create": { "status": "unavailable", "evidence": "官方存在 run 非交互入口（A21：codearts run [message]，--format default|json；--auto/--sandbox 为 Bash 工具模式须按本机策略授权），但 bridge 拉起参数模板未接线且真实 CLI 未验证——声明 false；模式冻结：仅 run（stdio），serve/attach（local-api）不声明不实现（官方明示非标准云服务、不得暴露公网）" },
-    "read": { "status": "pending", "evidence": "L1 解析 fixture：bridge/test/adapters/codearts-agent-adapter.test.js（候选契约对拍；官方快照 A21 未记载 run --format json 事件帧 schema，真实 CLI 帧未取证，本机未安装 codearts）" },
-    "stop": { "status": "pending", "evidence": "bridge 进程树终止为 agent 无关代码路径（bridge/test/runner.test.js、runner-windows.test.js）；产品级真实停止未取证（CLI 未安装）" },
+    "read": { "status": "pending", "evidence": "L1 解析 fixture：bridge/test/adapters/codearts-agent-adapter.test.js 为候选契约；2026-09-29 官方 Windows 26.9.11 包签名及隔离 version/help 通过，但无 AK/SK、未调用模型，真实 JSON 事件帧未取证" },
+    "stop": { "status": "pending", "evidence": "bridge 进程树终止为 agent 无关代码路径（bridge/test/runner.test.js、runner-windows.test.js）；2026-09-29 仅固定 CLI version/help，产品级真实会话停止未验" },
     "append": { "status": "unavailable", "evidence": "官方无 run 中途追加输入通道文档（A21），无实现路径（声明 false）" },
-    "resume": { "status": "unavailable", "evidence": "官方存在 run --sessionID <id>/--continue 恢复通道与 export/import 会话 JSON（A21），但适配器未实现恢复映射路径且真实 CLI 未验证——声明 false" },
+    "resume": { "status": "unavailable", "evidence": "26.9.11 实际 run --help 提供 --session/-s 与 --continue/-c，官方旧快照的 --sessionID 拼写与本机不符；bridge 未实现恢复映射，真实模型未验证——声明 false" },
     "approve": { "status": "unavailable", "evidence": "官方 CLI ask/审批交互无外部回写协议文档（A21）；适配器将 control_request 候选帧降级为诊断事件，不映射 confirm_required——ask 自动拒绝不可显示可远程批准（A21 卡要求，§5.2）" },
     "fileChanges": { "status": "unavailable", "evidence": "无官方文件变更帧文档；无 file_change 映射路径（声明 false）" },
     "usage": { "status": "unavailable", "evidence": "无官方用量帧文档（codearts stats 是独立查询命令，不构成事件流用量帧）；session_end.usage 恒空对象（无统计不伪造，§8.3）" }

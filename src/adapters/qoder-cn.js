@@ -4,11 +4,12 @@ import { createEvent, redactThinkingEvent, sanitizePreview } from '../lib/events
 // 官方资料：xcx/docs/官方资料/A19a-qoder-cn-commands.md（TUI + headless `qodercn -p '<提示词>'`）、
 // A19b-aliyun-lingma.md（Qoder CN 系列含原通义灵码 IDE/插件，属同系列代际，IDE 旧会话不迁移）。
 //
-// 官方资料缺口（如实登记，不编造接口）：A19a 仅记载 headless 接受"提交提示词的命令"，
-// **未记载 headless 输出帧格式**——无 JSON 事件 schema、无审批请求帧、无 headless 恢复通道文档。
+// 官方资料缺口（如实登记，不编造接口）：A19a 仅记载 headless 接受"提交提示词的命令"；
+// 2026-09-29 官方参数已列 stream-json 输入/输出与 --session-id/--resume，但仍无事件帧和
+// 审批回写的可对接 schema；纯文本 headless ask 自动拒绝，Host 驱动 stream-json 可转发确认。
 // 因此本解析器按"候选契约"实现（若 CLI 发出该形状帧则能正确翻译），候选形状以 Claude
 // stream-json 同族为假设（Qoder CLI 的 TUI/命令语义与 Claude Code 同族，仅作候选、非官方确认）；
-// 真实帧形状须 V03 真实 CLI 往返取证后修正 fixture。未取证前：
+// 项目内 npm 兼容包 1.1.64 仅 version/help 已验，无认证模型；真实帧形状须 V03 往返取证后修正 fixture。未取证前：
 //   - isQoderCnStreamType 只认「显式自报标记」或 qoder_event 自标识信封，绝不按帧形抢占
 //     claude-code / codex 分支（避免同形帧被硬编码 agent_type 错标产品，§7.1 身份优先级）；
 //   - 不映射 confirm_required（无审批通道文档——手机端不出现虚假"可远程批准"按钮，§5.2）；
