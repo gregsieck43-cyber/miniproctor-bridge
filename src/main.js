@@ -34,7 +34,7 @@ const eventLog = createLogger('events');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_AGENT = path.resolve(__dirname, '../demo/demo-agent.mjs');
 
-const USAGE = `usage: node src/main.js [doctor|pair|run|demo|workspace]
+const USAGE = `usage: node src/main.js [doctor|pair|run|demo|workspace|status|profiles]
 
   run [options]                        启动 bridge daemon（初始会话 + 手机命令轮询）
     --no-initial-session 不启动默认 Agent，只驻留接收手机任务（需要已登记 profile）
@@ -61,6 +61,11 @@ const USAGE = `usage: node src/main.js [doctor|pair|run|demo|workspace]
 
 export async function main(argv = process.argv.slice(2)) {
   const [command = 'doctor', ...rest] = argv;
+  // 只认命令后的首个帮助旗标，避免把 --arg --help 等 Agent 参数当成 Bridge 帮助。
+  if (['--help', '-h'].includes(command) || ['--help', '-h'].includes(rest[0])) {
+    console.log(USAGE);
+    return { ok: true, help: true };
+  }
   if (command === 'doctor') return doctor(rest);
   if (command === 'pair') return pair(rest);
   if (command === 'run') return runSession(rest);
@@ -756,7 +761,10 @@ async function profilesCmd(args) {
         } else {
           health = { status: 'unreachable', last_checked_at: Date.now(), detail: identification.reasons.join('; ').slice(0, 200) };
         }
-        const updated = store.update(p.profile_id, { health });
+        const updated = store.update(p.profile_id, {
+          health,
+          adapter_version: identification.verdict === 'probe-ok' ? identification.runtime.version_line : null,
+        });
         rows.push({
           profile_id: p.profile_id,
           agent_key: p.agent_key,

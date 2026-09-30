@@ -7,8 +7,8 @@
  *    非法 JSON / null / HTTP200+ok:false 时**抛 TransportError**（本文件定义，全桥唯一
  *    规范错误）；成功返回 { ok:true, status, data }。outbox 以「先落盘、后发送、按响应
  *    分类确认」闭环，失败事件绝不静默丢弃。
- *  - 后发先到（T08）：outbox 按入队序（FIFO）尽力保序发送；优先级（critical）只影响
- *    重试间隔，不产生绕过顺序的直推通道。客户端游标契约见 event-protocol.md §11
+ *  - 后发先到（T08/V12-18）：outbox 优先认领到期 critical 事件与 ACK，同优先级内按
+ *    入队序发送；ACK 先于同轮事件批。所有项先持久化，不另设直推通道。游标契约见 §11
  *    （服务端 (server_received_at, event_id) 稳定排序），发送端乱序不会造成漏读。
  *
  * 存储格式：单事件一 JSON 文件（<dir>/000000000001_<rand>.json），文件名前缀为单调
@@ -24,7 +24,7 @@
  *        → 确认（syncReport accepted/duplicates 或 ack ok）→ 删除
  *        → 永久错误（unauthorized/session-deleted/event-id-conflict/schema/4xx）→ dead/
  *        → 瞬时错误（网络/超时/5xx/INTERNAL）→ 指数退避重试（2s ×2 封顶 5min，±20% 抖动；
- *          critical 初始 500ms，仅影响重试间隔不影响顺序）。
+ *          critical 初始 500ms，并在到期项中优先认领）。
  *
  * CLOSE-009（R06 修复）投影失败补偿通道：syncReport 响应 projection.failed 带失败会话
  * 明细（{session_id, error}）时，**事件已被服务端入库（duplicate 重放幂等）但投影写失败**。
@@ -154,7 +154,7 @@ export class EventOutbox {
    * @param {object|null} opts.transport 需实现 pushEvents(events) 与 ackCommand(payload)，失败必须抛 TransportError
    * @param {number} [opts.maxItems] 积压上限（普通事件）
    * @param {number} [opts.initialBackoffMs] 普通事件初始退避
-   * @param {number} [opts.criticalInitialBackoffMs] 关键事件初始退避（优先级仅影响重试间隔）
+   * @param {number} [opts.criticalInitialBackoffMs] 关键事件初始退避（认领优先级另由 _claimDue 决定）
    * @param {number} [opts.maxBackoffMs] 退避封顶
    * @param {number} [opts.maxBatch] 单次 pushEvents 最大事件数
    * @param {number} [opts.maxProjectionRetries] 投影失败补偿重试上限（CLOSE-009；耗尽 → dead-letter）
@@ -231,7 +231,7 @@ export class EventOutbox {
   }
 
   /**
-   * 命令 ACK 入队（kind='ack'，critical 优先级=更短重试间隔；ack 发送失败不阻塞执行）。
+   * 命令 ACK 入队（kind='ack'，到期时优先认领且先于同轮事件批；失败退避不阻塞执行）。
    * payload: { command_id, result, error?, session_id?, correlation_id?, lease_id?, attempts?, retryable? }
    */
   enqueueAck(payload, { priority = 'critical' } = {}) {

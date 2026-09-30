@@ -16,8 +16,8 @@ import { ProfileRouteError } from '../agents/adapter-factory.js';
 import { prepareProductLaunch } from '../agents/product-runtime.js';
 
 // 审批、错误和会话终态必须即时持久化，不参与普通输出批量缓冲。
-// TASK-006 后：直推 = outbox critical 优先级（首包同步发起，失败退避重试），
-// 不再有绕过顺序的第二通道（后发先到修复，游标契约见 event-protocol.md §11）。
+// 即时输出仍经同一持久 outbox；V12-18 优先认领 critical/ACK，同优先级内按入队序。
+// 失败退避与逐项确认保持生效，接收游标契约见 event-protocol.md §11。
 export const CRITICAL_EVENT_TYPES = Object.freeze(new Set(['confirm_required', 'error', 'session_end']));
 // 审批/进程终态与停止证据必须立即落持久队列，不能滞留普通输出内存缓冲。
 export const CRITICAL_CUSTOM_TYPES = Object.freeze(new Set(['approval_result', 'session_exit', 'session_stop_result']));

@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc18",
-  "commit": "b64557752b6a46fa3a5a20fdd5c220b64c5b7fd1",
+  "version": "0.6.0-rc19",
+  "commit": "6d7c46ce0d5f2c1152a9a8993bcd612c5e026bbb",
   "files": [
     {
       "path": "config.example.json",
@@ -31,8 +31,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "559d4a5911954b46309ea1806f60dc533f29bb70dd151a1c7426925d35972dea",
-      "bytes": 459
+      "sha256": "d86d1ebe3cde17f6518f289af9ac905dca91d1a662fb64776db4e6c1e849b4a4",
+      "bytes": 443
     },
     {
       "path": "README-RELEASE.txt",
@@ -196,8 +196,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "57b5679c30c479e513db7ed9b948661448534016e01b6420878cc49bfc19492e",
-      "bytes": 87492
+      "sha256": "66697c7e7dbf6f3c8ef98b9b34a8e88133eaaa9053103d1fed3b2f86516f2117",
+      "bytes": 87485
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -461,8 +461,8 @@
     },
     {
       "path": "src/lib/outbox.js",
-      "sha256": "d55ef8633a9e3487bf9c8fe5404d306460c524d65b078df32b74dafc590cb984",
-      "bytes": 35363
+      "sha256": "bd23de40b4f559e47cbb296cd940cd59070e5e2515c0a094f3318145d3051252",
+      "bytes": 35376
     },
     {
       "path": "src/lib/security.js",
@@ -476,8 +476,8 @@
     },
     {
       "path": "src/main.js",
-      "sha256": "a257d6342ce066b92f24c56d1237f77a3bb6fd4f40d3d58022908a7c8f69257b",
-      "bytes": 43938
+      "sha256": "84433a0f16b834191eba9915e52a3cb2ef49e78879b007c1630f0e248f074adb",
+      "bytes": 44346
     },
     {
       "path": "src/pairing/pair.js",
