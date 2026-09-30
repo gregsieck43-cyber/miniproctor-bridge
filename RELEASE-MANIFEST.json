@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc23",
-  "commit": "ac5c56c2b2fca1593602c1e4b42520bb0c898d96",
+  "version": "0.6.0-rc24",
+  "commit": "f1853f1e17151236b4aed6b40298a38c76c0064e",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "7d65a37b1f710d4852e534ea846c1aaccebea695f316d74232c6ae498af7f110",
+      "sha256": "fc0ad37adfb7ea2d25bb9566cfefe4dd523302f4d4e8bbfc78cb3f7a4b0a7876",
       "bytes": 443
     },
     {
@@ -201,8 +201,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "28feca61dea16f0632ba4369234130172e774fa0326c6945185414e72da59f73",
-      "bytes": 89047
+      "sha256": "f8243d1b82dc079e316ccdea43e741849e38cc4a5f412942afe8c3f789909138",
+      "bytes": 89302
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -416,8 +416,8 @@
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "9245d58b849481468c0ac86749ebe5d6799d6ecbb0980e52c6f1b03dfcfd6f4e",
-      "bytes": 11268
+      "sha256": "5cc49e477ae4b014101fa413b0977aafd4aad16e01b0472a5ab5d5501bfb4ee1",
+      "bytes": 11437
     },
     {
       "path": "src/agents/profile-store.js",

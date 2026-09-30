@@ -1322,7 +1322,7 @@ export class SessionManager {
 
   async executeCommand(command) {
     const type = command?.command_type;
-    // E08 修复（TASK-003）：显式 session_id 在本机不存在 → 拒绝执行并回传错误事件，
+    // E08 修复（TASK-003）：显式 session_id 在本机不存在 → 拒绝执行并回传失败 ACK，
     // 删除"回退唯一会话"兜底（否则停止/发消息会误落到错误任务）。
     // 兼容保留：未携带 session_id 的历史命令（旧云端/旧手机版本）在本机仅一个会话时
     // 仍路由到它；TASK-007 命令契约（强制 client_request_id+session 语义）落地后移除。
@@ -1331,7 +1331,13 @@ export class SessionManager {
     if (!session && type !== 'create_session') {
       if (sid) {
         console.warn(`[session-manager] 拒绝命令 ${type || 'unknown'}：未知 session_id=${sid}`);
-        this.emitUnknownSessionEvent(sid, type);
+        // 目标可能已经退出，管理器没有它的序号水位。新建 sequencer 会重复历史 seq=1；
+        // 失败原因随命令结果信封持久化/ACK 回流，由页面的命令跟踪展示。
+        return {
+          ok: false,
+          session_id: sid,
+          error: `unknown-session: 会话不存在或已退出，命令 ${type || 'unknown'} 未执行`,
+        };
       }
       return false;
     }
@@ -1472,14 +1478,6 @@ export class SessionManager {
     }
   }
 
-  /** 未知 session_id 拒绝时的错误事件回流（手机端可见，不中断轮询循环）。 */
-  emitUnknownSessionEvent(sessionId, commandType) {
-    this.emitSessionError({ sessionId, agentType: 'generic', sequencer: new SessionSequencer() }, {
-      message: `会话不存在，命令 ${commandType || 'unknown'} 未执行`,
-      code: 'unknown-session',
-    });
-  }
-
   /**
    * create_session：手机端新建任务——在本机配置的 agent 命令上，以指定工作区 cwd
    * 拉起新会话并注入初始提示。
@@ -1593,7 +1591,10 @@ export class SessionManager {
       }
       // 初始 prompt 通道：launch-args=codex exec 位置参数；stdin=claude-code 输入帧（会话
       // 启动后 sendText）；null=拒绝（能力检查已拦截，防御兜底）。
-      const launchPrompt = prompt && caps.initialPromptChannel === 'launch-args' ? prompt : null;
+      let launchPrompt = prompt && caps.initialPromptChannel === 'launch-args' ? prompt : null;
+      // Cline 3.0.65 将无空白的位置参数当成未知命令；尾空格保留原正文，
+      // 静态配方的 -- 同时阻止命令名/旗标形文字被解释为 CLI 控制。
+      if (spec.agentKey === 'cline' && launchPrompt && !/\s/.test(launchPrompt)) launchPrompt += ' ';
       const sessionId = `s_${crypto.randomUUID()}`;
       // V12-13：写任务工作区互斥（§8.3）——同 realpath 只允许一个任务；冲突显式反馈
       // 持有者信息（手机端据此「等待重试」或「另选独立目录」），绝不静默并行双写。

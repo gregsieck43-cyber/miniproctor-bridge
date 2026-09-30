@@ -45,7 +45,9 @@ const RECIPES = Object.freeze({
   cline: Object.freeze({
     adapterId: 'generic',
     // 3.0.65 缺省自动批准全部工具；非 TTY 下 false 会拒绝需审批的编辑和命令。
-    args: ['--auto-approve', 'false', '--json', '--retries', '1', '--timeout', '120'],
+    args: ['--auto-approve', 'false', '--json', '--retries', '1', '--timeout', '120', '--'],
+    // SDK sandbox 选择与 CLI 同寿命的本地 backend；不等于 OS 权限沙箱。
+    env: Object.freeze({ CLINE_SANDBOX: '1', CLINE_LOG_ENABLED: '0' }),
   }),
   'cursor-cli': Object.freeze({
     adapterId: 'generic',
