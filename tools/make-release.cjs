@@ -136,7 +136,7 @@ OpenHands Agent SDK（可选；Windows Python 3.14 本机通路已验）：
   # 启动 bridge 前在本机进程环境设置 OPENHANDS_LLM_MODEL 与 OPENHANDS_LLM_API_KEY，
   # 自定义 API 还需 OPENHANDS_LLM_BASE_URL；不要把密钥放进小程序、profile 或命令行。
   # 工具动作使用 AlwaysConfirm，经小程序审批后才执行；未完成逐产品手机/真云验收，
-  # 当前发行包仍为技术预发行，不代表 27 款 Agent 全量发布放行。
+  # 当前发行包仍为技术预发行，不代表 25 款首发 Agent 全量发布放行。
 
 发行完整性：
   node tools/verify-release.cjs --installed <安装目录>

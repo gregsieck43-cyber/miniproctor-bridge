@@ -32,6 +32,17 @@ export function isQwenStreamType(raw) {
   return false;
 }
 
+/** user/tool_result 与 Claude 同形，仅在 profile 已冻结为 Qwen 时认领。 */
+export function isQwenProfileOutput(raw) {
+  if (isQwenStreamType(raw)) return true;
+  return Boolean(raw && raw.type === 'user' && stringOrNull(raw.uuid)
+    && raw.message?.role === 'user' && Array.isArray(raw.message.content)
+    && raw.message.content.some((item) => item && (
+      isQwenToolResult(item)
+      || (item.type === 'text' && typeof item.text === 'string' && item.text)
+    )));
+}
+
 /**
  * 帧翻译（契约 §3：纯函数、零 IO、不抛出；未知帧一律 custom 兜底）。
  * agentType 缺省 'generic'——目录条目 adapter_id 归入 generic（契约 §1 不逐产品新建
@@ -118,6 +129,36 @@ export function mapQwenRaw(raw, ctx) {
       }));
       break;
     }
+    case 'user': {
+      const content = Array.isArray(raw.message?.content) ? raw.message.content : [];
+      for (const item of content) {
+        if (!item || typeof item !== 'object') continue;
+        if (isQwenToolResult(item)) {
+          events.push(createEvent({
+            sessionId, agentType, sequencer,
+            eventType: 'tool_result',
+            payload: {
+              tool_call_id: item.tool_use_id,
+              tool_name: null,
+              status: item.is_error === true ? 'error' : 'success',
+              result_preview: sanitizePreview(item.content ?? '', 500),
+              result_sensitive: false,
+            },
+          }));
+        } else if (item.type === 'text' && typeof item.text === 'string' && item.text) {
+          events.push(createEvent({
+            sessionId, agentType, sequencer,
+            eventType: 'user_message',
+            payload: { message_id: stringOrNull(raw.uuid) || `m_${crypto.randomUUID()}`,
+              role: 'user', content: item.text, content_type: 'text' },
+          }));
+        } else {
+          events.push(qwenFallback(item, `user.content:${item.type || 'unknown'}`, { sessionId, agentType, sequencer }));
+        }
+      }
+      if (!events.length) events.push(qwenFallback(raw, 'user', { sessionId, agentType, sequencer }));
+      break;
+    }
     case 'result': {
       // 官方示例：{subtype:'success', is_error:false, result:"...", usage:{...}}。
       // is_error/subtype 双信号判终态原因；非零退出但已有 result 文本时仍产出终态
@@ -157,6 +198,12 @@ function qwenFallback(raw, typeLabel, { sessionId, agentType, sequencer }) {
 
 function stringOrNull(value) {
   return typeof value === 'string' && value ? value : null;
+}
+
+function isQwenToolResult(item) {
+  return Boolean(item && item.type === 'tool_result' && stringOrNull(item.tool_use_id)
+    && typeof item.is_error === 'boolean'
+    && (typeof item.content === 'string' || Array.isArray(item.content)));
 }
 
 /** result.usage / message.usage（Claude 风格键名，官方示例给出 usage 对象；无统计取 0 不伪造）。 */

@@ -39,10 +39,11 @@ import { isKimiCodeStreamType, mapKimiCodeRaw, isKimiCodeProfileOutput, mapKimiC
 import { isCodebuddyStreamType, mapCodebuddyRaw, isCodebuddyProfileOutput, mapCodebuddyProfileOutput } from './codebuddy.js';
 // V12-A03/A15（适配组2）：gemini-cli / qwen-code stream-json 解析（契约 §3 授权的唯一接线点）。
 import { isGeminiStreamType, mapGeminiRaw } from './gemini-cli.js';
-import { isQwenStreamType, mapQwenRaw } from './qwen-code.js';
+import { isQwenStreamType, isQwenProfileOutput, mapQwenRaw } from './qwen-code.js';
 // V12-A04（适配组4）：cursor-cli print/stream-json 探测与分发（契约 §3 授权的唯一接线点）。
 import { isCursorCliStreamType, isCursorCliProfileOutput, mapCursorCliRaw } from './cursor-cli.js';
 import { isCopilotCliProfileOutput, mapCopilotCliProfileOutput } from './copilot-cli.js';
+import { isComateLocalApiFrame, mapComateLocalApiFrame } from './comate-local-api.js';
 
 const PROFILE_PARSERS = Object.freeze({
   'claude-code': Object.freeze({ accepts: isClaudeStreamType, map: mapClaudeRaw, agentType: 'claude-code' }),
@@ -58,8 +59,9 @@ const PROFILE_PARSERS = Object.freeze({
   openclaw: Object.freeze({ accepts: isOpenclawStreamType, map: mapOpenclawRaw, agentType: 'generic' }),
   'copilot-cli': Object.freeze({ accepts: isCopilotCliProfileOutput, map: mapCopilotCliProfileOutput, agentType: 'generic' }),
   codebuddy: Object.freeze({ accepts: isCodebuddyProfileOutput, map: mapCodebuddyProfileOutput, agentType: 'generic' }),
-  'qwen-code': Object.freeze({ accepts: isQwenStreamType, map: mapQwenRaw, agentType: 'generic' }),
+  'qwen-code': Object.freeze({ accepts: isQwenProfileOutput, map: mapQwenRaw, agentType: 'generic' }),
   openhands: Object.freeze({ accepts: isOpenhandsSdkFrame, map: mapOpenhandsSdkFrame, agentType: 'generic' }),
+  comate: Object.freeze({ accepts: isComateLocalApiFrame, map: mapComateLocalApiFrame, agentType: 'generic' }),
 });
 
 export function lineToEvent(line, { sessionId, agentType = 'generic', agentKey = null, sequencer }) {

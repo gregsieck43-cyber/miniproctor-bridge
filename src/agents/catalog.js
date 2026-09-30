@@ -543,15 +543,15 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "create": {
           "status": "pending",
-          "evidence": "官方 @comate/comatecli 2.0.0 的 serve API 隔离 Ask 模式真实返回会话 ID；2026-09-29 复查无参数 serve 会话 API 403，SaaS License 显式参数会暴露于进程 argv；Agent 模式 write_file 曾绕过审批。bridge 未接线，不能开放。见 A23 证据卡"
+          "evidence": "2026-10-01 固定 core 的独立 worker 已接 ManagedSession，显式诊断真实创建/读取/提前停止通过，License 不入 OS argv；正常 product-runtime/profile/版本探针及调度器/MCP/工具边界未验，Agent write_file 审批旁路未解除，保持 pending。见 A23 卡"
         },
         "read": {
           "status": "pending",
-          "evidence": "同一真实 serve 会话 SSE task_done=completed，history=done 且正文 COMATE_API_OK；bridge 未解析/上报该流，不能开放。见 xcx/docs/release/v1.2/agents/comate.md §2026-09-27"
+          "evidence": "2026-10-01 候选 worker SSE 投影读取真实 CHECK 标记并 completed/exit ended；REASON/工具正文不上云，认证门禁覆盖本机 API。正常 profile/真云/手机未验，保持 pending。见 A23 卡"
         },
         "stop": {
           "status": "pending",
-          "evidence": "同一 serve 实例取消 API 真实返回 cancelled/active=false；单次 run Ctrl+C 留 running。当前 SaaS 认证缺不暴露 License 于 argv 的正式 serve 启动方式，bridge 未接取消 API，不能开放。见 A23 证据卡"
+          "evidence": "2026-10-01 ManagedSession 显式诊断：真实 streaming 后同实例原生 cancel、cancelled SSE/history 和宿主退出确认；另一并发 worker 正常完成。提前停止 not-started 单列，不以 taskkill/空任务取消冒充成功；正常 profile 尚未开放，保持 pending。见 A23 卡"
         },
         "append": {
           "status": "unavailable",

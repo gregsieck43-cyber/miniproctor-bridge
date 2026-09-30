@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc22",
-  "commit": "f08a8baa4ed6544889f409624a0ac05060e5e879",
+  "version": "0.6.0-rc23",
+  "commit": "ac5c56c2b2fca1593602c1e4b42520bb0c898d96",
   "files": [
     {
       "path": "config.example.json",
@@ -31,13 +31,13 @@
     },
     {
       "path": "package.json",
-      "sha256": "b849cdb98a79c5680f6db183f34e57775d2b3fa42e00dab0bf73de34cc87d5e1",
+      "sha256": "7d65a37b1f710d4852e534ea846c1aaccebea695f316d74232c6ae498af7f110",
       "bytes": 443
     },
     {
       "path": "README-RELEASE.txt",
-      "sha256": "61d04ccdf94ba9a45183b7a265bc9fc38fb4e54839b07bcf371e4562e34a2876",
-      "bytes": 3184
+      "sha256": "f7ec53531e39e7fb3d2c9d34ae8bbf318b5532475245959bb01fad51d4506b53",
+      "bytes": 3190
     },
     {
       "path": "src/adapters/aider.js",
@@ -85,6 +85,11 @@
       "bytes": 12190
     },
     {
+      "path": "src/adapters/comate-local-api.js",
+      "sha256": "74745248927e11dfe5ef2e8d468cca2b266f2059b1a1acf85e0eeb8e39a0001f",
+      "bytes": 2487
+    },
+    {
       "path": "src/adapters/comate.js",
       "sha256": "fe0225d4c6867658fe631d2beb0d51b34d2c75a7ed876a29faa371b46de93ebc",
       "bytes": 2374
@@ -116,8 +121,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "3e9518f3e476cea7a0878ea7f52b082fd1c2128e9f81546be21041cdd337f416",
-      "bytes": 16071
+      "sha256": "8a0da6cafc552234ea03f913d39769f8cd7934521ad20d5e26e79395aa96884a",
+      "bytes": 16293
     },
     {
       "path": "src/adapters/goose.js",
@@ -176,8 +181,8 @@
     },
     {
       "path": "src/adapters/qwen-code.js",
-      "sha256": "b463cb02cbc71fdc838391f6bc1ac67e770464124a858c83c0b8ba0cb19f2229",
-      "bytes": 7933
+      "sha256": "59a9ea7ae50aa4cec4aec81b323cc0a2373eb683cc0a3a6ec08814efd5fed8c0",
+      "bytes": 9992
     },
     {
       "path": "src/adapters/trae-cli.js",
@@ -196,8 +201,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "109c34fb86573613ba237290d1168033cafec9d68c200afd8e0bb00574efe350",
-      "bytes": 87693
+      "sha256": "28feca61dea16f0632ba4369234130172e774fa0326c6945185414e72da59f73",
+      "bytes": 89047
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -251,8 +256,8 @@
     },
     {
       "path": "src/agents/catalog-entries/comate.json",
-      "sha256": "fe3b16f2e2f21a9f0e6cb80a440fdb6629138d4b94d2a8a4ed35c15887d51174",
-      "bytes": 2364
+      "sha256": "e2c893f0dc04d0422be7a19da1c3903ad52d5e13dbb706365dfa07057fb7ba6a",
+      "bytes": 2465
     },
     {
       "path": "src/agents/catalog-entries/continue.json",
@@ -351,13 +356,43 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "e9870161da60723ad653d8c6e61a3d839162707fd63ebda86dfc5bb16cfceec0",
-      "bytes": 80168
+      "sha256": "91625cc6b54a035fb0fe185add4b43148fdcef1112bfb0be126ee7b91437e185",
+      "bytes": 80269
     },
     {
       "path": "src/agents/codebuddy-empty-mcp.json",
       "sha256": "e93fc8db2b1bd77107fe6c758bca9545fa864cf7cce8ab93a7b2b93a1d566a7b",
       "bytes": 18
+    },
+    {
+      "path": "src/agents/comate-api-runner.js",
+      "sha256": "46e972622442eb576e90eeee4ea8def325d7c0978441b767337ca3d888baf2a5",
+      "bytes": 2356
+    },
+    {
+      "path": "src/agents/comate-api-worker.js",
+      "sha256": "186e6582a82e173941d40db33ff74746b7ff836f09b43c3de60371c47c9314e4",
+      "bytes": 6378
+    },
+    {
+      "path": "src/agents/comate-config-guard.js",
+      "sha256": "0ec0be4759e00587100a0686bbb810cfc9d271d2cb19c81f9fdfcac824d30c5b",
+      "bytes": 2849
+    },
+    {
+      "path": "src/agents/comate-local-auth.js",
+      "sha256": "59fe778be0be7f41df9a648261c7f98b210cefa338add914ec47b8f7009e0b3f",
+      "bytes": 3161
+    },
+    {
+      "path": "src/agents/comate-runtime.js",
+      "sha256": "38089e7f4f27eca120ff68b80a11ca9a1a68e1804a9ca92f67516522bfdd2fa8",
+      "bytes": 1928
+    },
+    {
+      "path": "src/agents/comate-session-api.js",
+      "sha256": "bbf47c0ef57559815c9ca1acc7c8bc6729a0a6ac321678e44f9b203642b8f0c8",
+      "bytes": 9814
     },
     {
       "path": "src/agents/identify.js",
@@ -516,8 +551,8 @@
     },
     {
       "path": "tools/make-release.cjs",
-      "sha256": "e89c45e816b3a8ff0b40a32030c170e81838d899fd67a337d8974b4068bac49e",
-      "bytes": 16404
+      "sha256": "1ef9e25c6327ac886cf2d9701d406f858aa077da875fe115c3fd7476c0f48949",
+      "bytes": 16410
     },
     {
       "path": "tools/mock-relay.mjs",

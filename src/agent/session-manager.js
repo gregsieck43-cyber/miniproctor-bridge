@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AgentRunner, sanitizeDiagnosticText } from './runner.js';
+import { ComateApiRunner } from '../agents/comate-api-runner.js';
 import { SessionSequencer, createEvent, sanitizePreview } from '../lib/events.js';
 import { EventOutbox } from '../lib/outbox.js';
 import { CommandInbox } from '../lib/inbox.js';
@@ -118,7 +119,8 @@ export class ManagedSession {
       ? Object.freeze({ ...executionCapabilities })
       : capabilitiesFor(agentType);
     this.sequencer = new SessionSequencer();
-    this.runner = new AgentRunner({ command, args, cwd, env: productEnv });
+    const Runner = agentKey === 'comate' ? ComateApiRunner : AgentRunner;
+    this.runner = new Runner({ command, args, cwd, env: productEnv });
     this.status = 'starting';
     this.lastSeq = 0;
     this.exitInfo = null;
@@ -203,19 +205,19 @@ export class ManagedSession {
       }));
     });
     this.runner.on('exit', (info) => {
-      if (!this.textOutput || info?.error) {
+      if ((!this.textOutput && this.agentKey !== 'comate') || info?.error) {
         this.handleRunnerExit(info);
         return;
       }
       this._textExitInfo = info;
       // 子进程 exit 已发生但管道可能还在排空；无 close 时按不完整输出收口。
       this._textDrainTimer = setTimeout(() => {
-        this.textOutput.truncated = true;
+        if (this.textOutput) this.textOutput.truncated = true;
         this.handleRunnerExit(info);
       }, TEXT_OUTPUT_DRAIN_MS);
     });
     this.runner.on('io-close', (info) => {
-      if (this.textOutput && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || info);
+      if ((this.textOutput || this.agentKey === 'comate') && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || info);
     });
     this.runner.start();
     this.status = 'running';
@@ -225,6 +227,7 @@ export class ManagedSession {
     // generic 会话以及需要 stdin 双向帧的 Claude 会话保持原行为。
     if (this.agentType === 'codex' || (this.profileId
       && this.agentKey !== 'openhands' // SDK 工具审批需保留 stdin 控制回写
+      && this.agentKey !== 'comate' // 同实例原生取消必须保留控制通道
       && this.capabilities.initialPromptChannel === 'launch-args'
       && this.capabilities.append === false)) {
       try { this.runner.stdin?.end(); } catch { /* stdin 已关闭/不可用则忽略 */ }
@@ -312,6 +315,8 @@ export class ManagedSession {
     this.exitInfo = info;
     // 显式停止（stop_session/stopAll）导致的进程终止 → ended；非停止路径按退出规则
     this.status = this._stopRequested && !info?.error ? 'ended' : resolveExitStatus(info);
+    // Comate cannot infer native stopped from a killed/failed host or exit code 0.
+    if (this.agentKey === 'comate' && !this._hasSessionEnd) this.status = 'failed';
     this.clearAllDeadlineTimers();
     this.pendingInputs.clear();
     const openclawFrame = this.openclawOutput?.finish({ stopped: this._stopRequested });
@@ -365,7 +370,7 @@ export class ManagedSession {
     }
     // 有些 CLI 在被强停时来不及输出 result。进程已确认结束后补一个 stopped 终态，
     // 让云端会话投影和手机状态收敛；已有原生 session_end 则保持原始终态。
-    if (this._stopRequested && this.status === 'ended' && !this._hasSessionEnd) {
+    if (this.agentKey !== 'comate' && this._stopRequested && this.status === 'ended' && !this._hasSessionEnd) {
       this.pushEventNow(createEvent({
         sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
         eventType: 'session_end',
@@ -414,6 +419,11 @@ export class ManagedSession {
     try {
       const raw = JSON.parse(line);
       if (!raw || typeof raw !== 'object') return;
+      if (this.agentKey === 'comate' && raw.protocol === 'comate-local-api-v1'
+        && raw.type === 'started' && typeof raw.conversation_id === 'string') {
+        this.setNativeSessionRef(raw.conversation_id);
+        return;
+      }
       if (raw.type === 'control_request' && typeof raw.request_id === 'string') {
         this.pendingInputs.set(raw.request_id, raw.request?.input ?? {});
         return;
@@ -1340,7 +1350,8 @@ export class SessionManager {
         // 事件回流；进程未确认退出时 ACK 如实 failed（不假装停止成功）。
         const stopResult = await session.stop();
         this.emitStopResult(session, stopResult);
-        if (stopResult?.exited) return true;
+        if (stopResult?.exited && (session.agentKey !== 'comate' || stopResult.confirmed === true)) return true;
+        if (session.agentKey === 'comate') return { ok: false, error: `stop-not-confirmed: native Comate cancellation unconfirmed (reason=${stopResult?.reason || 'unknown'})` };
         const tk = stopResult?.taskkill_exit_code != null ? `, taskkill_exit=${stopResult.taskkill_exit_code}` : '';
         return { ok: false, error: `stop-not-confirmed: process still alive after stop (reason=${stopResult?.reason || 'unknown'}${tk})` };
       }
@@ -1434,6 +1445,7 @@ export class SessionManager {
   emitStopResult(session, stopResult) {
     try {
       const exited = stopResult?.exited === true;
+      const nativeConfirmed = session.agentKey !== 'comate' || stopResult?.confirmed === true;
       const event = createEvent({
         sessionId: session.sessionId,
         agentType: session.agentType,
@@ -1441,12 +1453,15 @@ export class SessionManager {
         eventType: 'custom',
         payload: {
           custom_type: 'session_stop_result',
-          fallback_text: exited ? '停止命令已执行：进程已退出' : '停止命令已接纳：进程退出未确认（见证据字段）',
+          fallback_text: !nativeConfirmed ? 'Comate 原生停止未确认（见证据字段）'
+            : exited ? '停止命令已执行：进程已退出' : '停止命令已接纳：进程退出未确认（见证据字段）',
           accepted: true,
           exited,
           reason: stopResult?.reason || null,
           code: stopResult?.code ?? null,
           signal: stopResult?.signal ?? null,
+          ...(session.agentKey === 'comate' ? { confirmed: stopResult?.confirmed === true,
+            native_cancelled: stopResult?.native_cancelled === true } : {}),
           ...(stopResult?.taskkill_exit_code != null ? { taskkill_exit_code: stopResult.taskkill_exit_code } : {}),
         },
       });
