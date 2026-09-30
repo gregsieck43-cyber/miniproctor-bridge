@@ -47,6 +47,8 @@ const PROFILE_META_TYPES = new Set([
   'session.skills_loaded', 'session.info', 'session.mcp_servers_loaded', 'session.tools_updated',
   'user.message', 'assistant.turn_start', 'assistant.turn_end', 'assistant.idle',
   'assistant.message_start', 'assistant.message_delta', 'model.call_start', 'model.call_finished',
+  // 1.0.88 真实只读工具往返：参数碎片/生命周期无最终答复，忽略而不逐帧上报未知输出。
+  'assistant.tool_call_delta', 'tool.execution_start', 'tool.execution_complete',
 ]);
 
 export function isCopilotCliProfileOutput(raw) {

@@ -15,12 +15,12 @@ import { loadUiOverrides } from '../lib/agent-config.js';
 import { ProfileRouteError } from '../agents/adapter-factory.js';
 import { prepareProductLaunch } from '../agents/product-runtime.js';
 
-// confirm_required / error 必须即时直推，不参与批量缓冲。
+// 审批、错误和会话终态必须即时持久化，不参与普通输出批量缓冲。
 // TASK-006 后：直推 = outbox critical 优先级（首包同步发起，失败退避重试），
 // 不再有绕过顺序的第二通道（后发先到修复，游标契约见 event-protocol.md §11）。
-export const CRITICAL_EVENT_TYPES = Object.freeze(new Set(['confirm_required', 'error']));
-// 审批终态回流（TASK-008）：approval_result 同样即时直推——旧卡禁用依赖它尽快可达。
-export const CRITICAL_CUSTOM_TYPES = Object.freeze(new Set(['approval_result']));
+export const CRITICAL_EVENT_TYPES = Object.freeze(new Set(['confirm_required', 'error', 'session_end']));
+// 审批/进程终态与停止证据必须立即落持久队列，不能滞留普通输出内存缓冲。
+export const CRITICAL_CUSTOM_TYPES = Object.freeze(new Set(['approval_result', 'session_exit', 'session_stop_result']));
 // 批量缓冲上限：满即 flush，不再等 pushBatchMs。
 export const PUSH_BATCH_MAX_EVENTS = 200;
 // V1-019②：分级队列预算——critical（审批/错误/ACK）在 outbox 普通上限之外的预留容量。
@@ -32,6 +32,8 @@ export const EVENT_BUFFER_MAX = 2000;
 // V1-019①：单会话 output_truncated 事件上限——截断洪峰（失控子进程刷超长行）下
 // 截断事件本身也必须有界；超出的截断只计数，随 session_exit.truncation_events_suppressed 汇总。
 export const MAX_TRUNCATION_EVENTS = 50;
+// 已绑定产品的未知输出保留少量诊断即可；失控 CLI 不得用重复占位事件淹没真云/终态。
+export const MAX_UNRECOGNIZED_EVENTS = 20;
 const MAX_BACKOFF_EXPONENT = 10; // 防 2^n 溢出，30s 封顶由 maxBackoffMs 保证
 const TEXT_OUTPUT_DRAIN_MS = 3000;
 
@@ -142,6 +144,8 @@ export class ManagedSession {
     // V1-019①：截断事件预算（见 MAX_TRUNCATION_EVENTS）——已发送 / 被抑制计数
     this._truncationEventsSent = 0;
     this._truncationEventsSuppressed = 0;
+    this._unrecognizedEventsSent = 0;
+    this._unrecognizedEventsSuppressed = 0;
     // V12-11：适配器解析崩溃计数（会话级隔离观测；见 handleAdapterParseError）
     this.adapterParseErrorCount = 0;
   }
@@ -267,6 +271,14 @@ export class ManagedSession {
   }
 
   pushEventNow(event) {
+    if (event.event_type === 'custom' && event.payload?.custom_type === 'unrecognized_product_output') {
+      if (this._unrecognizedEventsSent >= MAX_UNRECOGNIZED_EVENTS) {
+        this._unrecognizedEventsSuppressed += 1;
+        this.lastSeq = event.seq; // 序号已分配；尾部真实事件继续单调递增
+        return;
+      }
+      this._unrecognizedEventsSent += 1;
+    }
     if (event.event_type === 'session_end') this._hasSessionEnd = true;
     this.lastSeq = event.seq;
     this._onEvent?.(event);
@@ -373,6 +385,7 @@ export class ManagedSession {
         // V1-019①：stderr 截断行数与被预算抑制的截断事件数（截断证据完整可审计）
         stderr_truncated_lines: this.runner.stderrTruncatedLineCount || 0,
         truncation_events_suppressed: this._truncationEventsSuppressed || 0,
+        unrecognized_events_suppressed: this._unrecognizedEventsSuppressed || 0,
       },
     };
     if (info?.error) payload.data.error = sanitizeDiagnosticText(info.error?.message || info.error, 300);
@@ -801,7 +814,7 @@ export class SessionManager {
     return session;
   }
 
-  /** 单事件入口：critical/approval_result 直推；批量关闭走旧路径；否则进 buffer。 */
+  /** 单事件入口：审批/错误/会话终态及停止证据直推；其余按批量策略处理。 */
   enqueueEvent(event) {
     if (!this.transport) return false;
     if (isCriticalEvent(event)) return this.sendEventsNow([event]);
