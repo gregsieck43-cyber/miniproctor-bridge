@@ -9,11 +9,34 @@ import { getCatalogEntry } from './catalog.js';
 const OPENCLAW_CONFIG_PATH = fileURLToPath(new URL('./openclaw-readonly.json', import.meta.url));
 const CODEBUDDY_EMPTY_MCP_PATH = fileURLToPath(new URL('./codebuddy-empty-mcp.json', import.meta.url));
 const OPENCLAW_STATE_PLACEHOLDER = '__MINIPROCTOR_OPENCLAW_STATE_DIR__';
+// OpenCode 1.18.20 默认多数工具 allow；未接审批时使用显式只读 primary Agent。
+// 独立 Agent 权限晚于全局权限合并，项目配置关闭，模型/凭据仍由本机配置提供。
+const OPENCODE_READONLY_PERMISSION = Object.freeze({
+  '*': 'deny',
+  read: { '*': 'allow', '*.env': 'deny', '*.env.*': 'deny', '*auth.json': 'deny', '*credentials*': 'deny' },
+  glob: 'allow', grep: 'allow', list: 'allow',
+  edit: 'deny', bash: 'deny', task: 'deny', webfetch: 'deny', websearch: 'deny',
+  external_directory: 'deny',
+});
 
 const RECIPES = Object.freeze({
   'claude-code': Object.freeze({ adapterId: 'claude-code', args: AGENT_PRESETS['claude-code'].args }),
   codex: Object.freeze({ adapterId: 'codex', args: AGENT_PRESETS.codex.args }),
-  opencode: Object.freeze({ adapterId: 'generic', args: ['run', '--format', 'json'] }),
+  opencode: Object.freeze({
+    adapterId: 'generic', args: ['run', '--format', 'json', '--agent', 'miniproctor-readonly'],
+    env: Object.freeze({
+      OPENCODE_DISABLE_PROJECT_CONFIG: '1', OPENCODE_DISABLE_AUTOUPDATE: '1',
+      OPENCODE_AUTO_SHARE: 'false',
+      OPENCODE_PERMISSION: JSON.stringify(OPENCODE_READONLY_PERMISSION),
+      OPENCODE_CONFIG_CONTENT: JSON.stringify({
+        autoupdate: false, share: 'disabled', permission: OPENCODE_READONLY_PERMISSION,
+        agent: { 'miniproctor-readonly': {
+          description: 'Read-only workspace analysis without editing, shell, network or subagents.',
+          mode: 'primary', permission: OPENCODE_READONLY_PERMISSION,
+        } },
+      }),
+    }),
+  }),
   continue: Object.freeze({
     adapterId: 'generic',
     // 1.5.47 --readonly 仍允许 Bash/MCP；--exclude '*' 在 CLI 旗标最高优先级禁全部工具。

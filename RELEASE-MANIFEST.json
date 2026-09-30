@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc20",
-  "commit": "d2d408894c383b338d317b9e76711e7d0ae0bad8",
+  "version": "0.6.0-rc21",
+  "commit": "90264949394beca8a6312aadc24c6f884efa65b7",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "f119be053f207edc39965ba06b732ffeedcde7a661b4432723faa77b7af2d400",
+      "sha256": "81755906ce2344a6855cab05300517cd5f5e8819374c9fd68efbb4a42af86ee7",
       "bytes": 443
     },
     {
@@ -381,8 +381,8 @@
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "65231db08bd261c49b92a0d2a0785c51d088ccfdde68ec0fd5b507d9381e1d95",
-      "bytes": 9923
+      "sha256": "48bf6a5ac99ae3429cfa49bd87df998ddc9a53aed6d5e7dc5febc4e5b686cb8e",
+      "bytes": 11105
     },
     {
       "path": "src/agents/profile-store.js",
