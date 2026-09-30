@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createEvent, sanitizePreview, truncateText } from '../lib/events.js';
 
 // Cursor CLI（agent / 历史 binary 别名 cursor-agent）非交互 print 模式适配器（V12-A04）。
@@ -14,6 +15,7 @@ import { createEvent, sanitizePreview, truncateText } from '../lib/events.js';
 //   - 2026-09-28 Windows 官方 CLI 2026.09.26-dd393fe 真实输出复核：result 带
 //     subtype=success、usage{inputTokens,outputTokens,cacheReadTokens,cacheWriteTokens}；
 //     最终 assistant 帧无 timestamp_ms/model_call_id。已绑定 profile 按 agentKey 解析。
+//   - 2026-09-30 官方输出格式及真实工具帧确认顶层 call_id 对应同一次工具调用。
 //
 // 设计边界：
 //   - 只映射官方记载的帧形状；未记载字段一律落 custom 兜底，不猜测语义（§5.2）；
@@ -153,10 +155,11 @@ export function mapCursorCliRaw(raw, { sessionId, agentType = 'generic', sequenc
       sessionId, agentType, sequencer,
       eventType: 'tool_call',
       payload: {
-        // payload 键集与 claude-code/codex 适配器一致（小程序端 session.js 只消费
-        // tool_name/input_preview/status）；completed 帧的 result.success 统计不透传——
-        // 帧结构仅官方文档样例级证据，避免未验证字段进入协议（V03 取证后再议）。
-        tool_call_id: `tc_cursor_${sequencer.next()}`,
+        // 官方及真实帧的 call_id 关联 started/completed；实测 ID 含换行，
+        // 哈希后保持稳定且有界。缺少 ID 时逐事件生成，不按路径猜测关联。
+        tool_call_id: typeof raw.call_id === 'string' && raw.call_id.trim()
+          ? `tc_cursor_${createHash('sha256').update(raw.call_id).digest('hex')}`
+          : `tc_cursor_${sequencer.next()}`,
         tool_name: writeCall ? 'Write Tool' : 'Read Tool',
         input_preview: sanitizePreview({ path: filePath }, 500),
         input_sensitive: false,

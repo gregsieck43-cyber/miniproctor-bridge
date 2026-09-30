@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc19",
-  "commit": "6d7c46ce0d5f2c1152a9a8993bcd612c5e026bbb",
+  "version": "0.6.0-rc20",
+  "commit": "d2d408894c383b338d317b9e76711e7d0ae0bad8",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "d86d1ebe3cde17f6518f289af9ac905dca91d1a662fb64776db4e6c1e849b4a4",
+      "sha256": "f119be053f207edc39965ba06b732ffeedcde7a661b4432723faa77b7af2d400",
       "bytes": 443
     },
     {
@@ -101,8 +101,8 @@
     },
     {
       "path": "src/adapters/cursor-cli.js",
-      "sha256": "a9e0f839f1db67cfa6b4fb33c0b7ace09d162a2022b11279837f2040fde5e533",
-      "bytes": 9527
+      "sha256": "bbda8a6ae832f60e949ef25c3f54be7ea6f1d5ff9193fd5c741fa9406c64027b",
+      "bytes": 9702
     },
     {
       "path": "src/adapters/factory-droid.js",
