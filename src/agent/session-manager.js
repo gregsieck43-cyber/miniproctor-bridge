@@ -6,7 +6,7 @@ import { SessionSequencer, createEvent, sanitizePreview } from '../lib/events.js
 import { EventOutbox } from '../lib/outbox.js';
 import { CommandInbox } from '../lib/inbox.js';
 import { lineToEvent } from '../adapters/generic.js';
-import { AiderOutputAccumulator } from '../adapters/aider.js';
+import { AiderOutputAccumulator, isAiderNativeCommand } from '../adapters/aider.js';
 import { IflowOutputAccumulator } from '../adapters/iflow.js';
 import { OpenclawOutputAccumulator } from '../adapters/openclaw.js';
 import { capabilitiesFor, openCapabilitiesFor, authorizeWorkspace } from '../adapters/capabilities.js';
@@ -343,7 +343,7 @@ export class ManagedSession {
         sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
         eventType: 'agent_message',
         payload: {
-          message_id: `m_${this.agentKey}_${this.sequencer.next()}`,
+          message_id: `m_${this.agentKey}_${crypto.randomUUID()}`,
           role: 'assistant', content: textFinal.content, content_type: 'text', is_final: !textFinal.truncated,
         },
       }));
@@ -1522,6 +1522,9 @@ export class SessionManager {
       if (!caps.create) return { ok: false, error: 'profile-capability-unsupported' };
       if (prompt && !caps.initialPromptChannel) {
         return { ok: false, error: 'capability-unsupported', capability: 'initial_prompt', reason: 'prompt-inject-unsupported' };
+      }
+      if (spec.agentKey === 'aider' && isAiderNativeCommand(prompt)) {
+        return { ok: false, error: 'prompt-command-unsupported', reason: 'task-description-required' };
       }
       // 全局工作区授权（D4 语义不变）：拒绝时零进程 + 审计行
       const authz = authorizeWorkspace({ rawCwd, workspaces: this.workspaces });

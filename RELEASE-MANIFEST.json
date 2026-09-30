@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc21",
-  "commit": "90264949394beca8a6312aadc24c6f884efa65b7",
+  "version": "0.6.0-rc22",
+  "commit": "f08a8baa4ed6544889f409624a0ac05060e5e879",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "81755906ce2344a6855cab05300517cd5f5e8819374c9fd68efbb4a42af86ee7",
+      "sha256": "b849cdb98a79c5680f6db183f34e57775d2b3fa42e00dab0bf73de34cc87d5e1",
       "bytes": 443
     },
     {
@@ -41,8 +41,8 @@
     },
     {
       "path": "src/adapters/aider.js",
-      "sha256": "06bd8a16022ea0c50881ef090c45e29454980e5cb324bb067a07579af6a2af01",
-      "bytes": 5374
+      "sha256": "c9a5f6bab5f5064c05494cdbcf9d263fcf4e214a275ce8c15f93e0ca73b64dd5",
+      "bytes": 5744
     },
     {
       "path": "src/adapters/amp.js",
@@ -196,8 +196,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "66697c7e7dbf6f3c8ef98b9b34a8e88133eaaa9053103d1fed3b2f86516f2117",
-      "bytes": 87485
+      "sha256": "109c34fb86573613ba237290d1168033cafec9d68c200afd8e0bb00574efe350",
+      "bytes": 87693
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -206,8 +206,8 @@
     },
     {
       "path": "src/agents/adapter-factory.js",
-      "sha256": "a27e29fda00ef0c29bd1f4c7200caf4bdf1645a2ac07b820bdaacf7968f7d8b3",
-      "bytes": 15101
+      "sha256": "c3f6377d31244b30e62cb314393ad43a56f749499b3b7ca406cff32223bb6506",
+      "bytes": 15405
     },
     {
       "path": "src/agents/catalog-entries/aider.json",
@@ -381,8 +381,8 @@
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "48bf6a5ac99ae3429cfa49bd87df998ddc9a53aed6d5e7dc5febc4e5b686cb8e",
-      "bytes": 11105
+      "sha256": "9245d58b849481468c0ac86749ebe5d6799d6ecbb0980e52c6f1b03dfcfd6f4e",
+      "bytes": 11268
     },
     {
       "path": "src/agents/profile-store.js",

@@ -105,7 +105,11 @@ const RECIPES = Object.freeze({
     adapterId: 'generic',
     args: ['--bare', '--approval-mode', 'default', '--output-format', 'stream-json', '--prompt'],
   }),
-  aider: Object.freeze({ adapterId: 'generic', args: [...AIDER_SCRIPT_FLAGS, '--message'] }),
+  aider: Object.freeze({
+    adapterId: 'generic', args: [...AIDER_SCRIPT_FLAGS, '--message'],
+    // 显式 false 令 Aider 确认默认拒绝，不继承本机环境/配置中的自动同意。
+    env: Object.freeze({ AIDER_YES_ALWAYS: 'false' }),
+  }),
   iflow: Object.freeze({
     adapterId: 'generic',
     args: ['--default', '--stream=false', '--telemetry=false', '--telemetry-log-prompts=false', '--prompt'],

@@ -169,7 +169,12 @@ export class AdapterFactory {
       const out = this.launchArgsResolver({ agentKey, adapterId, profile });
       return Array.isArray(out) ? out.map(String) : [];
     }
-    return runtime ? [...runtime.args] : [];
+    const args = runtime ? [...runtime.args] : [];
+    if (agentKey === 'aider' && profile.permission_policy?.mode === 'readonly') {
+      // CLI 参数优先于用户配置；保留其他策略的正常编辑，不扩大 readonly 权限。
+      return [...args.slice(0, -1), '--chat-mode', 'ask', '--dry-run', args.at(-1)];
+    }
+    return args;
   }
 }
 

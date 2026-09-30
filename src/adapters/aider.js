@@ -38,7 +38,15 @@ export function buildAiderLaunchArgs(prompt) {
   if (typeof prompt !== 'string' || !prompt.trim()) {
     throw new TypeError('aider 初始提示词必须是非空字符串');
   }
+  if (isAiderNativeCommand(prompt)) {
+    throw new TypeError('Aider 初始输入必须是任务描述，不能是 / 或 ! 控制命令');
+  }
   return [...AIDER_SCRIPT_FLAGS, '--message', prompt];
+}
+
+// 0.86.2 --message 会经过 Commands.is_command，/ 与 ! 可绕过模型直接执行本机命令。
+export function isAiderNativeCommand(prompt) {
+  return typeof prompt === 'string' && /^[\/!]/.test(prompt.trimStart());
 }
 
 export function isAiderStreamType(raw) {
