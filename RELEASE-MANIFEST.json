@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc24",
-  "commit": "f1853f1e17151236b4aed6b40298a38c76c0064e",
+  "version": "0.6.0-rc25",
+  "commit": "b00e0043ab389858bdeed36109b2321ad04a6823",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "fc0ad37adfb7ea2d25bb9566cfefe4dd523302f4d4e8bbfc78cb3f7a4b0a7876",
+      "sha256": "4412d2c86540b441628bf91cf192893dc323ae306bd40a8db51f449884c4f168",
       "bytes": 443
     },
     {
@@ -96,8 +96,8 @@
     },
     {
       "path": "src/adapters/continue.js",
-      "sha256": "8488406d62eafa2056f9e9ad0c94e217040bb068c2a5758ad7d14099e4eed56e",
-      "bytes": 2939
+      "sha256": "f71f1d69f3becbd69907a13f6772dfb3ebd6694d5643d37889853df55a7b1450",
+      "bytes": 4074
     },
     {
       "path": "src/adapters/copilot-cli.js",
@@ -201,8 +201,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "f8243d1b82dc079e316ccdea43e741849e38cc4a5f412942afe8c3f789909138",
-      "bytes": 89302
+      "sha256": "63409ff9cf3bcf9601beefb069fbe6e78720b23568afc431dd517862b7ed46ab",
+      "bytes": 89488
     },
     {
       "path": "src/agents/adapter-contract.md",

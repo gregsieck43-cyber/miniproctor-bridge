@@ -9,6 +9,7 @@ import { CommandInbox } from '../lib/inbox.js';
 import { lineToEvent } from '../adapters/generic.js';
 import { AiderOutputAccumulator, isAiderNativeCommand } from '../adapters/aider.js';
 import { IflowOutputAccumulator } from '../adapters/iflow.js';
+import { ContinueOutputAccumulator } from '../adapters/continue.js';
 import { OpenclawOutputAccumulator } from '../adapters/openclaw.js';
 import { capabilitiesFor, openCapabilitiesFor, authorizeWorkspace } from '../adapters/capabilities.js';
 import { appendAuditLine } from '../lib/audit.js';
@@ -107,8 +108,9 @@ export class ManagedSession {
     this.agentKey = agentKey;
     this.aiderOutput = agentKey === 'aider' ? new AiderOutputAccumulator() : null;
     this.iflowOutput = agentKey === 'iflow' ? new IflowOutputAccumulator() : null;
+    this.continueOutput = agentKey === 'continue' ? new ContinueOutputAccumulator() : null;
     this.openclawOutput = agentKey === 'openclaw' ? new OpenclawOutputAccumulator() : null;
-    this.textOutput = this.aiderOutput || this.iflowOutput || this.openclawOutput;
+    this.textOutput = this.aiderOutput || this.iflowOutput || this.continueOutput || this.openclawOutput;
     this.adapterVersion = adapterVersion;
     this.capabilitySnapshot = capabilitySnapshot ? Object.freeze({ ...capabilitySnapshot }) : null;
     // V12-11：Agent 原生会话 ID（claude system/init 的 session_id；codex thread.started 的
