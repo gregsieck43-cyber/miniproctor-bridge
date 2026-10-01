@@ -1,7 +1,7 @@
 /** 本机受信任的产品启动配方；目录条目本身不含可执行参数。 */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CAPABILITY_KEYS } from '../adapters/capabilities.js';
+import { CAPABILITY_KEYS, buildOpenCapabilities } from '../adapters/capabilities.js';
 import { AIDER_SCRIPT_FLAGS } from '../adapters/aider.js';
 import { AGENT_PRESETS } from '../lib/config.js';
 import { getCatalogEntry } from './catalog.js';
@@ -20,7 +20,14 @@ const OPENCODE_READONLY_PERMISSION = Object.freeze({
 });
 
 const RECIPES = Object.freeze({
-  'claude-code': Object.freeze({ adapterId: 'claude-code', args: AGENT_PRESETS['claude-code'].args }),
+  'claude-code': Object.freeze({
+    adapterId: 'claude-code',
+    // 2.1.286：bare 不加载 hooks/插件/项目配置，restricted 限制文件系统/网络；
+    // 未验审批前全禁内置工具/MCP，不使用任何权限绕过旗标。
+    args: [...AGENT_PRESETS['claude-code'].args, '--bare', '--restricted', '--tools', '',
+      '--disallowedTools', 'mcp__*', '--strict-mcp-config', '--no-session-persistence'],
+    env: Object.freeze({ DISABLE_AUTOUPDATER: '1', DISABLE_TELEMETRY: '1', DISABLE_ERROR_REPORTING: '1' }),
+  }),
   codex: Object.freeze({ adapterId: 'codex', args: AGENT_PRESETS.codex.args }),
   opencode: Object.freeze({
     adapterId: 'generic', args: ['run', '--format', 'json', '--agent', 'miniproctor-readonly'],
@@ -133,15 +140,14 @@ function buildRuntime(agentKey, recipe) {
   const entry = getCatalogEntry(agentKey);
   if (!entry || entry.adapter_id !== recipe.adapterId) return null;
   const declared = {};
-  const open = {};
+  const verified = [];
   for (const key of CAPABILITY_KEYS) {
     declared[key] = entry.capabilities?.[key] === true;
-    open[key] = declared[key] && entry.verification?.[key]?.status === 'verified';
+    if (entry.verification?.[key]?.status === 'verified') verified.push(key);
   }
   declared.integrationMode = entry.integration_mode;
   declared.initialPromptChannel = entry.initial_prompt_channel;
-  open.integrationMode = entry.integration_mode;
-  open.initialPromptChannel = open.create && open.read ? entry.initial_prompt_channel : null;
+  const open = buildOpenCapabilities(declared, verified);
   return Object.freeze({
     agentKey,
     adapterId: recipe.adapterId,

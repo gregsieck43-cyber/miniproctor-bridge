@@ -24,6 +24,7 @@ export const AGENT_PRESETS = Object.freeze({
     command: 'claude',
     args: Object.freeze([
       '-p',
+      '--verbose',
       '--output-format', 'stream-json',
       '--input-format', 'stream-json',
       '--permission-prompt-tool', 'stdio',

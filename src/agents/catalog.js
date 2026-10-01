@@ -222,19 +222,19 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "read": {
           "status": "verified",
-          "evidence": "bridge/test/adapters/claude-code-adapter.test.js + bridge/test/claude-adapter.test.js（解析 fixture 对拍）+ bridge/test/approval-lifecycle.test.js（演示宿主往返）；真实 CLI 往返挂 V03（本机未装 claude，见 docs/release/v1.2/agents/claude-code.md）"
+          "evidence": "Windows 原生 Claude Code 2.1.286 + 既有 DeepSeek 后端真实回复/最终结果/exit 0，活跃任务停止前后精确进程树；.tools/validation/evidence/claude-code-native-read-20261001.json 与 claude-code-native-stop-20261001.json。正常 profile 真云/手机/双用户单独验收，不由本机证据推定。"
         },
         "stop": {
           "status": "verified",
-          "evidence": "bridge/test/runner.test.js / runner-windows.test.js（进程树终止）"
+          "evidence": "Windows 原生 Claude Code 2.1.286 + 既有 DeepSeek 后端真实回复/最终结果/exit 0，活跃任务停止前后精确进程树；.tools/validation/evidence/claude-code-native-read-20261001.json 与 claude-code-native-stop-20261001.json。正常 profile 真云/手机/双用户单独验收，不由本机证据推定。"
         },
         "create": {
           "status": "verified",
-          "evidence": "bridge/test/approval-lifecycle.test.js（演示宿主 spawn 往返）；真实 CLI 往返挂 V03"
+          "evidence": "Windows 原生 Claude Code 2.1.286 + 既有 DeepSeek 后端真实回复/最终结果/exit 0，活跃任务停止前后精确进程树；.tools/validation/evidence/claude-code-native-read-20261001.json 与 claude-code-native-stop-20261001.json。正常 profile 真云/手机/双用户单独验收，不由本机证据推定。"
         },
         "append": {
           "status": "pending",
-          "evidence": "仅演示宿主 stdin 往返；真实 CLI 往返挂 V03 验证队列（本机未装 claude，V12-A01 未取证）"
+          "evidence": "真实 2.1.286 单轮模型已取证；追加输入仍只有 L2 证据，未通过真实往返，保持 pending"
         },
         "resume": {
           "status": "unavailable",
@@ -250,7 +250,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "usage": {
           "status": "pending",
-          "evidence": "仅解析 fixture（result.usage 映射，bridge/test/adapters/claude-code-adapter.test.js）；真实 CLI 未验证"
+          "evidence": "2.1.286 原生 result 已有真实 usage/input-output 121-145；独立统计和 UI 链路尚未验收，本轮保持 pending（native-read-20261001.json）"
         }
       },
       "probe": {
@@ -480,15 +480,15 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "read": {
           "status": "verified",
-          "evidence": "bridge/test/adapters/codex-adapter.test.js + bridge/test/codex-adapter.test.js（解析 fixture 对拍）+ bridge/test/approval-lifecycle.test.js（演示宿主往返）+ 0.155.1 真实启动帧实测（docs/release/v1.2/agents/codex.md）"
+          "evidence": "Windows 原生 Codex 0.155.1 + 既有 DeepSeek 后端真实回复/最终结果/exit 0，活跃任务停止前后精确进程树；.tools/validation/evidence/codex-native-read-20261001.json 与 codex-native-stop-20261001.json。正常 profile 真云/手机/双用户单独验收，不由本机证据推定。"
         },
         "stop": {
           "status": "verified",
-          "evidence": "bridge/test/runner.test.js / runner-windows.test.js（进程树终止）；0.155.1 实测网络阻塞时 CLI 不发错误帧，强杀为唯一恢复通道（roundtrip-2）"
+          "evidence": "Windows 原生 Codex 0.155.1 + 既有 DeepSeek 后端真实回复/最终结果/exit 0，活跃任务停止前后精确进程树；.tools/validation/evidence/codex-native-read-20261001.json 与 codex-native-stop-20261001.json。正常 profile 真云/手机/双用户单独验收，不由本机证据推定。"
         },
         "create": {
           "status": "verified",
-          "evidence": "bridge/test/approval-lifecycle.test.js（codex 携带 prompt 经 launch-args 真实 spawn）+ 0.155.1 真实启动帧实测 thread.started/turn.started（roundtrip-2，最终回复因 chatgpt.com 不可达未取得，挂 V03）"
+          "evidence": "Windows 原生 Codex 0.155.1 + 既有 DeepSeek 后端真实回复/最终结果/exit 0，活跃任务停止前后精确进程树；.tools/validation/evidence/codex-native-read-20261001.json 与 codex-native-stop-20261001.json。正常 profile 真云/手机/双用户单独验收，不由本机证据推定。"
         },
         "append": {
           "status": "unavailable",

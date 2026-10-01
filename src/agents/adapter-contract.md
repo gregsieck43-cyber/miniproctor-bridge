@@ -80,8 +80,8 @@ v0.2 的 `send` 更名——初始输入与追加输入是两个独立能力）�
      UI 能力摘要 / 云端 capability_snapshot 一律取开放视图）；
   2. 未知/未登记 agent 类型 fail-closed：只读文本 + 受控停止（read+stop，generic 底线；
      不含 create——未知规格不得替用户拉新进程）；
-  3. `initialPromptChannel` 开放前提 = `create`+`read` 已验证；
-  4. 开放视图与执行门禁分离：能力翻入验证层需附证据路径（下条）。
+  3. 新建任务及 `initialPromptChannel` 开放前提 = `create`+`read` 已验证且有输入通道；
+  4. 远程 legacy create 同样检查开放视图，不能通过声明层绕过真实证据门禁；本机显式 run 保留低层协议能力。
 
 ### 2.3 验证分层与回收流程
 
@@ -91,9 +91,11 @@ v0.2 的 `send` 更名——初始输入与追加输入是两个独立能力）�
 | L2 演示宿主往返 | CI 内真实子进程 + 演示帧端到端 | claude-code/codex 的 read/stop/create；claude-code 的 append/approve |
 | L3 真实 CLI 往返 | 真实官方 CLI 全链路（挂 V03 验证队列） | OpenCode 1.18.20 本机 profile create/read/stop/usage 已复验；其他产品逐卡取证 |
 
-V03 逐项回收后由对应任务把能力翻入 `VERIFIED_CAPABILITIES`（附证据路径），并同步本文件与
-catalog-entry 的 `verification`。**开放视图当前取 L2**（bridge 自有能力，CI 持续验证）；L3 只升级
-证据等级、不改变"未经真实验证不得开放"的底线（此句约束 §2.2 旧适配器，产品 profile 的逐键验证见 §2.4）。
+V03 逐项回收真实 CLI 证据后把能力翻入 `VERIFIED_CAPABILITIES`，并同步 catalog 的 `verification`。
+L1/L2 保留为代码路径验证，不开放具体产品能力。2026-10-01 原生 Claude 2.1.286/Codex 0.155.1
+经既有 DeepSeek 后端取得真实模型最终结果与活跃进程停止证据，仅开放 create/read/stop；
+其他能力仍关闭。见 `docs/audit/2026-10-01/Claude-Codex原生补验.md`；真云/手机/双用户另行验收。
+测试路由/进程/锁使用显式 L2 注入或已验证产品身份，不能据此计入真实产品验收。
 
 ### 2.4 V1.2 已绑定产品的能力视图
 
@@ -102,6 +104,9 @@ catalog-entry 的 `verification`。**开放视图当前取 L2**（bridge 自有�
 产品登记静态 argv 配方，从该产品 catalog 条目得到声明层和 `verification.status=verified`
 的开放视图。`AdapterFactory` 要求该产品配方与 create 均已验证才生成冻结规格；
 `SessionManager` 用该规格检查动作、输出 `session_meta.capabilities`，并按产品键定向解析。
+冻结的执行能力同样取开放视图，不能通过声明层执行 pending 的追加或审批；legacy 远程创建
+也冻结开放能力，本机显式 run 的协议测试通路保留。Claude 单轮文本任务在原生 result 后发 EOF，
+需要双向输入的已验证交互会话保留 stdin；收到部分 assistant 帧时不会提前关管道。
 没有配方的 generic 产品不能继承 OpenCode 的 create。无 profile 会话仍按 §2.2 的
 `capabilitiesFor/openCapabilitiesFor` 工作。
 

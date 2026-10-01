@@ -255,7 +255,7 @@ export class ManagedSession {
           correlation_id: this.correlationId || null,
           // TASK-012：能力协商——前端以此禁用不支持操作的按钮（矩阵 §2）。
           // V12-09：对外宣称取开放视图（声明 ∩ 验证，未经真实验证的能力不得开放）；
-          // 执行门禁仍按声明层（this.capabilities，capabilitiesFor）。
+          // profile 执行与展示都取冻结开放能力；本机显式协议会话保留声明层。
           capabilities: this.capabilitySnapshot || openCapabilitiesFor(this.agentType),
           // V12-11：profile 路由来源（创建时冻结；legacy/初始会话为 null——
           // 云端 sessions 投影 v0.3 字段，schema.cjs SESSION_SCHEMA 同名同形）。
@@ -284,7 +284,17 @@ export class ManagedSession {
       }
       this._unrecognizedEventsSent += 1;
     }
-    if (event.event_type === 'session_end') this._hasSessionEnd = true;
+    if (event.event_type === 'session_end') {
+      this._hasSessionEnd = true;
+      // 原生 Claude stream-json 等待下一条 stdin。只开放单轮文本的 profile
+      // 在原生 result 到达后发 EOF，自然退出；本机显式 run/交互通路保留输入。
+      if (this.agentKey === 'claude-code'
+        && this.capabilities.append === false && this.capabilities.approve === false
+        && !this._singleTurnStdinClosed) {
+        this._singleTurnStdinClosed = true;
+        try { this.runner.stdin?.end(); } catch { /* 已退出的管道无需再次关闭 */ }
+      }
+    }
     this.lastSeq = event.seq;
     this._onEvent?.(event);
     this._sink(event);
@@ -1695,11 +1705,14 @@ export class SessionManager {
     // —— legacy（v0.2）路径：不带 profile 字段的 create_session → 本机 defaultSpec ——
     if (!this.defaultSpec) return { ok: false, error: 'no-agent-spec' };
     const agentType = this.defaultSpec.agentType || 'generic';
-    const caps = capabilitiesFor(agentType);
+    const caps = openCapabilitiesFor(agentType);
+    if (!caps.create) {
+      return { ok: false, error: 'capability-unsupported', capability: 'create' };
+    }
     // 能力前置检查（零进程拒绝）：create 本身 + 初始 prompt 注入（V1-005①：初始输入与
     // 追加输入是两个独立能力——codex exec 官方支持把初始 prompt 作为末位位置参数，
     // 不得再借 send=false 拒绝携带 prompt 的创建；追加 send_text 仍按 append=false 拒绝）。
-    // V12-09：generic/未知类型 create=false（只读文本+受控停止底线，不得替用户拉新进程）。
+    // 旧命令同样受真实能力门禁约束；声明层有实现不能绕过开放视图。
     if (!caps.create) return { ok: false, error: 'capability-unsupported', capability: 'create' };
     if (prompt && !caps.initialPromptChannel) {
       return { ok: false, error: 'capability-unsupported', capability: 'initial_prompt', reason: 'prompt-inject-unsupported' };
@@ -1763,6 +1776,9 @@ export class SessionManager {
     const session = this.startSession({
       sessionId,
       agentType,
+      agentKey: agentType,
+      executionCapabilities: caps,
+      capabilitySnapshot: caps,
       command: this.defaultSpec.command,
       args: launchPrompt ? [...baseArgs, launchPrompt] : baseArgs,
       cwd: authz.cwd,

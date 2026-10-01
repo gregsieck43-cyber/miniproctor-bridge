@@ -157,7 +157,7 @@ export class AdapterFactory {
       args: Object.freeze([...args]),
       productEnv: runtime.env,
       adapterVersion: profile.adapter_version || null,
-      executionCapabilities: runtime.declared,
+      executionCapabilities: runtime.open,
       capabilitySnapshot: runtime.open,
       workspaceAllowlist: Object.freeze([...(profile.workspace_allowlist || [])]),
     });

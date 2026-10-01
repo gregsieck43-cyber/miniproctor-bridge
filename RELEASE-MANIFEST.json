@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc25",
-  "commit": "b00e0043ab389858bdeed36109b2321ad04a6823",
+  "version": "0.6.0-rc26",
+  "commit": "4f6600ff4366134d39760617082289f753a341bd",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "4412d2c86540b441628bf91cf192893dc323ae306bd40a8db51f449884c4f168",
+      "sha256": "010d68b97249a4ba812b340335d8db08d75b4a1397fa24690c16896edac37c94",
       "bytes": 443
     },
     {
@@ -56,13 +56,13 @@
     },
     {
       "path": "src/adapters/capabilities.js",
-      "sha256": "d5192b871a8421e053dc1328d637bcb8ce763121e5bba8bd92648af53259c5a9",
-      "bytes": 8911
+      "sha256": "be14073f1337dd47d98693cbf4b32f86f2533f921beee7c504fe125221911fb3",
+      "bytes": 9070
     },
     {
       "path": "src/adapters/claude-code.js",
-      "sha256": "68d4324cf3b66a526058ddf0df9a0248353dcbee6337e418fb97cf2b920c9df5",
-      "bytes": 14621
+      "sha256": "1400942a055acf8aa0322ff7b817144c6002adf0ef402aeb606d66ebe03c6e42",
+      "bytes": 14886
     },
     {
       "path": "src/adapters/cline.js",
@@ -201,18 +201,18 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "63409ff9cf3bcf9601beefb069fbe6e78720b23568afc431dd517862b7ed46ab",
-      "bytes": 89488
+      "sha256": "d91cdd68d8d913c4ac5b068bd16d420aac3fd599bbd841204777e8b6bc419404",
+      "bytes": 90242
     },
     {
       "path": "src/agents/adapter-contract.md",
-      "sha256": "b0235ec785d8789d355ac3c11defc716ecac35f028c6b5e85cc1cf7768a329e2",
-      "bytes": 13315
+      "sha256": "8d102d077c67b1de3139a8bc18a398b8519095ea186010aac035e67e7b58038e",
+      "bytes": 13949
     },
     {
       "path": "src/agents/adapter-factory.js",
-      "sha256": "c3f6377d31244b30e62cb314393ad43a56f749499b3b7ca406cff32223bb6506",
-      "bytes": 15405
+      "sha256": "099f60b576241355a70bd6297c18b8cdb41bdea1ec80806ecedc8f2a8ef1ce1d",
+      "bytes": 15401
     },
     {
       "path": "src/agents/catalog-entries/aider.json",
@@ -231,8 +231,8 @@
     },
     {
       "path": "src/agents/catalog-entries/claude-code.json",
-      "sha256": "47ae6807a595e39d16ad6a80fa0fed99d6d406f5ed8762968b160dd77d2c0092",
-      "bytes": 2121
+      "sha256": "b9471c00f9f06132a6c95415d52fd49edad864bff3f1eda5d37f1e6a1955690d",
+      "bytes": 2843
     },
     {
       "path": "src/agents/catalog-entries/cline.json",
@@ -251,8 +251,8 @@
     },
     {
       "path": "src/agents/catalog-entries/codex.json",
-      "sha256": "e56b7779d52fa7b427e2b58d8f0263e2b86ba41d3d54a51d95c79476fd2ee52b",
-      "bytes": 2562
+      "sha256": "f521fe3b794bf6a0f2f7abbc24caa8a7fbff0044c69ab0f9bfc1955acd6353a0",
+      "bytes": 2998
     },
     {
       "path": "src/agents/catalog-entries/comate.json",
@@ -356,8 +356,8 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "91625cc6b54a035fb0fe185add4b43148fdcef1112bfb0be126ee7b91437e185",
-      "bytes": 80269
+      "sha256": "4fd1a25bb3f32cd80885b1e94b96ee5d93c976de3e23493674c6d573299b72fa",
+      "bytes": 81123
     },
     {
       "path": "src/agents/codebuddy-empty-mcp.json",
@@ -416,8 +416,8 @@
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "5cc49e477ae4b014101fa413b0977aafd4aad16e01b0472a5ab5d5501bfb4ee1",
-      "bytes": 11437
+      "sha256": "8e9dbbd93c5ead477f3ce21bf1432985e613eb6ddd8f9bf400ad288afa063a4e",
+      "bytes": 11811
     },
     {
       "path": "src/agents/profile-store.js",
@@ -461,8 +461,8 @@
     },
     {
       "path": "src/lib/config.js",
-      "sha256": "dafbd5cc50bb054af5466935daabcb74fffb0edc0522dce6e266f5021986efca",
-      "bytes": 6683
+      "sha256": "22a1814709e22005cf07815dd492b87cdfb3df97d565614c74329f9374384c04",
+      "bytes": 6703
     },
     {
       "path": "src/lib/doctor.js",

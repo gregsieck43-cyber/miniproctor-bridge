@@ -23,6 +23,9 @@ export function mapClaudeRaw(raw, { sessionId, agentType = 'claude-code', sequen
       break;
     }
     case 'system': {
+      // 2.1.286 每个思考 token 都可能发计数通知；没有可展示正文。真实长任务
+      // 产生 1300+ 条，逐条上传挤占云调用/事件预算。最终 result.usage 保留统计。
+      if (raw.subtype === 'thinking_tokens') break;
       // V12-A01：API 重试帧（官方 headless 文档"Handle API retries"：attempt/max_retries/
       // retry_delay_ms/error_status/error）。旧实现落通用 system 分支只显示"系统事件：api_retry"，
       // 手机端看不到重试进度与错误类别（§23.1：拒绝/过期/错误需准确反馈）。
