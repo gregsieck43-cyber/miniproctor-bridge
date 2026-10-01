@@ -1,0 +1,9 @@
+[
+  { "id": "session-log-deepseek", "disabled": true },
+  { "id": "plugin-package-inventory-deepseek", "disabled": true },
+  { "id": "deepseek-llm-api-extensions", "disabled": true },
+  { "id": "sandbox-policy", "config": { "mode": "read-only" } },
+  { "id": "persistent-bash", "disabled": true },
+  { "id": "persistent-pwsh", "disabled": true },
+  { "id": "llm-deepseek", "config": { "thinking": "disabled", "streamIdleTimeoutMs": 30000 } }
+]

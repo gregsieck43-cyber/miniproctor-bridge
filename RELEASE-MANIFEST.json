@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc28",
-  "commit": "4e9a6b0acdaade646c763728144568ac9c69ed8f",
+  "version": "0.6.0-rc29",
+  "commit": "4bd04270ab5020a7ec027b6455fe254a3981e9b7",
   "files": [
     {
       "path": "config.example.json",
@@ -31,13 +31,13 @@
     },
     {
       "path": "package.json",
-      "sha256": "07399e6199002a1c21687cba09a7fd04472873ec3b54f1839f86f8be4727d12c",
+      "sha256": "ca27cd4d1c253fe304a5e9472b047af52b84bf6d307becbcf40c52ae52c8bec2",
       "bytes": 443
     },
     {
       "path": "README-RELEASE.txt",
-      "sha256": "f7ec53531e39e7fb3d2c9d34ae8bbf318b5532475245959bb01fad51d4506b53",
-      "bytes": 3190
+      "sha256": "aec4a0f89f13da1f885a6c6650cb151cabef93e7a995e49add4f7d86774093fa",
+      "bytes": 4121
     },
     {
       "path": "src/adapters/aider.js",
@@ -110,6 +110,11 @@
       "bytes": 9702
     },
     {
+      "path": "src/adapters/dsh-sdk.js",
+      "sha256": "d62ca1cdf91c7e54740b5de8062de7ee211f8c0405697617fdab95f492b26828",
+      "bytes": 2081
+    },
+    {
       "path": "src/adapters/factory-droid.js",
       "sha256": "0126cc9134e50dcfb2a148583c936b9801f60f454800c32d17bbc7a56282ad90",
       "bytes": 6350
@@ -121,8 +126,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "8a0da6cafc552234ea03f913d39769f8cd7934521ad20d5e26e79395aa96884a",
-      "bytes": 16293
+      "sha256": "467f125418b5a0c5e7d52f31c5157f5ce7aff8f977b53e772351528a31baa141",
+      "bytes": 16620
     },
     {
       "path": "src/adapters/goose.js",
@@ -133,6 +138,11 @@
       "path": "src/adapters/iflow.js",
       "sha256": "df02d026468bcb745c85388f288dc904c950c8c3d658c28a356701041f1dd358",
       "bytes": 2561
+    },
+    {
+      "path": "src/adapters/junie-plan.js",
+      "sha256": "1fdb830221a4edbb1007b6c13aaadeae51b6fbd72c830c49bcdc8fd8baafe6c8",
+      "bytes": 4081
     },
     {
       "path": "src/adapters/junie.js",
@@ -201,8 +211,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "d91cdd68d8d913c4ac5b068bd16d420aac3fd599bbd841204777e8b6bc419404",
-      "bytes": 90242
+      "sha256": "107ab12c77a353f979a08ae9e89e6e22ae87ad532f1402a35b109d6bc5a4b519",
+      "bytes": 92623
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -211,8 +221,8 @@
     },
     {
       "path": "src/agents/adapter-factory.js",
-      "sha256": "099f60b576241355a70bd6297c18b8cdb41bdea1ec80806ecedc8f2a8ef1ce1d",
-      "bytes": 15401
+      "sha256": "4cdf9dbedbf8564bc76168864f753e78628a631aea6625fb86ca00c45ffb39b6",
+      "bytes": 16973
     },
     {
       "path": "src/agents/catalog-entries/aider.json",
@@ -275,6 +285,11 @@
       "bytes": 2473
     },
     {
+      "path": "src/agents/catalog-entries/dsh.json",
+      "sha256": "21283b13e15f504ed3ba6512cc7a775d00112d6c54c2cd89ab37103f6278a4d8",
+      "bytes": 2943
+    },
+    {
       "path": "src/agents/catalog-entries/factory-droid.json",
       "sha256": "14029ab7fd49fdfbffdb51cfab63afecb2e936a89ce2f67801163b240d6f04b0",
       "bytes": 2795
@@ -296,8 +311,8 @@
     },
     {
       "path": "src/agents/catalog-entries/junie.json",
-      "sha256": "798617adbdd7b89c509a05ba162530ec05deb82644a42c497995dc1713e80472",
-      "bytes": 2043
+      "sha256": "669d36166d4c512982a14645cf01551efa529e5499efaf98f50d7c8d9652c0fd",
+      "bytes": 2584
     },
     {
       "path": "src/agents/catalog-entries/kimi-code.json",
@@ -355,9 +370,19 @@
       "bytes": 2520
     },
     {
+      "path": "src/agents/catalog-entries/workbuddy.json",
+      "sha256": "017d3815636b58f446f633e70c0b668e7e4819269806034f2056e2f88a959ce8",
+      "bytes": 3764
+    },
+    {
+      "path": "src/agents/catalog-entries/zcode.json",
+      "sha256": "5dc7fc1d537465152e7d703e892b87a3d46eb132bae131452f6e17ad2726df52",
+      "bytes": 3468
+    },
+    {
       "path": "src/agents/catalog.js",
-      "sha256": "be82a465ff4f7412fb27762e938749267f31438823f25a6ec9276ae687ce50bc",
-      "bytes": 81332
+      "sha256": "2c8657218d64cf8115bc1fba86d8b44d14cdece438509367f3d9ea19323db13c",
+      "bytes": 92700
     },
     {
       "path": "src/agents/codebuddy-empty-mcp.json",
@@ -395,9 +420,44 @@
       "bytes": 9814
     },
     {
+      "path": "src/agents/dsh-messages-gateway.js",
+      "sha256": "3f0c455ff3d5fac665afc24379b79ecb71aa6eb0887e035cd30b7a0ae370a4ac",
+      "bytes": 7577
+    },
+    {
+      "path": "src/agents/dsh-restricted.patch.json",
+      "sha256": "89604159efe8d77fbf010237caf112c5ba260de0350ec7a56690fb95ece077aa",
+      "bytes": 444
+    },
+    {
+      "path": "src/agents/dsh-sdk-client.js",
+      "sha256": "87df0eab1c3dc371646ca44fd951325a038e70f06959685b27f8a0e98749cbd8",
+      "bytes": 8383
+    },
+    {
+      "path": "src/agents/dsh-sdk-worker.js",
+      "sha256": "236d6b5da1fa5dfa1fdfea6ce1da2d758e26f1691195e67ef6bf10368e797a13",
+      "bytes": 11742
+    },
+    {
       "path": "src/agents/identify.js",
-      "sha256": "b195b5d63ca735d9c484fae0af6028d787f844774762e9a731fa7e4070c5e014",
-      "bytes": 15747
+      "sha256": "eb33f9f19c935dd3d24c75cc1ef077515704c5c7b90c0f981de3f5c30c20de36",
+      "bytes": 16198
+    },
+    {
+      "path": "src/agents/junie-plan-client.js",
+      "sha256": "ef83a4669220001651cbb9eaa0ab56a843924e6abf898bb6edf0b9fdecb9b9f6",
+      "bytes": 9546
+    },
+    {
+      "path": "src/agents/junie-plan-gateway.js",
+      "sha256": "2e1d30376a925e1f88bf8330f4fd2fa5e0d99bfd0eb2597f4b0f865d1a79b5f3",
+      "bytes": 7299
+    },
+    {
+      "path": "src/agents/junie-plan-worker.js",
+      "sha256": "0b62d2df55c31bbbdf0359d86d9a913baf99f360b3bec7bdaf966a08e47daf85",
+      "bytes": 11682
     },
     {
       "path": "src/agents/kimi-readonly.md",
@@ -416,8 +476,8 @@
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "8e9dbbd93c5ead477f3ce21bf1432985e613eb6ddd8f9bf400ad288afa063a4e",
-      "bytes": 11811
+      "sha256": "44282d93a0dcff23fe3e4fbb329faa27906e81bdeb5ed4e46202680b81b6f9e0",
+      "bytes": 15019
     },
     {
       "path": "src/agents/profile-store.js",
@@ -426,8 +486,8 @@
     },
     {
       "path": "src/agents/profile-sync.js",
-      "sha256": "4c09488ba946eaeb7ac32a23f613c8e400eb90bb4fe59311949480a2aee5f3f3",
-      "bytes": 3440
+      "sha256": "7089e83b72b9c05d11ff9319735001e1e4e2a656a8238d8e89fadcd04f25c0b0",
+      "bytes": 4037
     },
     {
       "path": "src/cloud/device-keys.js",
@@ -546,13 +606,13 @@
     },
     {
       "path": "tools/gen-catalog.cjs",
-      "sha256": "c82c4edaf3184eb513f72546c846cca285863386567e1fbd55eb80844d5a5bcb",
-      "bytes": 13252
+      "sha256": "d4df0c1854511b8900e0f38bd553391d097e339524708093895d9ff3f2598d1f",
+      "bytes": 13277
     },
     {
       "path": "tools/make-release.cjs",
-      "sha256": "1ef9e25c6327ac886cf2d9701d406f858aa077da875fe115c3fd7476c0f48949",
-      "bytes": 16410
+      "sha256": "f8b4e283a330945acd78f9a8f293738b775cdfcb0b3f26497ede5b12d84e8b7e",
+      "bytes": 17350
     },
     {
       "path": "tools/mock-relay.mjs",

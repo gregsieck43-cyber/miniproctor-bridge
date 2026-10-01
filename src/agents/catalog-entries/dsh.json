@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "agent_key": "dsh",
+  "display_name": "DeepSeek Harness",
+  "aliases": [
+    "deepseek-harness"
+  ],
+  "logo_asset": "assets/agents/dsh.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "stdio",
+  "capabilities": {
+    "create": true,
+    "read": true,
+    "stop": true,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": "launch-args",
+  "verification": {
+    "create": {
+      "status": "verified",
+      "evidence": "2026-10-02 Windows官方Node CLI0.2.0-rc.2及固定单轮SDK worker/受限patch：真实ManagedSession创建与模型读取、运行中control_stop、全部所属实例PID+birth归零及代理关闭已验。仅文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云状态见A28卡，不等于首发或手机发布通过。"
+    },
+    "read": {
+      "status": "verified",
+      "evidence": "2026-10-02 Windows官方Node CLI0.2.0-rc.2及固定单轮SDK worker/受限patch：真实ManagedSession创建与模型读取、运行中control_stop、全部所属实例PID+birth归零及代理关闭已验。仅文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云状态见A28卡，不等于首发或手机发布通过。"
+    },
+    "stop": {
+      "status": "verified",
+      "evidence": "2026-10-02 Windows官方Node CLI0.2.0-rc.2及固定单轮SDK worker/受限patch：真实ManagedSession创建与模型读取、运行中control_stop、全部所属实例PID+birth归零及代理关闭已验。仅文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云状态见A28卡，不等于首发或手机发布通过。"
+    },
+    "append": {
+      "status": "unavailable",
+      "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+    },
+    "resume": {
+      "status": "unavailable",
+      "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+    },
+    "approve": {
+      "status": "unavailable",
+      "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+    },
+    "fileChanges": {
+      "status": "unavailable",
+      "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+    },
+    "usage": {
+      "status": "unavailable",
+      "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+    }
+  },
+  "probe": {
+    "version_args": [
+      "--version"
+    ],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A28-dsh-sdk.md"
+}

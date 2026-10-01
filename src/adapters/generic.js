@@ -44,6 +44,8 @@ import { isQwenStreamType, isQwenProfileOutput, mapQwenRaw } from './qwen-code.j
 import { isCursorCliStreamType, isCursorCliProfileOutput, mapCursorCliRaw } from './cursor-cli.js';
 import { isCopilotCliProfileOutput, mapCopilotCliProfileOutput } from './copilot-cli.js';
 import { isComateLocalApiFrame, mapComateLocalApiFrame } from './comate-local-api.js';
+import { isJuniePlanFrame, mapJuniePlanFrame } from './junie-plan.js';
+import { isDshSdkFrame, mapDshSdkFrame } from './dsh-sdk.js';
 
 const PROFILE_PARSERS = Object.freeze({
   'claude-code': Object.freeze({ accepts: isClaudeStreamType, map: mapClaudeRaw, agentType: 'claude-code' }),
@@ -62,6 +64,8 @@ const PROFILE_PARSERS = Object.freeze({
   'qwen-code': Object.freeze({ accepts: isQwenProfileOutput, map: mapQwenRaw, agentType: 'generic' }),
   openhands: Object.freeze({ accepts: isOpenhandsSdkFrame, map: mapOpenhandsSdkFrame, agentType: 'generic' }),
   comate: Object.freeze({ accepts: isComateLocalApiFrame, map: mapComateLocalApiFrame, agentType: 'generic' }),
+  junie: Object.freeze({ accepts: isJuniePlanFrame, map: mapJuniePlanFrame, agentType: 'generic' }),
+  dsh: Object.freeze({ accepts: isDshSdkFrame, map: mapDshSdkFrame, agentType: 'generic' }),
 });
 
 export function lineToEvent(line, { sessionId, agentType = 'generic', agentKey = null, sequencer }) {

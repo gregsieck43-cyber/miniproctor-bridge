@@ -122,7 +122,7 @@ export class ManagedSession {
       : capabilitiesFor(agentType);
     this.sequencer = new SessionSequencer();
     const Runner = agentKey === 'comate' ? ComateApiRunner : AgentRunner;
-    this.runner = new Runner({ command, args, cwd, env: productEnv });
+    this.runner = new Runner({ command, args, cwd, env: productEnv, ...(agentKey === 'dsh' ? { stopGraceMs: 15000 } : {}) });
     this.status = 'starting';
     this.lastSeq = 0;
     this.exitInfo = null;
@@ -207,7 +207,7 @@ export class ManagedSession {
       }));
     });
     this.runner.on('exit', (info) => {
-      if ((!this.textOutput && this.agentKey !== 'comate') || info?.error) {
+      if ((!this.textOutput && this.agentKey !== 'comate' && this.agentKey !== 'junie' && this.agentKey !== 'dsh') || info?.error) {
         this.handleRunnerExit(info);
         return;
       }
@@ -219,7 +219,7 @@ export class ManagedSession {
       }, TEXT_OUTPUT_DRAIN_MS);
     });
     this.runner.on('io-close', (info) => {
-      if ((this.textOutput || this.agentKey === 'comate') && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || info);
+      if ((this.textOutput || this.agentKey === 'comate' || this.agentKey === 'junie' || this.agentKey === 'dsh') && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || info);
     });
     this.runner.start();
     this.status = 'running';
@@ -230,6 +230,8 @@ export class ManagedSession {
     if (this.agentType === 'codex' || (this.profileId
       && this.agentKey !== 'openhands' // SDK 工具审批需保留 stdin 控制回写
       && this.agentKey !== 'comate' // 同实例原生取消必须保留控制通道
+      && this.agentKey !== 'junie' // 单轮 ACP worker 的 EOF 是停止请求，启动时必须保留。
+      && this.agentKey !== 'dsh' // SDK worker 保留控制停止，EOF 不可作为初始prompt分隔。
       && this.capabilities.initialPromptChannel === 'launch-args'
       && this.capabilities.append === false)) {
       try { this.runner.stdin?.end(); } catch { /* stdin 已关闭/不可用则忽略 */ }
@@ -329,6 +331,21 @@ export class ManagedSession {
     this.status = this._stopRequested && !info?.error ? 'ended' : resolveExitStatus(info);
     // Comate cannot infer native stopped from a killed/failed host or exit code 0.
     if (this.agentKey === 'comate' && !this._hasSessionEnd) this.status = 'failed';
+    if (this.agentKey === 'junie' && !this._stopRequested && !this._hasSessionEnd) {
+      this.status = 'failed';
+      if (info?.code === 0) this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'error', payload: { code: 'junie-result-missing', message: 'Junie 已退出但完成结果缺失',
+          severity: 'fatal', recoverable: false },
+      }));
+    }
+    if (this.agentKey === 'dsh' && !this._hasSessionEnd) {
+      this.status = 'failed';
+      if (info?.code === 0) this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'error', payload: { code: 'dsh-result-missing', message: 'DSH 已退出但原生与代理关闭结果缺失', severity: 'fatal', recoverable: false },
+      }));
+    }
     this.clearAllDeadlineTimers();
     this.pendingInputs.clear();
     const openclawFrame = this.openclawOutput?.finish({ stopped: this._stopRequested });
@@ -431,6 +448,18 @@ export class ManagedSession {
     try {
       const raw = JSON.parse(line);
       if (!raw || typeof raw !== 'object') return;
+      if (this.agentKey === 'dsh') {
+        if (raw.protocol === 'miniproctor-dsh-sdk-v1' && raw.type === 'started'
+          && /^s_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(raw.native_session_id || '')) this.setNativeSessionRef(raw.native_session_id);
+        return;
+      }
+      if (this.agentKey === 'junie') {
+        if (raw.protocol === 'miniproctor-junie-acp-plan-v1' && raw.type === 'started'
+          && typeof raw.native_session_id === 'string' && raw.native_session_id) {
+          this.setNativeSessionRef(raw.native_session_id);
+        }
+        return;
+      }
       if (this.agentKey === 'comate' && raw.protocol === 'comate-local-api-v1'
         && raw.type === 'started' && typeof raw.conversation_id === 'string') {
         this.setNativeSessionRef(raw.conversation_id);
@@ -603,7 +632,7 @@ export class ManagedSession {
     this.pendingInputs.clear();
     // OpenHands 在待审批时以 stdin 作为控制通道。先告知受控停止，再关管道，
     // 否则 SDK 会把 EOF 误报成审批通道故障，手机端显示任务失败。
-    if (this.agentKey === 'openhands') this.runner.sendJson({ type: 'control_stop' });
+    if (this.agentKey === 'openhands' || this.agentKey === 'junie' || this.agentKey === 'dsh') this.runner.sendJson({ type: 'control_stop' });
     return this.runner.stop();
   }
 }
@@ -1551,6 +1580,12 @@ export class SessionManager {
       if (spec.agentKey === 'aider' && isAiderNativeCommand(prompt)) {
         return { ok: false, error: 'prompt-command-unsupported', reason: 'task-description-required' };
       }
+      if (spec.agentKey === 'junie' && (!prompt || Buffer.byteLength(prompt, 'utf8') > 16000)) {
+        return { ok: false, error: 'invalid-prompt', reason: 'junie-single-turn-prompt-required' };
+      }
+      if (spec.agentKey === 'dsh' && (!prompt || Buffer.byteLength(prompt, 'utf8') > 16000)) {
+        return { ok: false, error: 'invalid-prompt', reason: 'dsh-single-turn-prompt-required' };
+      }
       // 全局工作区授权（D4 语义不变）：拒绝时零进程 + 审计行
       const authz = authorizeWorkspace({ rawCwd, workspaces: this.workspaces });
       if (!authz.ok) {
@@ -1639,7 +1674,7 @@ export class SessionManager {
       const correlationId = String(command.correlation_id || command.command_id || '');
       let prepared;
       try {
-        prepared = prepareProductLaunch(spec, { sessionId, dataDir: this.adapterFactory.profileStore?.dir });
+        prepared = prepareProductLaunch(spec, { sessionId, dataDir: this.adapterFactory.profileStore?.dir, workspace: authz.cwd });
         if (prepared.stateDir) fs.mkdirSync(prepared.stateDir, { recursive: true });
       } catch (err) {
         this.workspaceLocks?.release(sessionId);

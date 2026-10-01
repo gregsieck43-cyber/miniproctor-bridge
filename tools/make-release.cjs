@@ -136,7 +136,16 @@ OpenHands Agent SDK（可选；Windows Python 3.14 本机通路已验）：
   # 启动 bridge 前在本机进程环境设置 OPENHANDS_LLM_MODEL 与 OPENHANDS_LLM_API_KEY，
   # 自定义 API 还需 OPENHANDS_LLM_BASE_URL；不要把密钥放进小程序、profile 或命令行。
   # 工具动作使用 AlwaysConfirm，经小程序审批后才执行；未完成逐产品手机/真云验收，
-  # 当前发行包仍为技术预发行，不代表 25 款首发 Agent 全量发布放行。
+  # 当前发行包仍为技术预发行，不代表 28 款首发 Agent 全量发布放行。
+
+DeepSeek Harness / DSH（可选；仅固定官方 @deepseek-ai/dsh 0.2.0-rc.2、Windows Node 24.16.0 已验）：
+  # 在自己的项目内安装该固定版本；第三方 CLI、账号与模型密钥不随本包提供。
+  node src/main.js profiles register --agent-key dsh --command "<DSH安装目录>/node_modules/@deepseek-ai/dsh/lib/bin.js" --mode readonly --cwd "<授权工作区>"
+  # --command 必须是该官方版本的绝对 JS 入口；不接受裸 dsh 命令或其他版本。
+  # 启动 bridge 前在本机进程环境设置 DEEPSEEK_API_KEY；勿放进 profile、命令行或手机。
+  # 当前只接受输入文本分析并读取输出，开放 create/read/stop；没有文件或命令工具。
+  # 这是工具权限限制，不是 OS 沙箱；原生私有状态由 bridge 放在工作区外。
+  # 正常配置模拟器→真云→bridge 已验；真实手机、第二用户和完整首发门禁仍未完成。
 
 发行完整性：
   node tools/verify-release.cjs --installed <安装目录>

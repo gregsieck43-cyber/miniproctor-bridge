@@ -8,28 +8,54 @@
   "adapter_id": "generic",
   "integration_mode": "stdio",
   "capabilities": {
-    "create": false,
-    "read": false,
-    "stop": false,
+    "create": true,
+    "read": true,
+    "stop": true,
     "append": false,
     "resume": false,
     "approve": false,
     "fileChanges": false,
     "usage": false
   },
-  "initial_prompt_channel": null,
+  "initial_prompt_channel": "launch-args",
   "verification": {
-    "create": { "status": "pending", "evidence": "Windows 官方 CLI 26.9.22 (3419.7) 签名及隔离 version/help 已验（2026-09-29）；无凭据/模型任务，正常 profile create 未验；非交互项目输入安全配方未冻结" },
-    "read": { "status": "pending", "evidence": "官方和本机帮助支持 json-stream，但帧 schema、真实模型读回及桥接映射未验；现有 fixture 仅合成文本兜底" },
-    "stop": { "status": "pending", "evidence": "runner 通用进程树终止已有测试；Junie 真实任务及正常 profile 停止未验" },
-    "append": { "status": "unavailable", "evidence": "CLI 有交互模式及自身会话机制，但 bridge 无会话中途追加输入通路（声明 false）" },
-    "resume": { "status": "unavailable", "evidence": "当前 CLI 有 --session-id/--resume；bridge 未实现 Junie 恢复，JetBrains IDE 旧对话不由此接管（声明 false）" },
-    "approve": { "status": "unavailable", "evidence": "非交互项目输入默认信任；未有经验证的逐项审批回写与只读安全配方（声明 false）" },
-    "fileChanges": { "status": "unavailable", "evidence": "json-stream 可选但真实文件变更帧 schema/映射未取证，不伪造工具事件（声明 false）" },
-    "usage": { "status": "unavailable", "evidence": "未取得真实用量帧或统计映射，无统计不伪造（声明 false）" }
+    "create": {
+      "status": "verified",
+      "evidence": "2026-10-01 Windows Nightly3596.1：生产隔离Node单轮worker/Plan-off ACP、真实ManagedSession启动与模型已验；本机原生引用经冻结Factory变为固定Node启动。当前仅Windows，正常profile/真云验收状态见A26卡，不等于产品发布通过"
+    },
+    "read": {
+      "status": "verified",
+      "evidence": "2026-10-01 生产worker与ManagedSession真实读取随机标记/16847、专属profile事件和原生ID已验；固定单轮Plan/off默认拒绝审批，仍会保存计划文档，不声明通用只读沙箱。正常Factory/真云补验见A26卡"
+    },
+    "stop": {
+      "status": "verified",
+      "evidence": "2026-10-01 生产worker与ManagedSession真实请求在途时control_stop/EOF、全部所属实例二次CIM消失及代理关闭已验；同规格正常Factory/真云补验见A26卡，手机仍未验"
+    },
+    "append": {
+      "status": "unavailable",
+      "evidence": "CLI 有交互模式及自身会话机制，但 bridge 无会话中途追加输入通路（声明 false）"
+    },
+    "resume": {
+      "status": "unavailable",
+      "evidence": "当前 CLI 有 --session-id/--resume；bridge 未实现 Junie 恢复，JetBrains IDE 旧对话不由此接管（声明 false）"
+    },
+    "approve": {
+      "status": "unavailable",
+      "evidence": "固定单轮Plan/off客户端默认按原生实际选项reject_once，不提供审批按钮或批准实施；append/resume均关闭，Plan文档可能保存。此前Safe无审批写入反例通路停用"
+    },
+    "fileChanges": {
+      "status": "unavailable",
+      "evidence": "json-stream 可选但真实文件变更帧 schema/映射未取证，不伪造工具事件（声明 false）"
+    },
+    "usage": {
+      "status": "unavailable",
+      "evidence": "未取得真实用量帧或统计映射，无统计不伪造（声明 false）"
+    }
   },
   "probe": {
-    "version_args": ["--version"],
+    "version_args": [
+      "--version"
+    ],
     "timeout_ms": 10000,
     "output_max_bytes": 8192
   },

@@ -1,6 +1,9 @@
 /** Bridge -> syncReport: only the public profile digest leaves this machine. */
 import { CAPABILITY_KEYS } from '../adapters/capabilities.js';
 import { getProductRuntime } from './product-runtime.js';
+import { JUNIE_PLAN_PROFILE_VERSION } from './junie-plan-client.js';
+import path from 'node:path';
+import { DSH_RUNTIME_VERSION } from './dsh-sdk-client.js';
 
 export const MAX_PROFILES_PER_SYNC = 50;
 
@@ -10,7 +13,11 @@ export function buildProfileProjection(profile) {
     ? 'unavailable'
     : profile.health?.status === 'ok' ? 'ok' : 'unknown';
   const runtime = getProductRuntime(profile.agent_key);
-  const canOpen = active && health === 'ok' && runtime !== null;
+  const versionSupported = profile.agent_key === 'junie' ? profile.adapter_version === JUNIE_PLAN_PROFILE_VERSION
+    : profile.agent_key === 'dsh' ? profile.adapter_version === DSH_RUNTIME_VERSION : true;
+  const entry = profile.executable_ref?.resolved_path;
+  const entrySupported = profile.agent_key !== 'dsh' || (typeof entry === 'string' && path.isAbsolute(entry) && /\.[cm]?js$/i.test(entry));
+  const canOpen = active && health === 'ok' && runtime !== null && versionSupported && entrySupported;
   const capabilities = {};
   for (const key of CAPABILITY_KEYS) capabilities[key] = canOpen && runtime.open[key] === true;
   capabilities.integrationMode = canOpen ? runtime.open.integrationMode : null;

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "agent_key": "workbuddy",
+  "display_name": "WorkBuddy",
+  "aliases": [],
+  "logo_asset": "assets/agents/workbuddy.png",
+  "lifecycle": "active",
+  "adapter_id": "generic",
+  "integration_mode": "local-api",
+  "capabilities": {
+    "create": false,
+    "read": false,
+    "stop": false,
+    "append": false,
+    "resume": false,
+    "approve": false,
+    "fileChanges": false,
+    "usage": false
+  },
+  "initial_prompt_channel": null,
+  "verification": {
+    "create": {
+      "status": "pending",
+      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控create证据，不开放能力；目录/版本/fixture不算验收通过。"
+    },
+    "read": {
+      "status": "pending",
+      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控read证据，不开放能力；目录/版本/fixture不算验收通过。"
+    },
+    "stop": {
+      "status": "pending",
+      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控stop证据，不开放能力；目录/版本/fixture不算验收通过。"
+    },
+    "append": {
+      "status": "unavailable",
+      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控append证据，不开放能力；目录/版本/fixture不算验收通过。"
+    },
+    "resume": {
+      "status": "unavailable",
+      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控resume证据，不开放能力；目录/版本/fixture不算验收通过。"
+    },
+    "approve": {
+      "status": "unavailable",
+      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控approve证据，不开放能力；目录/版本/fixture不算验收通过。"
+    },
+    "fileChanges": {
+      "status": "unavailable",
+      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控fileChanges证据，不开放能力；目录/版本/fixture不算验收通过。"
+    },
+    "usage": {
+      "status": "unavailable",
+      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控usage证据，不开放能力；目录/版本/fixture不算验收通过。"
+    }
+  },
+  "probe": {
+    "version_args": [
+      "--version"
+    ],
+    "timeout_ms": 10000,
+    "output_max_bytes": 8192
+  },
+  "docs_ref": "xcx/docs/官方资料/A30-workbuddy-openapi.md"
+}

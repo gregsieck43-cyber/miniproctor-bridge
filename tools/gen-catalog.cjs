@@ -228,7 +228,7 @@ function main() {
 
 export const CATALOG_SCHEMA_VERSION = ${schemaVersion};
 
-/** 全量目录条目（${entries.length} 个：A01–A27 首发 key + roo-code 停服历史条目）。 */
+/** 全量目录条目（${entries.length} 个：A01–A30 登记 key（首发排除 A14/A23）+ roo-code 停服历史条目）。 */
 export const CATALOG_ENTRIES = Object.freeze(${body}.map((entry) => Object.freeze({
   ...entry,
   aliases: Object.freeze([...entry.aliases]),

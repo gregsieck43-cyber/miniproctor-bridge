@@ -90,7 +90,7 @@ const FLAG_RE = /^-{1,2}[a-z0-9][a-z0-9-]*$/i;
  * @returns {Promise<{ok:boolean, exit_code:number|null, output:string, stderr:string,
  *   truncated:boolean, timed_out:boolean, error:string|null, version_line:string|null, reason:string|null}>}
  */
-export function probeRuntime({ command, args = ['--version'], timeoutMs = 10000, outputMaxBytes = 8192 } = {}) {
+export function probeRuntime({ command, args = ['--version'], timeoutMs = 10000, outputMaxBytes = 8192, nodeEntry = false } = {}) {
   return new Promise((resolve) => {
     const cmdPath = String(command ?? '').trim();
     const maxBytes = Number.isInteger(outputMaxBytes) && outputMaxBytes > 0 ? outputMaxBytes : 8192;
@@ -101,12 +101,15 @@ export function probeRuntime({ command, args = ['--version'], timeoutMs = 10000,
     // 旗标白名单：版本探测参数只能是 --flag 形态（契约 §1 probe 约束；防御把探测通道变成任意命令通道）
     if (flagArgs.length === 0 || !flagArgs.every((a) => FLAG_RE.test(a))) return denied('invalid-probe-args');
     if (cmdPath.includes('"')) return denied('invalid-command');
+    // Only the explicitly selected DSH product asks for this carrier. Flags still
+    // come from the catalog; an entry is a local absolute file, never a CLI arg.
+    if (nodeEntry && (!path.isAbsolute(cmdPath) || !/\.[cm]?js$/i.test(cmdPath))) return denied('invalid-node-entry');
 
     // .cmd/.bat shim 无法被 spawn 直接执行：经 cmd.exe /d /s /c 显式传参（路径加引号；
     // args 已是旗标白名单，无元字符——不引入 shell 注入面）。
     const isShim = process.platform === 'win32' && isCmdShimPath(cmdPath);
-    const bin = isShim ? (process.env.ComSpec || 'cmd.exe') : cmdPath;
-    const spawnArgs = isShim ? ['/d', '/s', '/c', `"${cmdPath}"`, ...flagArgs] : flagArgs;
+    const bin = nodeEntry ? process.execPath : isShim ? (process.env.ComSpec || 'cmd.exe') : cmdPath;
+    const spawnArgs = nodeEntry ? [cmdPath, ...flagArgs] : isShim ? ['/d', '/s', '/c', `"${cmdPath}"`, ...flagArgs] : flagArgs;
 
     let child;
     try {
@@ -278,6 +281,7 @@ export async function identifyRuntime({ command, agentKey = null, selfReport = n
   const entry = (userKey ?? claimedKey) ? getCatalogEntry(userKey ?? claimedKey) : null;
   const probe = await probeRuntime({
     command: resolved.resolved_path,
+    nodeEntry: userKey === 'dsh' && /\.[cm]?js$/i.test(resolved.resolved_path),
     args: entry?.probe?.version_args ?? ['--version'],
     timeoutMs: entry?.probe?.timeout_ms ?? 10000,
     outputMaxBytes: entry?.probe?.output_max_bytes ?? 8192,

@@ -5,7 +5,7 @@
 
 export const CATALOG_SCHEMA_VERSION = 1;
 
-/** 全量目录条目（28 个：A01–A27 首发 key + roo-code 停服历史条目）。 */
+/** 全量目录条目（31 个：A01–A30 登记 key（首发排除 A14/A23）+ roo-code 停服历史条目）。 */
 export const CATALOG_ENTRIES = Object.freeze(  [
     {
       "schema_version": 1,
@@ -780,6 +780,71 @@ export const CATALOG_ENTRIES = Object.freeze(  [
     },
     {
       "schema_version": 1,
+      "agent_key": "dsh",
+      "display_name": "DeepSeek Harness",
+      "aliases": [
+        "deepseek-harness"
+      ],
+      "logo_asset": "assets/agents/dsh.png",
+      "lifecycle": "active",
+      "adapter_id": "generic",
+      "integration_mode": "stdio",
+      "capabilities": {
+        "create": true,
+        "read": true,
+        "stop": true,
+        "append": false,
+        "resume": false,
+        "approve": false,
+        "fileChanges": false,
+        "usage": false
+      },
+      "initial_prompt_channel": "launch-args",
+      "verification": {
+        "create": {
+          "status": "verified",
+          "evidence": "2026-10-02 Windows官方Node CLI0.2.0-rc.2及固定单轮SDK worker/受限patch：真实ManagedSession创建与模型读取、运行中control_stop、全部所属实例PID+birth归零及代理关闭已验。仅文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云状态见A28卡，不等于首发或手机发布通过。"
+        },
+        "read": {
+          "status": "verified",
+          "evidence": "2026-10-02 Windows官方Node CLI0.2.0-rc.2及固定单轮SDK worker/受限patch：真实ManagedSession创建与模型读取、运行中control_stop、全部所属实例PID+birth归零及代理关闭已验。仅文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云状态见A28卡，不等于首发或手机发布通过。"
+        },
+        "stop": {
+          "status": "verified",
+          "evidence": "2026-10-02 Windows官方Node CLI0.2.0-rc.2及固定单轮SDK worker/受限patch：真实ManagedSession创建与模型读取、运行中control_stop、全部所属实例PID+birth归零及代理关闭已验。仅文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云状态见A28卡，不等于首发或手机发布通过。"
+        },
+        "append": {
+          "status": "unavailable",
+          "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+        },
+        "resume": {
+          "status": "unavailable",
+          "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+        },
+        "approve": {
+          "status": "unavailable",
+          "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+        },
+        "fileChanges": {
+          "status": "unavailable",
+          "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+        },
+        "usage": {
+          "status": "unavailable",
+          "evidence": "当前固定单轮SDK无此生产通路，保持关闭；原生工具与审批不转发，不伪造能力或用量。"
+        }
+      },
+      "probe": {
+        "version_args": [
+          "--version"
+        ],
+        "timeout_ms": 10000,
+        "output_max_bytes": 8192
+      },
+      "docs_ref": "xcx/docs/官方资料/A28-dsh-sdk.md"
+    },
+    {
+      "schema_version": 1,
       "agent_key": "factory-droid",
       "display_name": "Factory Droid",
       "aliases": [
@@ -1046,28 +1111,28 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
-        "read": false,
-        "stop": false,
+        "create": true,
+        "read": true,
+        "stop": true,
         "append": false,
         "resume": false,
         "approve": false,
         "fileChanges": false,
         "usage": false
       },
-      "initial_prompt_channel": null,
+      "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "Windows 官方 CLI 26.9.22 (3419.7) 签名及隔离 version/help 已验（2026-09-29）；无凭据/模型任务，正常 profile create 未验；非交互项目输入安全配方未冻结"
+          "status": "verified",
+          "evidence": "2026-10-01 Windows Nightly3596.1：生产隔离Node单轮worker/Plan-off ACP、真实ManagedSession启动与模型已验；本机原生引用经冻结Factory变为固定Node启动。当前仅Windows，正常profile/真云验收状态见A26卡，不等于产品发布通过"
         },
         "read": {
-          "status": "pending",
-          "evidence": "官方和本机帮助支持 json-stream，但帧 schema、真实模型读回及桥接映射未验；现有 fixture 仅合成文本兜底"
+          "status": "verified",
+          "evidence": "2026-10-01 生产worker与ManagedSession真实读取随机标记/16847、专属profile事件和原生ID已验；固定单轮Plan/off默认拒绝审批，仍会保存计划文档，不声明通用只读沙箱。正常Factory/真云补验见A26卡"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "runner 通用进程树终止已有测试；Junie 真实任务及正常 profile 停止未验"
+          "status": "verified",
+          "evidence": "2026-10-01 生产worker与ManagedSession真实请求在途时control_stop/EOF、全部所属实例二次CIM消失及代理关闭已验；同规格正常Factory/真云补验见A26卡，手机仍未验"
         },
         "append": {
           "status": "unavailable",
@@ -1079,7 +1144,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "非交互项目输入默认信任；未有经验证的逐项审批回写与只读安全配方（声明 false）"
+          "evidence": "固定单轮Plan/off客户端默认按原生实际选项reject_once，不提供审批按钮或批准实施；append/resume均关闭，Plan文档可能保存。此前Safe无审批写入反例通路停用"
         },
         "fileChanges": {
           "status": "unavailable",
@@ -1804,6 +1869,132 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         "output_max_bytes": 8192
       },
       "docs_ref": "xcx/docs/官方资料/A14-windsurf-cascade-hooks.md"
+    },
+    {
+      "schema_version": 1,
+      "agent_key": "workbuddy",
+      "display_name": "WorkBuddy",
+      "aliases": [],
+      "logo_asset": "assets/agents/workbuddy.png",
+      "lifecycle": "active",
+      "adapter_id": "generic",
+      "integration_mode": "local-api",
+      "capabilities": {
+        "create": false,
+        "read": false,
+        "stop": false,
+        "append": false,
+        "resume": false,
+        "approve": false,
+        "fileChanges": false,
+        "usage": false
+      },
+      "initial_prompt_channel": null,
+      "verification": {
+        "create": {
+          "status": "pending",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控create证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "read": {
+          "status": "pending",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控read证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "stop": {
+          "status": "pending",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控stop证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "append": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控append证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "resume": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控resume证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "approve": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控approve证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "fileChanges": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控fileChanges证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "usage": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控usage证据，不开放能力；目录/版本/fixture不算验收通过。"
+        }
+      },
+      "probe": {
+        "version_args": [
+          "--version"
+        ],
+        "timeout_ms": 10000,
+        "output_max_bytes": 8192
+      },
+      "docs_ref": "xcx/docs/官方资料/A30-workbuddy-openapi.md"
+    },
+    {
+      "schema_version": 1,
+      "agent_key": "zcode",
+      "display_name": "ZCode",
+      "aliases": [],
+      "logo_asset": "assets/agents/zcode.png",
+      "lifecycle": "active",
+      "adapter_id": "generic",
+      "integration_mode": "stdio",
+      "capabilities": {
+        "create": false,
+        "read": false,
+        "stop": false,
+        "append": false,
+        "resume": false,
+        "approve": false,
+        "fileChanges": false,
+        "usage": false
+      },
+      "initial_prompt_channel": null,
+      "verification": {
+        "create": {
+          "status": "pending",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控create证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "read": {
+          "status": "pending",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控read证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "stop": {
+          "status": "pending",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控stop证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "append": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控append证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "resume": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控resume证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "approve": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控approve证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "fileChanges": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控fileChanges证据，不开放能力；目录/版本/fixture不算验收通过。"
+        },
+        "usage": {
+          "status": "unavailable",
+          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控usage证据，不开放能力；目录/版本/fixture不算验收通过。"
+        }
+      },
+      "probe": {
+        "version_args": [
+          "--version"
+        ],
+        "timeout_ms": 10000,
+        "output_max_bytes": 8192
+      },
+      "docs_ref": "xcx/docs/官方资料/A29-zcode-cli.md"
     }
   ].map((entry) => Object.freeze({
   ...entry,

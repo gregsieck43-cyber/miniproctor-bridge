@@ -19,6 +19,8 @@ import path from 'node:path';
 import { getCatalogEntry } from './catalog.js';
 import { ADAPTER_CAPABILITIES } from '../adapters/capabilities.js';
 import { getProductRuntime } from './product-runtime.js';
+import { JUNIE_PLAN_PROFILE_VERSION } from './junie-plan-client.js';
+import { DSH_RUNTIME_VERSION } from './dsh-sdk-client.js';
 
 /** profile 路由失败码（与 event-protocol.md §14.4 扁平错误串对齐；§14.4 未列的为本机校验扩展）。 */
 export const PROFILE_ROUTE_ERROR_CODES = Object.freeze([
@@ -135,6 +137,12 @@ export class AdapterFactory {
       }
     }
     const { adapterId, runtime } = this.resolveVerifiedAdapter(profile.agent_key);
+    if (profile.agent_key === 'junie' && profile.adapter_version !== JUNIE_PLAN_PROFILE_VERSION) {
+      throw new ProfileRouteError('Junie 原生版本未经此单轮 Plan 配方验证', { code: 'profile-capability-unsupported' });
+    }
+    if (profile.agent_key === 'dsh' && profile.adapter_version !== DSH_RUNTIME_VERSION) {
+      throw new ProfileRouteError('DSH 原生版本未经此单轮 SDK 配方验证', { code: 'profile-capability-unsupported' });
+    }
     const ref = profile.executable_ref || {};
     const command = String(ref.resolved_path || ref.command || '').trim();
     if (!command) throw new ProfileRouteError(`profile 缺少可执行命令：${id}`, { code: 'profile-executable-missing' });
@@ -148,14 +156,23 @@ export class AdapterFactory {
       throw new ProfileRouteError(`profile 可执行文件不存在：${command}`, { code: 'profile-executable-missing' });
     }
     const args = this.resolveLaunchArgs({ agentKey: profile.agent_key, adapterId, profile, runtime });
+    const isJunie = profile.agent_key === 'junie';
+    const isDsh = profile.agent_key === 'dsh';
+    if (isJunie && (!ref.resolved_path || !path.isAbsolute(command))) {
+      throw new ProfileRouteError('Junie 需要本机已解析的原生绝对路径', { code: 'profile-executable-missing' });
+    }
+    if (isDsh && (!ref.resolved_path || !path.isAbsolute(command) || !/\.[cm]?js$/i.test(command))) {
+      throw new ProfileRouteError('DSH 需要本机已解析的官方 Node CLI 入口绝对路径', { code: 'profile-executable-missing' });
+    }
     return Object.freeze({
       profileId: profile.profile_id,
       profileRevision: profile.revision, // 冻结创建时刻 revision（profile 热改不影响本会话）
       agentKey: profile.agent_key,
       agentType: adapterId,
-      command,
+      command: isJunie || isDsh ? process.execPath : command,
       args: Object.freeze([...args]),
-      productEnv: runtime.env,
+      productEnv: isJunie ? Object.freeze({ ...runtime.env, MINIPROCTOR_JUNIE_EXECUTABLE: command })
+        : isDsh ? Object.freeze({ ...runtime.env, MINIPROCTOR_DSH_ENTRY: command }) : runtime.env,
       adapterVersion: profile.adapter_version || null,
       executionCapabilities: runtime.open,
       capabilitySnapshot: runtime.open,
@@ -165,6 +182,9 @@ export class AdapterFactory {
 
   /** 启动参数：注入 resolver 优先；否则只取随发行的产品静态配方。 */
   resolveLaunchArgs({ agentKey, adapterId, profile, runtime }) {
+    if ((agentKey === 'junie' || agentKey === 'dsh') && this.launchArgsResolver) {
+      throw new ProfileRouteError(`${agentKey} 不支持覆盖单轮 worker 配方`, { code: 'invalid-profile-route' });
+    }
     if (this.launchArgsResolver) {
       const out = this.launchArgsResolver({ agentKey, adapterId, profile });
       return Array.isArray(out) ? out.map(String) : [];

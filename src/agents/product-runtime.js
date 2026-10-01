@@ -5,6 +5,8 @@ import { CAPABILITY_KEYS, buildOpenCapabilities } from '../adapters/capabilities
 import { AIDER_SCRIPT_FLAGS } from '../adapters/aider.js';
 import { AGENT_PRESETS } from '../lib/config.js';
 import { getCatalogEntry } from './catalog.js';
+import { buildJuniePlanLaunch } from './junie-plan-worker.js';
+import { buildDshSdkLaunch } from './dsh-sdk-worker.js';
 
 const OPENCLAW_CONFIG_PATH = fileURLToPath(new URL('./openclaw-readonly.json', import.meta.url));
 const CODEBUDDY_EMPTY_MCP_PATH = fileURLToPath(new URL('./codebuddy-empty-mcp.json', import.meta.url));
@@ -132,11 +134,21 @@ const RECIPES = Object.freeze({
     adapterId: 'generic',
     args: [fileURLToPath(new URL('./openhands-sdk-worker.py', import.meta.url))],
   }),
+  junie: Object.freeze({
+    adapterId: 'generic',
+    // Nightly 3596.1: the native executable is frozen by Factory; only this Node
+    // worker receives one prompt. It checks Plan/off and denies native approvals.
+    args: [fileURLToPath(new URL('./junie-plan-worker.js', import.meta.url))],
+  }),
+  dsh: Object.freeze({
+    adapterId: 'generic',
+    args: [fileURLToPath(new URL('./dsh-sdk-worker.js', import.meta.url))],
+  }),
 });
 
 function buildRuntime(agentKey, recipe) {
   // These product recipes have only been verified on Windows.
-  if ((agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline' || agentKey === 'cursor-cli' || agentKey === 'kimi-code' || agentKey === 'openclaw' || agentKey === 'copilot-cli' || agentKey === 'codebuddy') && process.platform !== 'win32') return null;
+  if ((agentKey === 'dsh' || agentKey === 'junie' || agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline' || agentKey === 'cursor-cli' || agentKey === 'kimi-code' || agentKey === 'openclaw' || agentKey === 'copilot-cli' || agentKey === 'codebuddy') && process.platform !== 'win32') return null;
   const entry = getCatalogEntry(agentKey);
   if (!entry || entry.adapter_id !== recipe.adapterId) return null;
   const declared = {};
@@ -169,8 +181,8 @@ export function getProductRuntime(agentKey) {
 }
 
 /** 只计算本机启动参数；目录由 SessionManager 在工作区授权后创建。 */
-export function prepareProductLaunch(spec, { sessionId, dataDir } = {}) {
-  if (spec.agentKey !== 'openclaw' && spec.agentKey !== 'copilot-cli' && spec.agentKey !== 'codebuddy') {
+export function prepareProductLaunch(spec, { sessionId, dataDir, workspace } = {}) {
+  if (spec.agentKey !== 'dsh' && spec.agentKey !== 'junie' && spec.agentKey !== 'openclaw' && spec.agentKey !== 'copilot-cli' && spec.agentKey !== 'codebuddy') {
     return { args: [...spec.args], productEnv: { ...(spec.productEnv || {}) }, stateDir: null };
   }
   if (!/^s_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(sessionId || '')) {
@@ -178,6 +190,44 @@ export function prepareProductLaunch(spec, { sessionId, dataDir } = {}) {
   }
   if (typeof dataDir !== 'string' || !path.isAbsolute(dataDir)) {
     throw new TypeError('产品 dataDir 必须为 bridge 本机绝对路径');
+  }
+  if (spec.agentKey === 'dsh') {
+    const runtime = getProductRuntime('dsh');
+    if (!runtime || spec.command !== process.execPath || JSON.stringify(spec.args) !== JSON.stringify(runtime.args)) {
+      throw new TypeError('DSH 必须使用固定 Node 单轮 SDK worker');
+    }
+    const stateDir = path.join(path.resolve(dataDir), 'dsh-runs', sessionId);
+    const runDir = path.join(stateDir, 'native');
+    // Validate before the create ACK; ownership probes use only the host directory.
+    buildDshSdkLaunch({ runDir, workspace, nativeEntry: spec.productEnv?.MINIPROCTOR_DSH_ENTRY,
+      childKey: '0'.repeat(64), baseUrl: 'http://127.0.0.1:1/v1/messages', ambientEnv: {} });
+    return { args: [...runtime.args], stateDir, productEnv: {
+      ...(spec.productEnv || {}), ...runtime.env, MINIPROCTOR_DSH_RUN_DIR: runDir,
+      HOME: stateDir, USERPROFILE: stateDir, APPDATA: stateDir, LOCALAPPDATA: stateDir,
+      TEMP: stateDir, TMP: stateDir, TMPDIR: stateDir, XDG_CONFIG_HOME: stateDir,
+      XDG_CACHE_HOME: stateDir, XDG_DATA_HOME: stateDir, XDG_STATE_HOME: stateDir,
+      NODE_DISABLE_COMPILE_CACHE: '1', NODE_COMPILE_CACHE: '', NODE_OPTIONS: '',
+    } };
+  }
+  if (spec.agentKey === 'junie') {
+    const runtime = getProductRuntime('junie');
+    if (!runtime || spec.command !== process.execPath || JSON.stringify(spec.args) !== JSON.stringify(runtime.args)) {
+      throw new TypeError('Junie 必须使用固定 Node 单轮 Plan worker');
+    }
+    const stateDir = path.join(path.resolve(dataDir), 'junie-runs', sessionId);
+    // Windows ownership probes may create a host AppData skeleton. Keep that
+    // host state outside the new native runtime's strict empty-directory gate.
+    const runDir = path.join(stateDir, 'native');
+    // Validate runtime/workspace separation before directory creation or create ACK.
+    buildJuniePlanLaunch({ runDir, workspace, nativeExecutable: spec.productEnv?.MINIPROCTOR_JUNIE_EXECUTABLE,
+      childKey: '0'.repeat(64), baseUrl: 'http://127.0.0.1:1/v1/chat/completions', ambientEnv: {} });
+    return { args: [...runtime.args], stateDir, productEnv: {
+      ...(spec.productEnv || {}), ...runtime.env, MINIPROCTOR_JUNIE_RUN_DIR: runDir,
+      HOME: stateDir, USERPROFILE: stateDir, APPDATA: stateDir, LOCALAPPDATA: stateDir,
+      TEMP: stateDir, TMP: stateDir, TMPDIR: stateDir, XDG_CONFIG_HOME: stateDir,
+      XDG_CACHE_HOME: stateDir, XDG_DATA_HOME: stateDir, XDG_STATE_HOME: stateDir,
+      NODE_DISABLE_COMPILE_CACHE: '1', NODE_COMPILE_CACHE: '', NODE_OPTIONS: '',
+    } };
   }
   if (spec.agentKey === 'codebuddy') {
     const runtime = getProductRuntime('codebuddy');
