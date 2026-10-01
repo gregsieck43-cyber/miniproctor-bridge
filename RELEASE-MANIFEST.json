@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc27",
-  "commit": "ad6983af501ae84bbe37a217978efde81ca4f740",
+  "version": "0.6.0-rc28",
+  "commit": "4e9a6b0acdaade646c763728144568ac9c69ed8f",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "a20da8fcd6a0ff5cc59505b0e53f3b80518987d0d3a42852f3973f9875dcd345",
+      "sha256": "07399e6199002a1c21687cba09a7fd04472873ec3b54f1839f86f8be4727d12c",
       "bytes": 443
     },
     {
@@ -476,8 +476,8 @@
     },
     {
       "path": "src/lib/inbox.js",
-      "sha256": "292c8f4d57bb75586e1662c6b032e91590835c4ea0236e8ca59fc6a4a826dfd1",
-      "bytes": 21137
+      "sha256": "37b04c1c0e0380b73e7e680886e7195a0a4228807942161ad3a18da79b8bfb20",
+      "bytes": 21391
     },
     {
       "path": "src/lib/instance-lock.js",

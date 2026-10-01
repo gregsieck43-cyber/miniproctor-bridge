@@ -274,7 +274,9 @@ export class CommandInbox {
         envelope_version: INBOX_ENVELOPE_VERSION,
         result: 'unknown',
         error: existing.error || 'crash-recovery: interrupted during previous execution',
-        result_session_id: existing.result_session_id ?? null,
+        // 已明确指向旧会话的命令必须保留该目标；创建结果未知时原命令 sid 为空，
+        // 不虚构新会话。启动恢复与后续租约重派由同一信封重建一致的业务 ACK。
+        result_session_id: existing.result_session_id ?? existing.command?.session_id ?? null,
         command_type: existing.command_type ?? existing.command?.command_type ?? null,
         correlation_id: existing.correlation_id ?? existing.command?.correlation_id ?? null,
         request_id: existing.request_id ?? existing.command?.payload?.request_id ?? null,
