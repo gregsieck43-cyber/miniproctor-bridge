@@ -4,8 +4,10 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { resolveCommandPath, isCmdShimPath } from '../lib/command-resolve.js';
 
-// V12-11：强杀前创建时间核验的查询超时（win32 powershell 查询；超时放弃核验走句柄兜底）。
+// V12-11：Windows 身份/进程树只读查询上限。树查询失败必须拒绝 /T 强杀。
 const OWNERSHIP_PROBE_TIMEOUT_MS = 3000;
+const MAX_PROCESS_PROBE_BYTES = 2 * 1024 * 1024;
+const WINDOWS_UTC_TOKEN = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{7}Z$/;
 
 const DEFAULT_STOP_GRACE_MS = 3000;
 // V1-019⑤：强制停止（killTree）后等待真实退出的上限——stop() 的结果必须与
@@ -320,7 +322,7 @@ export class AgentRunner extends EventEmitter {
 
   /**
    * 查询 OS 侧「进程创建时间令牌」（V12-11 PID 复用防护）：
-   *   - win32：powershell Get-CimInstance Win32_Process.CreationDate（CIM 时间串原样作令牌）；
+   *   - win32：CIM CreationDate 的 UTC round-trip 字符串（保留全部小数精度）；
    *   - posix：/proc/<pid>/stat 的 starttime（时钟滴答，同一进程实例内稳定）。
    * 同一 PID + 同一创建时间 ⇒ 同一进程实例；PID 被复用后令牌必然不同。
    * 查询失败/超时返回 null（强杀核验退化为 Node 子进程句柄判定，不阻塞停止主语义）。
@@ -329,20 +331,9 @@ export class AgentRunner extends EventEmitter {
   async getProcessCreationTimeToken(pid) {
     if (!Number.isInteger(pid) || pid <= 0) return null;
     if (process.platform === 'win32') {
-      return new Promise((resolve) => {
-        const script = `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CreationDate`;
-        const probe = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-          stdio: ['ignore', 'pipe', 'ignore'],
-          windowsHide: true,
-        });
-        let out = '';
-        let settled = false;
-        const finish = (token) => { if (!settled) { settled = true; resolve(token); } };
-        const timer = setTimeout(() => { try { probe.kill(); } catch { /* ignore */ } finish(null); }, OWNERSHIP_PROBE_TIMEOUT_MS);
-        probe.stdout.on('data', (chunk) => { out += chunk.toString('utf8'); });
-        probe.on('error', () => { clearTimeout(timer); finish(null); });
-        probe.on('exit', () => { clearTimeout(timer); finish(out.trim() || null); });
-      });
+      const script = `$p=Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}'; if($p.CreationDate){$p.CreationDate.ToUniversalTime().ToString('o',[Globalization.CultureInfo]::InvariantCulture)}`;
+      const token = await this._queryWindowsProcessData(script);
+      return token && WINDOWS_UTC_TOKEN.test(token) ? token : null;
     }
     try {
       // /proc/<pid>/stat：状态字段含括号包住的 comm（可能含空格），取最后一个 ')' 之后切分；
@@ -354,6 +345,62 @@ export class AgentRunner extends EventEmitter {
     } catch {
       return null;
     }
+  }
+
+  /** Bounded read-only CIM probe; wait for pipe close before consuming output. */
+  _queryWindowsProcessData(script) {
+    return new Promise((resolve) => {
+      const probe = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+        stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, env: this.buildChildEnv(),
+      });
+      let out = '', bytes = 0, settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true; clearTimeout(timer); resolve(value);
+      };
+      const abort = () => { try { probe.kill(); } catch {} finish(null); };
+      const timer = setTimeout(abort, OWNERSHIP_PROBE_TIMEOUT_MS);
+      probe.stdout.on('data', (chunk) => {
+        if (settled) return;
+        bytes += chunk.length;
+        if (bytes > MAX_PROCESS_PROBE_BYTES) { abort(); return; }
+        out += chunk.toString('utf8');
+      });
+      probe.on('error', () => finish(null));
+      probe.on('close', (code) => finish(code === 0 ? out.trim() || null : null));
+    });
+  }
+
+  async getWindowsProcessTreeSnapshot() {
+    const script = "@(Get-CimInstance Win32_Process | ForEach-Object {$birth=$null; if($_.CreationDate){$birth=$_.CreationDate.ToUniversalTime().ToString('o',[Globalization.CultureInfo]::InvariantCulture)}; [pscustomobject]@{pid=[int]$_.ProcessId;parent=[int]$_.ParentProcessId;birth=$birth}}) | ConvertTo-Json -Compress";
+    const out = await this._queryWindowsProcessData(script);
+    if (!out) return null;
+    try { const rows = JSON.parse(out); return Array.isArray(rows) ? rows : [rows]; } catch { return null; }
+  }
+
+  /** Before /T, verify each numeric parent edge and reject ambiguous or older descendants. */
+  windowsProcessTreeIsOwned(rows) {
+    if (!Array.isArray(rows) || !this.child?.pid) return false;
+    const byPid = new Map(), children = new Map();
+    for (const row of rows) {
+      if (!row || !Number.isInteger(row.pid) || row.pid < 0 || !Number.isInteger(row.parent) || row.parent < 0) return false;
+      const identities = byPid.get(row.pid) || []; identities.push(row); byPid.set(row.pid, identities);
+      const siblings = children.get(row.parent) || []; siblings.push(row); children.set(row.parent, siblings);
+    }
+    const roots = byPid.get(this.child.pid);
+    if (roots?.length !== 1) return false;
+    const validBirth = (row) => typeof row.birth === 'string' && WINDOWS_UTC_TOKEN.test(row.birth) && Number.isFinite(Date.parse(row.birth));
+    if (!validBirth(roots[0])) return false;
+    const seen = new Set([this.child.pid]), pending = [roots[0]];
+    while (pending.length) {
+      const parent = pending.pop();
+      for (const row of children.get(parent.pid) || []) {
+        // Lexicographic UTC comparison retains the fractional digits that Date.parse drops.
+        if (seen.has(row.pid) || byPid.get(row.pid)?.length !== 1 || !validBirth(row) || row.birth < parent.birth) return false;
+        seen.add(row.pid); pending.push(row);
+      }
+    }
+    return true;
   }
 
   /**
@@ -460,6 +507,13 @@ export class AgentRunner extends EventEmitter {
       if (!this.verifyOwnership()) return { ownership_rejected: true, taskkill_exit_code: null };
     }
     if (process.platform === 'win32') {
+      // The root handle/token alone cannot verify a tree containing recycled parent IDs.
+      // An unavailable or ambiguous snapshot fails closed; do not issue a broad /T kill.
+      const tree = await this.getWindowsProcessTreeSnapshot();
+      if (!this.windowsProcessTreeIsOwned(tree) || !this.verifyOwnership()
+          || (expectedToken && tree.find((row) => row.pid === this.child.pid).birth !== expectedToken)) {
+        return { ownership_rejected: true, taskkill_exit_code: null };
+      }
       const taskkillExitCode = await new Promise((resolve) => {
         const killer = spawn('taskkill', ['/T', '/F', '/PID', String(this.child.pid)], { stdio: 'ignore', windowsHide: true });
         killer.on('error', () => resolve(null));

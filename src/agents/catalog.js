@@ -803,15 +803,15 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "verification": {
         "create": {
           "status": "pending",
-          "evidence": "官方 Windows CLI 0.174.0 已在项目内固定版安装并校验；未认证只读 exec 返回失败帧及退出码 1。用户账号需短信验证，未完成登录；正常 profile 真实 create 未验，AdapterFactory 继续 fail-closed。文档化初始 prompt 通道为 launch-args（exec 位置参数），禁用 --auto/--skip-permissions-unsafe"
+          "evidence": "2026-10-01 Windows 0.174.0/0.230.0 官方 BYOK 使用既有后端真实调用成功，无需 Factory 登录；0.174.0 Read 工具限制的拒写/拒命令单项成立，但两版 hooksDisabled=true 均未阻止用户 SessionStart hook，0.230.0 runtime allowManagedHooksOnly 也失败。两诊断通路已停用，安全配方及正常 profile create 尚未通过，AdapterFactory 继续关闭；禁用 --auto/--skip-permissions-unsafe（docs/audit/2026-10-01/Factory原生补验.md）"
         },
         "read": {
           "status": "pending",
-          "evidence": "0.174.0 真实失败帧包含 usage 四字段；绑定 profile 解析器已补最终文本映射，成功样本仅为结构测试。无真实模型答复，read 未验（docs/release/v1.2/agents/factory-droid.md）"
+          "evidence": "0.174.0 原生真实 12701、ManagedSession 最终 18677/completed/exit 0/usage 已取证；仅原生单项，不计正常 profile/真云 read。因 hook 关闭反例失败，全能力仍关闭（docs/release/v1.2/agents/factory-droid.md）"
         },
         "stop": {
           "status": "pending",
-          "evidence": "bridge runner 进程树终止为公共能力（test/runner*.test.js）；真实 Factory 模型任务及正常 profile 受控停止未验证"
+          "evidence": "2026-10-01 原生 ManagedSession 运行中停止：所有权身份已核验，droid.exe/conhost 两 PID 停止后消失，stopped/exited true/taskkill 0。正常 profile/真云及跨产品并发未验，能力仍关闭"
         },
         "append": {
           "status": "unavailable",
@@ -831,7 +831,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
         },
         "usage": {
           "status": "pending",
-          "evidence": "0.174.0 未认证真实 result/failure 帧新增 usage{input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens}，均为 0；成功模型计数未验，能力保持关闭"
+          "evidence": "0.174.0 真实 BYOK 成功 result 与 ManagedSession 含四项实际 usage 计数，已映射；正常 profile/真云未验且安全门槛未过，能力保持关闭"
         }
       },
       "probe": {

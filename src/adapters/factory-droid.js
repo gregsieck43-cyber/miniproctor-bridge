@@ -21,7 +21,11 @@ import { createEvent, sanitizeSensitiveText } from '../lib/events.js';
 //     「Build custom flows on raw JSON-RPC」），本项目未实现该协议 → 声明 false。
 //
 // 2026-09-28 Windows 0.174.0 未登录实测：result/failure 帧新增 usage 四种 token 计数。
-// 用户登录需短信验证，未完成，成功帧仍未实测；create/read/stop 能力保持关闭。
+// 2026-10-01 官方 BYOK 经既有后端真实返回 12701；绑定 ManagedSession 映射最终
+// 18677/completed/usage/exit 0，运行中 stop 的原生两 PID 退出。0.174.0 的
+// hooksDisabled=true 在用户和 runtime 配置下均未阻止 SessionStart hook，
+// 固定 0.230.0 同样失败，runtime allowManagedHooksOnly 也未阻止自有用户 hook；
+// 安全配方与正常 profile/真云仍未验，create/read/stop 能力保持关闭。
 // 设计立场与已知取舍：
 //   - 绑定 profile 的成功 result 将最终文本映射 agent_message + session_end；未绑定分支
 //     保持原 session_end 语义，避免同形帧改变其他产品行为；失败帧仅 session_end；
@@ -34,7 +38,7 @@ import { createEvent, sanitizeSensitiveText } from '../lib/events.js';
 //     各分支对 result 的映射语义一致（session_end），该取舍记录于证据卡与任务报告；
 //   - agentType 固定 'generic'——AGENT_TYPES 白名单未扩（events.js:34 / protocol/schema.cjs:130
 //     禁改），会话身份由 session_meta agent_key 承载。
-// 真实模型往返仍未取证，详见 docs/release/v1.2/agents/factory-droid.md。
+// 原生单项不等于正常 profile 通过，详见 docs/release/v1.2/agents/factory-droid.md。
 
 // Claude result 帧特有、Droid 文档化 result 帧没有的键（用于同形帧甄别）。
 const CLAUDE_ONLY_RESULT_KEYS = Object.freeze(['usage', 'total_cost_usd', 'cost_usd', 'duration_api_ms']);

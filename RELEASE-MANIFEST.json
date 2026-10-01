@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc26",
-  "commit": "4f6600ff4366134d39760617082289f753a341bd",
+  "version": "0.6.0-rc27",
+  "commit": "ad6983af501ae84bbe37a217978efde81ca4f740",
   "files": [
     {
       "path": "config.example.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "010d68b97249a4ba812b340335d8db08d75b4a1397fa24690c16896edac37c94",
+      "sha256": "a20da8fcd6a0ff5cc59505b0e53f3b80518987d0d3a42852f3973f9875dcd345",
       "bytes": 443
     },
     {
@@ -111,8 +111,8 @@
     },
     {
       "path": "src/adapters/factory-droid.js",
-      "sha256": "f555c47e6688290539304c51dfddbebf99b4ba71382d427b60afac294d783f09",
-      "bytes": 5990
+      "sha256": "0126cc9134e50dcfb2a148583c936b9801f60f454800c32d17bbc7a56282ad90",
+      "bytes": 6350
     },
     {
       "path": "src/adapters/gemini-cli.js",
@@ -136,8 +136,8 @@
     },
     {
       "path": "src/adapters/junie.js",
-      "sha256": "2cb81e47f987593a852a7afd31eb67249742f78f04f40efd1ec10a6a6340bb80",
-      "bytes": 2670
+      "sha256": "32dc4b6c80fd772c79c25f98f15806a4c928be8a0364f8542310c3122a222c58",
+      "bytes": 3046
     },
     {
       "path": "src/adapters/kimi-code.js",
@@ -196,8 +196,8 @@
     },
     {
       "path": "src/agent/runner.js",
-      "sha256": "dcde090a9c71b3d1e306b3af2c1ae87cd9a465163269b40ef055c6e11f4bf20a",
-      "bytes": 23006
+      "sha256": "1f7d38b0f7173353883c05116054fbbddba8c62a5c13521814771e074660fc43",
+      "bytes": 26076
     },
     {
       "path": "src/agent/session-manager.js",
@@ -206,8 +206,8 @@
     },
     {
       "path": "src/agents/adapter-contract.md",
-      "sha256": "8d102d077c67b1de3139a8bc18a398b8519095ea186010aac035e67e7b58038e",
-      "bytes": 13949
+      "sha256": "9480a3baebd5b1f12db2bc5a151d0aba890aba49301b19ba84f0bdbc905dc03b",
+      "bytes": 14307
     },
     {
       "path": "src/agents/adapter-factory.js",
@@ -276,8 +276,8 @@
     },
     {
       "path": "src/agents/catalog-entries/factory-droid.json",
-      "sha256": "bc4ba98e7811642a720da34abdd1e88a6063dc8898cadc4d3e7d5e5c85ae5156",
-      "bytes": 2586
+      "sha256": "14029ab7fd49fdfbffdb51cfab63afecb2e936a89ce2f67801163b240d6f04b0",
+      "bytes": 2795
     },
     {
       "path": "src/agents/catalog-entries/gemini-cli.json",
@@ -356,8 +356,8 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "4fd1a25bb3f32cd80885b1e94b96ee5d93c976de3e23493674c6d573299b72fa",
-      "bytes": 81123
+      "sha256": "be82a465ff4f7412fb27762e938749267f31438823f25a6ec9276ae687ce50bc",
+      "bytes": 81332
     },
     {
       "path": "src/agents/codebuddy-empty-mcp.json",

@@ -147,6 +147,9 @@ OpenCode 的本机真实 CLI 与正常 profile create/read/stop/usage 证据见
 - **stop**：`runner.stop()` 先优雅（stopGraceMs）后强杀；只终止**本次 spawn 拥有的进程树**
   （§8.3：验证创建时间/实例 ID 防 PID 复用；不按进程名杀用户其他会话）。接纳命令与真实退出
   分开：退出证据（exited/code/signal）随 `session_stop_result` 事件回流，未确认退出 ACK 如实 failed。
+  Windows 强杀还须取得有界的完整 CIM 快照：树根令牌与 spawn 身份一致，逐边子创建时间不早于父，
+  可达 PID 唯一/时间已知；缺失或歧义时拒绝 /T 并回报 ownership-unverified，不得绕过到广泛强杀。
+  该查询守卫不等于原子 OS 进程归属句柄或根退出后后台回收的全量证明。
 - **终态**：`result` 帧 → `session_end`（turn 完成）；进程退出 → `session_exit`
   （`status ∈ ended|failed`，`code`，脱敏 stderr 尾部）。自然退出与 stop 同时到达只生成一个终态
   （`_exitHandled` 单次门闩）。exit 后会话即时自 sessions Map 移除（资源释放）。
