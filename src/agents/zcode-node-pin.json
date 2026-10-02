@@ -1,0 +1,7 @@
+{
+  "version": "v24.14.0",
+  "platform": "win32",
+  "architecture": "x64",
+  "sha256": "63c259c81e5d472b5f11c8d506070130cb04a1ecf84b80377a34ed6ec9048088",
+  "source": "https://nodejs.org/dist/v24.14.0/SHASUMS256.txt"
+}

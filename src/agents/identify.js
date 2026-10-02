@@ -27,6 +27,9 @@ import path from 'node:path';
 import { isCmdShimPath, resolveCommandPath } from '../lib/command-resolve.js';
 import { isPathInside } from '../adapters/capabilities.js';
 import { resolveAgentKey, getCatalogEntry } from './catalog.js';
+import { probeWorkbuddyRuntime } from './workbuddy-runtime-probe.js';
+import { probeZCodeRuntime } from './zcode-runtime-probe.js';
+import { probeGeminiRuntime } from './gemini-runtime-probe.js';
 
 /** 自报 JSON 输入字节上限（§9：不可信输入，先限大小再解析）。 */
 export const SELF_REPORT_MAX_BYTES = 16 * 1024;
@@ -248,7 +251,7 @@ export function sanitizeSelfReport(raw) {
  *   runtime:{command,resolved_path:string|null,suspicious:string[],probe:object|null,version_line:string|null},
  *   reasons:string[]}>}
  */
-export async function identifyRuntime({ command, agentKey = null, selfReport = null, cwd = process.cwd() } = {}) {
+export async function identifyRuntime({ command, agentKey = null, selfReport = null, cwd = process.cwd(), dataDir = null } = {}) {
   const reasons = [];
   let sanitized = null;
   if (selfReport !== null && selfReport !== undefined) {
@@ -279,7 +282,9 @@ export async function identifyRuntime({ command, agentKey = null, selfReport = n
   if (claimedKey && !userKey) reasons.push('self-report-not-locally-verified');
 
   const entry = (userKey ?? claimedKey) ? getCatalogEntry(userKey ?? claimedKey) : null;
-  const probe = await probeRuntime({
+  const probe = userKey === 'workbuddy' ? probeWorkbuddyRuntime({command:resolved.resolved_path,dataDir})
+    : userKey === 'zcode' ? probeZCodeRuntime({command:resolved.resolved_path,dataDir})
+      : userKey === 'gemini-cli' ? probeGeminiRuntime({command:resolved.resolved_path,dataDir}) : await probeRuntime({
     command: resolved.resolved_path,
     nodeEntry: userKey === 'dsh' && /\.[cm]?js$/i.test(resolved.resolved_path),
     args: entry?.probe?.version_args ?? ['--version'],

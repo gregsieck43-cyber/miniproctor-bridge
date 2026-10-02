@@ -2,34 +2,62 @@
   "schema_version": 1,
   "agent_key": "gemini-cli",
   "display_name": "Gemini CLI",
-  "aliases": ["gemini"],
+  "aliases": [
+    "gemini"
+  ],
   "logo_asset": "assets/agents/gemini-cli.png",
   "lifecycle": "active",
   "adapter_id": "generic",
   "integration_mode": "stdio",
   "capabilities": {
-    "create": false,
+    "create": true,
     "read": true,
     "stop": true,
     "append": false,
     "resume": false,
     "approve": false,
     "fileChanges": false,
-    "usage": true
+    "usage": false
   },
   "initial_prompt_channel": "launch-args",
   "verification": {
-    "create": { "status": "unavailable", "evidence": "无 create 代码路径：adapter_id 归 generic 且 AdapterFactory verified create 双闸门（catalog verification + openCapabilitiesFor）均未过；真实 CLI create/read/stop 往返挂 V03" },
-    "read": { "status": "pending", "evidence": "解析器已实现（bridge/src/adapters/gemini-cli.js）+ fixture 对拍（bridge/test/adapters/gemini-cli-adapter.test.js，L1）；真实 CLI 帧形未取证（V03），不进开放视图" },
-    "stop": { "status": "pending", "evidence": "runner 进程树停止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js，adapter 无关）；gemini 真实 CLI 会话停止未取证（V03）" },
-    "append": { "status": "unavailable", "evidence": "官方 headless 文档（A03 快照）无会话中途追加输入通道；无实现路径（声明 false）" },
-    "resume": { "status": "unavailable", "evidence": "A03 快照 headless 章节无 resume/continue 通道记载；无实现路径（声明 false）" },
-    "approve": { "status": "unavailable", "evidence": "A03 快照无 headless 审批回写通道记载；无实现路径（声明 false）" },
-    "fileChanges": { "status": "unavailable", "evidence": "A03 快照未定义文件变更帧；无 file_change 映射路径，不伪造（声明 false）" },
-    "usage": { "status": "pending", "evidence": "仅 fixture 证据（result.stats → session_end.usage 映射，bridge/test/adapters/gemini-cli-adapter.test.js）；官方仅描述 stats 含 token 用量、内部字段未实测（V03）" }
+    "create": {
+      "status": "verified",
+      "evidence": "2026-10-02 Windows固定官方Gemini CLI0.61.0/Node24.14.0/原生Core与449项pin，生产worker/私有IPC及诊断ManagedSession真实读取、安全负向、活跃与启动停止、所属PID+birth归零和代理排空已验。仅单轮文本输入/输出读取，无文件或命令工具，真实DeepSeek后端非Google模型；正常Factory/profile与模拟器真云最新状态见A03卡，不等于手机或首发发布通过。"
+    },
+    "read": {
+      "status": "verified",
+      "evidence": "2026-10-02 Windows固定官方Gemini CLI0.61.0/Node24.14.0/原生Core与449项pin，生产worker/私有IPC及诊断ManagedSession真实读取、安全负向、活跃与启动停止、所属PID+birth归零和代理排空已验。仅单轮文本输入/输出读取，无文件或命令工具，真实DeepSeek后端非Google模型；正常Factory/profile与模拟器真云最新状态见A03卡，不等于手机或首发发布通过。"
+    },
+    "stop": {
+      "status": "verified",
+      "evidence": "2026-10-02 Windows固定官方Gemini CLI0.61.0/Node24.14.0/原生Core与449项pin，生产worker/私有IPC及诊断ManagedSession真实读取、安全负向、活跃与启动停止、所属PID+birth归零和代理排空已验。仅单轮文本输入/输出读取，无文件或命令工具，真实DeepSeek后端非Google模型；正常Factory/profile与模拟器真云最新状态见A03卡，不等于手机或首发发布通过。"
+    },
+    "append": {
+      "status": "unavailable",
+      "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
+    },
+    "resume": {
+      "status": "unavailable",
+      "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
+    },
+    "approve": {
+      "status": "unavailable",
+      "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
+    },
+    "fileChanges": {
+      "status": "unavailable",
+      "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
+    },
+    "usage": {
+      "status": "unavailable",
+      "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
+    }
   },
   "probe": {
-    "version_args": ["--version"],
+    "version_args": [
+      "--version"
+    ],
     "timeout_ms": 10000,
     "output_max_bytes": 8192
   },

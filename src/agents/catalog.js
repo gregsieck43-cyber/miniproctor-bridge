@@ -920,48 +920,48 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
+        "create": true,
         "read": true,
         "stop": true,
         "append": false,
         "resume": false,
         "approve": false,
         "fileChanges": false,
-        "usage": true
+        "usage": false
       },
       "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "unavailable",
-          "evidence": "无 create 代码路径：adapter_id 归 generic 且 AdapterFactory verified create 双闸门（catalog verification + openCapabilitiesFor）均未过；真实 CLI create/read/stop 往返挂 V03"
+          "status": "verified",
+          "evidence": "2026-10-02 Windows固定官方Gemini CLI0.61.0/Node24.14.0/原生Core与449项pin，生产worker/私有IPC及诊断ManagedSession真实读取、安全负向、活跃与启动停止、所属PID+birth归零和代理排空已验。仅单轮文本输入/输出读取，无文件或命令工具，真实DeepSeek后端非Google模型；正常Factory/profile与模拟器真云最新状态见A03卡，不等于手机或首发发布通过。"
         },
         "read": {
-          "status": "pending",
-          "evidence": "解析器已实现（bridge/src/adapters/gemini-cli.js）+ fixture 对拍（bridge/test/adapters/gemini-cli-adapter.test.js，L1）；真实 CLI 帧形未取证（V03），不进开放视图"
+          "status": "verified",
+          "evidence": "2026-10-02 Windows固定官方Gemini CLI0.61.0/Node24.14.0/原生Core与449项pin，生产worker/私有IPC及诊断ManagedSession真实读取、安全负向、活跃与启动停止、所属PID+birth归零和代理排空已验。仅单轮文本输入/输出读取，无文件或命令工具，真实DeepSeek后端非Google模型；正常Factory/profile与模拟器真云最新状态见A03卡，不等于手机或首发发布通过。"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "runner 进程树停止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js，adapter 无关）；gemini 真实 CLI 会话停止未取证（V03）"
+          "status": "verified",
+          "evidence": "2026-10-02 Windows固定官方Gemini CLI0.61.0/Node24.14.0/原生Core与449项pin，生产worker/私有IPC及诊断ManagedSession真实读取、安全负向、活跃与启动停止、所属PID+birth归零和代理排空已验。仅单轮文本输入/输出读取，无文件或命令工具，真实DeepSeek后端非Google模型；正常Factory/profile与模拟器真云最新状态见A03卡，不等于手机或首发发布通过。"
         },
         "append": {
           "status": "unavailable",
-          "evidence": "官方 headless 文档（A03 快照）无会话中途追加输入通道；无实现路径（声明 false）"
+          "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "A03 快照 headless 章节无 resume/continue 通道记载；无实现路径（声明 false）"
+          "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "A03 快照无 headless 审批回写通道记载；无实现路径（声明 false）"
+          "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
         },
         "fileChanges": {
           "status": "unavailable",
-          "evidence": "A03 快照未定义文件变更帧；无 file_change 映射路径，不伪造（声明 false）"
+          "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
         },
         "usage": {
-          "status": "pending",
-          "evidence": "仅 fixture 证据（result.stats → session_end.usage 映射，bridge/test/adapters/gemini-cli-adapter.test.js）；官方仅描述 stats 含 token 用量、内部字段未实测（V03）"
+          "status": "unavailable",
+          "evidence": "固定单轮原生核心文本通路无此生产能力；工具0、hooks/MCP/发现关闭，不伪造权限、文件或用量。"
         }
       },
       "probe": {
@@ -1878,50 +1878,50 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "logo_asset": "assets/agents/workbuddy.png",
       "lifecycle": "active",
       "adapter_id": "generic",
-      "integration_mode": "local-api",
+      "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
-        "read": false,
-        "stop": false,
+        "create": true,
+        "read": true,
+        "stop": true,
         "append": false,
         "resume": false,
         "approve": false,
         "fileChanges": false,
         "usage": false
       },
-      "initial_prompt_channel": null,
+      "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控create证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "status": "verified",
+          "evidence": "2026-10-02 Windows官方WorkBuddy5.6.2.39298511/内嵌CLI2.147.0、完整2903项物理pin、独立原生worker/SidecarManager与专属事件：真实模型文本读取、恶意hooks/文件命令负向、模型请求在途control_stop、全部所属PID+birth归零/代理关闭已验。固定none配置/工具0/空MCP，仅输入文本分析与输出读取，不是OS沙箱；正常Factory/profile及模拟器真云状态见A30卡，不等于首发或手机发布通过。"
         },
         "read": {
-          "status": "pending",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控read证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "status": "verified",
+          "evidence": "2026-10-02 Windows官方WorkBuddy5.6.2.39298511/内嵌CLI2.147.0、完整2903项物理pin、独立原生worker/SidecarManager与专属事件：真实模型文本读取、恶意hooks/文件命令负向、模型请求在途control_stop、全部所属PID+birth归零/代理关闭已验。固定none配置/工具0/空MCP，仅输入文本分析与输出读取，不是OS沙箱；正常Factory/profile及模拟器真云状态见A30卡，不等于首发或手机发布通过。"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控stop证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "status": "verified",
+          "evidence": "2026-10-02 Windows官方WorkBuddy5.6.2.39298511/内嵌CLI2.147.0、完整2903项物理pin、独立原生worker/SidecarManager与专属事件：真实模型文本读取、恶意hooks/文件命令负向、模型请求在途control_stop、全部所属PID+birth归零/代理关闭已验。固定none配置/工具0/空MCP，仅输入文本分析与输出读取，不是OS沙箱；正常Factory/profile及模拟器真云状态见A30卡，不等于首发或手机发布通过。"
         },
         "append": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控append证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控resume证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控approve证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
         },
         "fileChanges": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控fileChanges证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
         },
         "usage": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控usage证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
         }
       },
       "probe": {
@@ -1943,48 +1943,48 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
-        "read": false,
-        "stop": false,
+        "create": true,
+        "read": true,
+        "stop": true,
         "append": false,
         "resume": false,
         "approve": false,
         "fileChanges": false,
         "usage": false
       },
-      "initial_prompt_channel": null,
+      "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "pending",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控create证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "status": "verified",
+          "evidence": "2026-10-02 Windows固定官方ZCode CLI0.16.9/Node24.14.0/SDK29628c9与3981项pin，生产worker/协议及诊断ManagedSession真实读取、模型负向、活跃/启动停止、全部所属PID+birth归零和代理排空已验。仅单轮文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云最新状态见A29卡，不等于手机/首发发布通过。"
         },
         "read": {
-          "status": "pending",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控read证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "status": "verified",
+          "evidence": "2026-10-02 Windows固定官方ZCode CLI0.16.9/Node24.14.0/SDK29628c9与3981项pin，生产worker/协议及诊断ManagedSession真实读取、模型负向、活跃/启动停止、全部所属PID+birth归零和代理排空已验。仅单轮文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云最新状态见A29卡，不等于手机/首发发布通过。"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控stop证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "status": "verified",
+          "evidence": "2026-10-02 Windows固定官方ZCode CLI0.16.9/Node24.14.0/SDK29628c9与3981项pin，生产worker/协议及诊断ManagedSession真实读取、模型负向、活跃/启动停止、全部所属PID+birth归零和代理排空已验。仅单轮文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云最新状态见A29卡，不等于手机/首发发布通过。"
         },
         "append": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控append证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
         },
         "resume": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控resume证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
         },
         "approve": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控approve证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
         },
         "fileChanges": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控fileChanges证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
         },
         "usage": {
           "status": "unavailable",
-          "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控usage证据，不开放能力；目录/版本/fixture不算验收通过。"
+          "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
         }
       },
       "probe": {

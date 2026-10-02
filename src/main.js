@@ -676,7 +676,7 @@ async function profilesCmd(args) {
           console.warn(`[profiles] 警告：自报 JSON 未通过白名单校验（${sanitized.reason}），本次登记不记录 installer_identity/self_report`);
         }
       }
-      const identification = await identifyRuntime({ command: commandInput, agentKey, selfReport: sanitizedReport });
+      const identification = await identifyRuntime({ command: commandInput, agentKey, selfReport: sanitizedReport, dataDir: store.dir });
       if (identification.verdict === 'suspicious') {
         console.error(`[profiles] 拒绝登记：解析出的二进制存在疑点 ${JSON.stringify({ resolved_path: identification.runtime.resolved_path, reasons: identification.reasons })}`);
         process.exitCode = 1;
@@ -741,7 +741,7 @@ async function profilesCmd(args) {
       const rows = [];
       for (const p of candidates) {
         // 复检 = 重新受控发现 + 版本探测 + 工作区存在性（纯本机，无网络、无提权）
-        const identification = await identifyRuntime({ command: p.executable_ref.command, agentKey: p.agent_key });
+        const identification = await identifyRuntime({ command: p.executable_ref.command, agentKey: p.agent_key, dataDir: store.dir });
         const workspaceIssues = [];
         for (const ws of p.workspace_allowlist) {
           try {

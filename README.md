@@ -1,13 +1,13 @@
 # miniproctor bridge
 
-PC bridge distributed with the 智能体遥知 WeChat mini program.
+PC bridge for the 智能体遥知 WeChat mini program.
 
-## Latest preview: v0.6.0-rc29
+## Latest preview: v0.6.0-rc30
 
-Download the four assets from the [v0.6.0-rc29 prerelease](https://github.com/gregsieck43-cyber/miniproctor-bridge/releases/tag/v0.6.0-rc29). Verify the ZIP using its .sha256 file and manifest.json, then follow README-RELEASE.txt. Node.js >=22 is required; Node24 is recommended. ZIP 422345 bytes. SHA-256: 23fe47e14abbfdc5e6b2ba2b477076300ae9bea19d44295969c2d7f9372379eb.
+Download the four assets from [v0.6.0-rc30](https://github.com/gregsieck43-cyber/miniproctor-bridge/releases/tag/v0.6.0-rc30). Verify the ZIP against its .sha256 and manifest.json, then follow README-RELEASE.txt. Node.js >=22 is required.
 
-Includes the normal-profile DeepSeek Harness SDK worker, active-task stop and private runtime checks, Junie integration, and independent registrations for DSH, ZCode and WorkBuddy. DSH is pinned to official @deepseek-ai/dsh 0.2.0-rc.2 and its absolute JS entry on Windows Node 24.16.0. Only input text analysis and output readback are enabled; file and command tools remain unavailable. These permissions are not an OS sandbox. Set DEEPSEEK_API_KEY in the local bridge process environment; credentials and third-party CLIs are not bundled. The full DSH Web/Desktop repository build was not verified.
+Includes independent normal-profile integrations for DeepSeek Harness, ZCode, WorkBuddy and Gemini, and faster serialized control polling while tasks are active. These four integrations provide text create/read/active-stop with file and command tools disabled. Third-party CLIs, accounts, runtime dependencies and model credentials are not bundled. Text-tool restrictions are not an OS sandbox. DSH was also tested from the pinned official source tag dsh-v0.2.0-rc.2; its full Web/Desktop build is outside this evidence.
 
-The agreed first-release scope is 28 Agent products. Normal registered profiles have passed simulator SDK to real cloud to bridge create/read/active-stop checks for 17/28 products, including DSH and Junie. ZCode and WorkBuddy remain independent, with all eight capabilities disabled. Phone, second-user, remaining-product and common concurrency/recovery/operations/platform gates remain incomplete. V1.2 remains NO-GO. This is a technical prerelease. Stable v0.5.1 and all previous tags and assets are preserved. The mini-program session profile-name fix is in the separate mini-program source and is not a PC archive component.
+The agreed first-release scope remains 28 Agent products. Normal registered profiles have completed simulator SDK to real cloud to bridge create/read/active-stop checks for 20/28 products. The remaining eight and actual-phone, genuine second-user, coexistence, recovery/operations/platform gates are incomplete. Factory remains blocked by a verified hooks safety failure; CodeArts requires genuine Huawei identity before its model/config checks. V1.2 remains NO-GO. This is a technical prerelease; final product publication remains manual. Stable v0.5.1 and all previous tags/assets are preserved.
 
-Archive source commit: 4bd04270ab5020a7ec027b6455fe254a3981e9b7. The release tag points to the matching distribution source.
+ZIP 842183 bytes; SHA-256 a2b6d6ad68d9c787823ba559a0b958bd41a793da165e21040824f66257a811fe. Source workspace commit 4bb973660038d5b0c82eb90d0fdbd846a438be4c.

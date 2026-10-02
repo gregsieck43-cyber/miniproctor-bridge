@@ -21,6 +21,9 @@ import { ADAPTER_CAPABILITIES } from '../adapters/capabilities.js';
 import { getProductRuntime } from './product-runtime.js';
 import { JUNIE_PLAN_PROFILE_VERSION } from './junie-plan-client.js';
 import { DSH_RUNTIME_VERSION } from './dsh-sdk-client.js';
+import { WORKBUDDY_PROFILE_VERSION, workbuddyRuntimeRoot } from './workbuddy-native-worker.js';
+import { ZCODE_PROFILE_VERSION, zcodeProfileRuntime } from './zcode-runtime-probe.js';
+import { GEMINI_PROFILE_VERSION, geminiProfileRuntime } from './gemini-runtime-probe.js';
 
 /** profile 路由失败码（与 event-protocol.md §14.4 扁平错误串对齐；§14.4 未列的为本机校验扩展）。 */
 export const PROFILE_ROUTE_ERROR_CODES = Object.freeze([
@@ -143,6 +146,15 @@ export class AdapterFactory {
     if (profile.agent_key === 'dsh' && profile.adapter_version !== DSH_RUNTIME_VERSION) {
       throw new ProfileRouteError('DSH 原生版本未经此单轮 SDK 配方验证', { code: 'profile-capability-unsupported' });
     }
+    if (profile.agent_key === 'workbuddy' && profile.adapter_version !== WORKBUDDY_PROFILE_VERSION) {
+      throw new ProfileRouteError('WorkBuddy 桌面与内嵌CLI版本未经固定原生配方验证', { code: 'profile-capability-unsupported' });
+    }
+    if (profile.agent_key === 'zcode' && profile.adapter_version !== ZCODE_PROFILE_VERSION) {
+      throw new ProfileRouteError('ZCode CLI/Node/SDK版本未经固定配方验证', { code: 'profile-capability-unsupported' });
+    }
+    if (profile.agent_key === 'gemini-cli' && profile.adapter_version !== GEMINI_PROFILE_VERSION) {
+      throw new ProfileRouteError('Gemini CLI/Node/Core版本未经固定配方验证', { code: 'profile-capability-unsupported' });
+    }
     const ref = profile.executable_ref || {};
     const command = String(ref.resolved_path || ref.command || '').trim();
     if (!command) throw new ProfileRouteError(`profile 缺少可执行命令：${id}`, { code: 'profile-executable-missing' });
@@ -158,6 +170,24 @@ export class AdapterFactory {
     const args = this.resolveLaunchArgs({ agentKey: profile.agent_key, adapterId, profile, runtime });
     const isJunie = profile.agent_key === 'junie';
     const isDsh = profile.agent_key === 'dsh';
+    const isWorkbuddy = profile.agent_key === 'workbuddy';
+    const isZcode = profile.agent_key === 'zcode';
+    const isGemini = profile.agent_key === 'gemini-cli';
+    let geminiRuntime;
+    if (isGemini) {
+      try { if (!ref.resolved_path) throw new Error(); geminiRuntime = geminiProfileRuntime(command); }
+      catch { throw new ProfileRouteError('Gemini 需要已解析的官方CLI入口绝对路径', { code: 'profile-executable-missing' }); }
+    }
+    let zcodeRuntime;
+    if (isZcode) {
+      try { if (!ref.resolved_path) throw new Error(); zcodeRuntime = zcodeProfileRuntime(command); }
+      catch { throw new ProfileRouteError('ZCode 需要已解析的官方CLI入口绝对路径', { code: 'profile-executable-missing' }); }
+    }
+    let workbuddyRoot;
+    if (isWorkbuddy) {
+      try { if (!ref.resolved_path) throw new Error(); workbuddyRoot = workbuddyRuntimeRoot(command); }
+      catch { throw new ProfileRouteError('WorkBuddy 需要本机已解析的签名宿主绝对路径', { code: 'profile-executable-missing' }); }
+    }
     if (isJunie && (!ref.resolved_path || !path.isAbsolute(command))) {
       throw new ProfileRouteError('Junie 需要本机已解析的原生绝对路径', { code: 'profile-executable-missing' });
     }
@@ -169,10 +199,13 @@ export class AdapterFactory {
       profileRevision: profile.revision, // 冻结创建时刻 revision（profile 热改不影响本会话）
       agentKey: profile.agent_key,
       agentType: adapterId,
-      command: isJunie || isDsh ? process.execPath : command,
+      command: isJunie || isDsh || isWorkbuddy || isZcode || isGemini ? process.execPath : command,
       args: Object.freeze([...args]),
       productEnv: isJunie ? Object.freeze({ ...runtime.env, MINIPROCTOR_JUNIE_EXECUTABLE: command })
-        : isDsh ? Object.freeze({ ...runtime.env, MINIPROCTOR_DSH_ENTRY: command }) : runtime.env,
+        : isDsh ? Object.freeze({ ...runtime.env, MINIPROCTOR_DSH_ENTRY: command })
+          : isWorkbuddy ? Object.freeze({ ...runtime.env, MINIPROCTOR_WORKBUDDY_RUNTIME_ROOT: workbuddyRoot })
+            : isZcode ? Object.freeze({ ...runtime.env, MINIPROCTOR_ZCODE_SOURCE: zcodeRuntime.sourceRoot, MINIPROCTOR_ZCODE_NODE: zcodeRuntime.nodeExecutable })
+              : isGemini ? Object.freeze({ ...runtime.env, MINIPROCTOR_GEMINI_SOURCE: geminiRuntime.sourceRoot, MINIPROCTOR_GEMINI_NODE: geminiRuntime.nodeExecutable }) : runtime.env,
       adapterVersion: profile.adapter_version || null,
       executionCapabilities: runtime.open,
       capabilitySnapshot: runtime.open,
@@ -182,7 +215,7 @@ export class AdapterFactory {
 
   /** 启动参数：注入 resolver 优先；否则只取随发行的产品静态配方。 */
   resolveLaunchArgs({ agentKey, adapterId, profile, runtime }) {
-    if ((agentKey === 'junie' || agentKey === 'dsh') && this.launchArgsResolver) {
+    if ((agentKey === 'junie' || agentKey === 'dsh' || agentKey === 'workbuddy' || agentKey === 'zcode' || agentKey === 'gemini-cli') && this.launchArgsResolver) {
       throw new ProfileRouteError(`${agentKey} 不支持覆盖单轮 worker 配方`, { code: 'invalid-profile-route' });
     }
     if (this.launchArgsResolver) {

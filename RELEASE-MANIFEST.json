@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc29",
-  "commit": "4bd04270ab5020a7ec027b6455fe254a3981e9b7",
+  "version": "0.6.0-rc30",
+  "commit": "4bb973660038d5b0c82eb90d0fdbd846a438be4c",
   "files": [
     {
       "path": "config.example.json",
@@ -31,13 +31,13 @@
     },
     {
       "path": "package.json",
-      "sha256": "ca27cd4d1c253fe304a5e9472b047af52b84bf6d307becbcf40c52ae52c8bec2",
+      "sha256": "46b302558c54df6d44c38ea8de402faf47850c9540e6428c3c9670049b0ce01b",
       "bytes": 443
     },
     {
       "path": "README-RELEASE.txt",
-      "sha256": "aec4a0f89f13da1f885a6c6650cb151cabef93e7a995e49add4f7d86774093fa",
-      "bytes": 4121
+      "sha256": "a9b309662d77c00a5ea50741c880f34791d91da3c6e7047df3b91fc54af32125",
+      "bytes": 4949
     },
     {
       "path": "src/adapters/aider.js",
@@ -125,9 +125,14 @@
       "bytes": 8995
     },
     {
+      "path": "src/adapters/gemini-core.js",
+      "sha256": "adb2bc030bf5d5250f75a703fd0a39126e0595e4d55ef3d7751cd1cecdc9b490",
+      "bytes": 2785
+    },
+    {
       "path": "src/adapters/generic.js",
-      "sha256": "467f125418b5a0c5e7d52f31c5157f5ce7aff8f977b53e772351528a31baa141",
-      "bytes": 16620
+      "sha256": "8d2608fd582ea16dc24a7f3ef74531b6073507db01f8fc4ecfa051078e572239",
+      "bytes": 17177
     },
     {
       "path": "src/adapters/goose.js",
@@ -205,14 +210,24 @@
       "bytes": 6970
     },
     {
+      "path": "src/adapters/workbuddy-native.js",
+      "sha256": "97d86ad83bf33440a7457d421f176a38ab06158c74a0f8e6fcf6d5226975bfe3",
+      "bytes": 2868
+    },
+    {
+      "path": "src/adapters/zcode-sdk.js",
+      "sha256": "d7b3af80ac6efaa14d4c76360f2103f7b4942faf10dc5953a80d63f43d35936f",
+      "bytes": 2930
+    },
+    {
       "path": "src/agent/runner.js",
       "sha256": "1f7d38b0f7173353883c05116054fbbddba8c62a5c13521814771e074660fc43",
       "bytes": 26076
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "107ab12c77a353f979a08ae9e89e6e22ae87ad532f1402a35b109d6bc5a4b519",
-      "bytes": 92623
+      "sha256": "6c2b87fd0786963c6fe1100a307e53f9ce75e2240614c1308c007a0fee2d6e7e",
+      "bytes": 96574
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -221,8 +236,8 @@
     },
     {
       "path": "src/agents/adapter-factory.js",
-      "sha256": "4cdf9dbedbf8564bc76168864f753e78628a631aea6625fb86ca00c45ffb39b6",
-      "bytes": 16973
+      "sha256": "4ff0d97b5cbf0ced9dfc30fa8373c19e75110d5f5de9089a15ca7c23d86b7326",
+      "bytes": 19585
     },
     {
       "path": "src/agents/catalog-entries/aider.json",
@@ -296,8 +311,8 @@
     },
     {
       "path": "src/agents/catalog-entries/gemini-cli.json",
-      "sha256": "c5f4f0595ca66768fe8248a50549f31bf262fc916b97e64b4d77449e5ee5a598",
-      "bytes": 2256
+      "sha256": "b60778748e02a1b117239d2f787e5786e7cba27bddac137f9181be49968bdbe3",
+      "bytes": 3221
     },
     {
       "path": "src/agents/catalog-entries/goose.json",
@@ -371,18 +386,18 @@
     },
     {
       "path": "src/agents/catalog-entries/workbuddy.json",
-      "sha256": "017d3815636b58f446f633e70c0b668e7e4819269806034f2056e2f88a959ce8",
-      "bytes": 3764
+      "sha256": "b913cf704959aa70413db10eed85bde4ec9ae1f5c5d9079ac2616be906977c04",
+      "bytes": 3382
     },
     {
       "path": "src/agents/catalog-entries/zcode.json",
-      "sha256": "5dc7fc1d537465152e7d703e892b87a3d46eb132bae131452f6e17ad2726df52",
-      "bytes": 3468
+      "sha256": "76406a1844ef3e2b7facd83c295951ccf396bd9fb780fc297fa9f7455b49d207",
+      "bytes": 3148
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "2c8657218d64cf8115bc1fba86d8b44d14cdece438509367f3d9ea19323db13c",
-      "bytes": 92700
+      "sha256": "ca0180aaa56f41775245504c2e2e1954971f5c9664d61edbcc99e02516ae1919",
+      "bytes": 92815
     },
     {
       "path": "src/agents/codebuddy-empty-mcp.json",
@@ -440,9 +455,39 @@
       "bytes": 11742
     },
     {
+      "path": "src/agents/gemini-core-native.mjs",
+      "sha256": "0046e4784a7b465a1fdabd7aaf3615c5d56a42c4b286bf6d508d3d8a50e6ac4f",
+      "bytes": 6296
+    },
+    {
+      "path": "src/agents/gemini-core-pin.json",
+      "sha256": "ed453c2eecfd021de846bcf36270c0bfe4ac052b57c9d0b8d6c96c4818288d3d",
+      "bytes": 86365
+    },
+    {
+      "path": "src/agents/gemini-core-runtime.js",
+      "sha256": "1fe6d1e14b2a506932f7e9c6eb559b2ca4379572a92124e73f22201e2b72581b",
+      "bytes": 4375
+    },
+    {
+      "path": "src/agents/gemini-core-worker.js",
+      "sha256": "8d1d40578a8161f403562a6b1e5cca2a1da35fa065e5aa54a38793212ba14bf5",
+      "bytes": 15551
+    },
+    {
+      "path": "src/agents/gemini-model-gateway.js",
+      "sha256": "70370028104caa419c538fbee120dcbdb47be49f7e47705632973ac3d4177a5b",
+      "bytes": 9292
+    },
+    {
+      "path": "src/agents/gemini-runtime-probe.js",
+      "sha256": "95e085db9cb80038c861b033caaa5985c72fc13d9f4a8b35f1791bb51a9c21c5",
+      "bytes": 4186
+    },
+    {
       "path": "src/agents/identify.js",
-      "sha256": "eb33f9f19c935dd3d24c75cc1ef077515704c5c7b90c0f981de3f5c30c20de36",
-      "bytes": 16198
+      "sha256": "70dd2f4851d968afa28940fb9cc8f8b7d81a1b68b76681ca42b50047d38c7d7b",
+      "bytes": 16686
     },
     {
       "path": "src/agents/junie-plan-client.js",
@@ -476,8 +521,8 @@
     },
     {
       "path": "src/agents/product-runtime.js",
-      "sha256": "44282d93a0dcff23fe3e4fbb329faa27906e81bdeb5ed4e46202680b81b6f9e0",
-      "bytes": 15019
+      "sha256": "823b7758e1e0c95af309d62fd52b20c01f1ffcecb6d1ad4ea68d9b59981cffe9",
+      "bytes": 19148
     },
     {
       "path": "src/agents/profile-store.js",
@@ -486,8 +531,73 @@
     },
     {
       "path": "src/agents/profile-sync.js",
-      "sha256": "7089e83b72b9c05d11ff9319735001e1e4e2a656a8238d8e89fadcd04f25c0b0",
-      "bytes": 4037
+      "sha256": "8ea809861482b1d6345ad0a8d29ffdadcbe60bc2ce5bb719be2ac999b1f7ed7d",
+      "bytes": 4942
+    },
+    {
+      "path": "src/agents/workbuddy-acp-client.cjs",
+      "sha256": "b3af5c76e1829b2446d922fea25bed365c875bd275bb311f4c2d3541f6d94df4",
+      "bytes": 7691
+    },
+    {
+      "path": "src/agents/workbuddy-completions-gateway.js",
+      "sha256": "8d5e4b3c719facec602e85ac6e20a2647834f89f6604ee6d5ba0640499a9049e",
+      "bytes": 8996
+    },
+    {
+      "path": "src/agents/workbuddy-native-kernel.cjs",
+      "sha256": "bad9c85abf274bdae0f99db4f0233e7ab0b60764137a3e7a39ae4df1a8bed194",
+      "bytes": 11765
+    },
+    {
+      "path": "src/agents/workbuddy-native-worker.js",
+      "sha256": "42f92b4f3c73cf2d954d762a28040385c6f4bf9711c5047a4ce56a71f30d4223",
+      "bytes": 16013
+    },
+    {
+      "path": "src/agents/workbuddy-runtime-pin.json",
+      "sha256": "c3dff5633174c8ebe86f531dbfe8a389cc8cd37dcaf597c4c45fd5f363cb9e3c",
+      "bytes": 664129
+    },
+    {
+      "path": "src/agents/workbuddy-runtime-probe.js",
+      "sha256": "e95fda5db6adbd10518d1fe9f10d35ccd00c0bc92bb501a75e7b0403859bbf21",
+      "bytes": 3233
+    },
+    {
+      "path": "src/agents/zcode-completions-gateway.js",
+      "sha256": "6576292e517d7fe086c5e910d60f67bf76acd8ce4c7b9fa665619324e82e03f1",
+      "bytes": 7812
+    },
+    {
+      "path": "src/agents/zcode-node-pin.json",
+      "sha256": "943b54a86cc34c665919c63f9c8a0976a58e82f6d320ca78f4aca929d7584dfd",
+      "bytes": 219
+    },
+    {
+      "path": "src/agents/zcode-runtime-probe.js",
+      "sha256": "4dd51bd3d9a9289c3a972fa26d96056a521a6e1f03e5626259860a1eb1f18bb0",
+      "bytes": 4370
+    },
+    {
+      "path": "src/agents/zcode-sdk-native.mjs",
+      "sha256": "a34252999a345dbc5d591a6e711277d98be4f0839a153573402231b5a8978a6b",
+      "bytes": 3323
+    },
+    {
+      "path": "src/agents/zcode-sdk-pin.json",
+      "sha256": "a3f57f05019249dd624bbfb14d102332e4115afae92d7c66159a4e5a66c05222",
+      "bytes": 572503
+    },
+    {
+      "path": "src/agents/zcode-sdk-runtime.js",
+      "sha256": "662a6f501af84e8712db2dbe3f3423922f19d7fb96c7820d129805b93a97aeb7",
+      "bytes": 10925
+    },
+    {
+      "path": "src/agents/zcode-sdk-worker.js",
+      "sha256": "2eddcf81b3f2559ceab319be30428c22c874d67e630697dcc0ab8584cfb83368",
+      "bytes": 14836
     },
     {
       "path": "src/cloud/device-keys.js",
@@ -571,8 +681,8 @@
     },
     {
       "path": "src/main.js",
-      "sha256": "84433a0f16b834191eba9915e52a3cb2ef49e78879b007c1630f0e248f074adb",
-      "bytes": 44346
+      "sha256": "025986dab202a3f3969a83b178e82bf50c7752d3095e8b807bf86a0d6bf597ff",
+      "bytes": 44386
     },
     {
       "path": "src/pairing/pair.js",
@@ -611,8 +721,8 @@
     },
     {
       "path": "tools/make-release.cjs",
-      "sha256": "f8b4e283a330945acd78f9a8f293738b775cdfcb0b3f26497ede5b12d84e8b7e",
-      "bytes": 17350
+      "sha256": "71977b0f98333e4304c00bc5dde68bf2aba8ec7594dac40b6dce24bc65d45ce5",
+      "bytes": 18187
     },
     {
       "path": "tools/mock-relay.mjs",

@@ -147,6 +147,15 @@ DeepSeek Harness / DSH（可选；仅固定官方 @deepseek-ai/dsh 0.2.0-rc.2、
   # 这是工具权限限制，不是 OS 沙箱；原生私有状态由 bridge 放在工作区外。
   # 正常配置模拟器→真云→bridge 已验；真实手机、第二用户和完整首发门禁仍未完成。
 
+ZCode / WorkBuddy / Gemini（可选；固定 Windows 原生版本文本通路）：
+  # 本包包含三款独立生产 worker、版本与产物完整性守卫，不随包提供第三方程序或模型密钥。
+  # 已验固定版本：ZCode CLI 0.16.9 / SDK v3.14.3，WorkBuddy 5.6.2.39298511 / CLI 2.147.0，
+  # Gemini CLI/Core 0.61.0；ZCode/Gemini 使用固定 Node 24.14.0。
+  # 正常配置模拟器→真云→bridge create/read/活跃 stop 已验；仅文本输入和输出，无文件/命令工具。
+  # Gemini 本轮使用第三方 DeepSeek 模型后端，不代表 Google 模型授权通过。
+  # 需在本机先准备匹配的第三方运行时与原生依赖；不满足固定版本或摘要时拒绝启动。
+  # 真机、第二用户及剩余首发门禁尚未完成，28 款目标保持，产品仍 NO-GO。
+
 发行完整性：
   node tools/verify-release.cjs --installed <安装目录>
   （按包内 RELEASE-MANIFEST.json 逐文件校验 sha256；下载侧校验见发布页 sha256 / 接入提示词）

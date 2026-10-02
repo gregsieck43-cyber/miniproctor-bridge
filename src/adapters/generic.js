@@ -46,6 +46,9 @@ import { isCopilotCliProfileOutput, mapCopilotCliProfileOutput } from './copilot
 import { isComateLocalApiFrame, mapComateLocalApiFrame } from './comate-local-api.js';
 import { isJuniePlanFrame, mapJuniePlanFrame } from './junie-plan.js';
 import { isDshSdkFrame, mapDshSdkFrame } from './dsh-sdk.js';
+import { isWorkbuddyNativeFrame, mapWorkbuddyNativeFrame } from './workbuddy-native.js';
+import { isZCodeSdkFrame, mapZCodeSdkFrame } from './zcode-sdk.js';
+import { isGeminiCoreFrame, mapGeminiCoreFrame } from './gemini-core.js';
 
 const PROFILE_PARSERS = Object.freeze({
   'claude-code': Object.freeze({ accepts: isClaudeStreamType, map: mapClaudeRaw, agentType: 'claude-code' }),
@@ -66,6 +69,9 @@ const PROFILE_PARSERS = Object.freeze({
   comate: Object.freeze({ accepts: isComateLocalApiFrame, map: mapComateLocalApiFrame, agentType: 'generic' }),
   junie: Object.freeze({ accepts: isJuniePlanFrame, map: mapJuniePlanFrame, agentType: 'generic' }),
   dsh: Object.freeze({ accepts: isDshSdkFrame, map: mapDshSdkFrame, agentType: 'generic' }),
+  workbuddy: Object.freeze({ accepts: isWorkbuddyNativeFrame, map: mapWorkbuddyNativeFrame, agentType: 'generic' }),
+  zcode: Object.freeze({ accepts: isZCodeSdkFrame, map: mapZCodeSdkFrame, agentType: 'generic' }),
+  'gemini-cli': Object.freeze({ accepts: isGeminiCoreFrame, map: mapGeminiCoreFrame, agentType: 'generic' }),
 });
 
 export function lineToEvent(line, { sessionId, agentType = 'generic', agentKey = null, sequencer }) {

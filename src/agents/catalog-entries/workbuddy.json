@@ -6,50 +6,50 @@
   "logo_asset": "assets/agents/workbuddy.png",
   "lifecycle": "active",
   "adapter_id": "generic",
-  "integration_mode": "local-api",
+  "integration_mode": "stdio",
   "capabilities": {
-    "create": false,
-    "read": false,
-    "stop": false,
+    "create": true,
+    "read": true,
+    "stop": true,
     "append": false,
     "resume": false,
     "approve": false,
     "fileChanges": false,
     "usage": false
   },
-  "initial_prompt_channel": null,
+  "initial_prompt_channel": "launch-args",
   "verification": {
     "create": {
-      "status": "pending",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控create证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "status": "verified",
+      "evidence": "2026-10-02 Windows官方WorkBuddy5.6.2.39298511/内嵌CLI2.147.0、完整2903项物理pin、独立原生worker/SidecarManager与专属事件：真实模型文本读取、恶意hooks/文件命令负向、模型请求在途control_stop、全部所属PID+birth归零/代理关闭已验。固定none配置/工具0/空MCP，仅输入文本分析与输出读取，不是OS沙箱；正常Factory/profile及模拟器真云状态见A30卡，不等于首发或手机发布通过。"
     },
     "read": {
-      "status": "pending",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控read证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "status": "verified",
+      "evidence": "2026-10-02 Windows官方WorkBuddy5.6.2.39298511/内嵌CLI2.147.0、完整2903项物理pin、独立原生worker/SidecarManager与专属事件：真实模型文本读取、恶意hooks/文件命令负向、模型请求在途control_stop、全部所属PID+birth归零/代理关闭已验。固定none配置/工具0/空MCP，仅输入文本分析与输出读取，不是OS沙箱；正常Factory/profile及模拟器真云状态见A30卡，不等于首发或手机发布通过。"
     },
     "stop": {
-      "status": "pending",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控stop证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "status": "verified",
+      "evidence": "2026-10-02 Windows官方WorkBuddy5.6.2.39298511/内嵌CLI2.147.0、完整2903项物理pin、独立原生worker/SidecarManager与专属事件：真实模型文本读取、恶意hooks/文件命令负向、模型请求在途control_stop、全部所属PID+birth归零/代理关闭已验。固定none配置/工具0/空MCP，仅输入文本分析与输出读取，不是OS沙箱；正常Factory/profile及模拟器真云状态见A30卡，不等于首发或手机发布通过。"
     },
     "append": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控append证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
     },
     "resume": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控resume证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
     },
     "approve": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控approve证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
     },
     "fileChanges": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控fileChanges证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
     },
     "usage": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；独立 WorkBuddy 本地助理/Open API候选；需官方应用授权与本机任务停止/隔离通路，不借CodeBuddy适配。本项目尚无真实受控usage证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "当前固定单轮WorkBuddy原生worker没有此生产通路，保持关闭；不继承CodeBuddy能力，不伪造工具、用量或审批。"
     }
   },
   "probe": {

@@ -7,6 +7,9 @@ import { SessionSequencer, createEvent, sanitizePreview } from '../lib/events.js
 import { EventOutbox } from '../lib/outbox.js';
 import { CommandInbox } from '../lib/inbox.js';
 import { lineToEvent } from '../adapters/generic.js';
+import { isWorkbuddyStartedFrame } from '../adapters/workbuddy-native.js';
+import { isZCodeStartedFrame } from '../adapters/zcode-sdk.js';
+import { isGeminiCoreStartedFrame } from '../adapters/gemini-core.js';
 import { AiderOutputAccumulator, isAiderNativeCommand } from '../adapters/aider.js';
 import { IflowOutputAccumulator } from '../adapters/iflow.js';
 import { ContinueOutputAccumulator } from '../adapters/continue.js';
@@ -16,13 +19,16 @@ import { appendAuditLine } from '../lib/audit.js';
 import { loadUiOverrides } from '../lib/agent-config.js';
 import { ProfileRouteError } from '../agents/adapter-factory.js';
 import { prepareProductLaunch } from '../agents/product-runtime.js';
+import { validateWorkbuddyPrompt } from '../agents/workbuddy-native-worker.js';
+import { validateZCodePrompt } from '../agents/zcode-sdk-worker.js';
+import { validateGeminiPrompt } from '../agents/gemini-core-worker.js';
 
 // 审批、错误和会话终态必须即时持久化，不参与普通输出批量缓冲。
 // 即时输出仍经同一持久 outbox；V12-18 优先认领 critical/ACK，同优先级内按入队序。
 // 失败退避与逐项确认保持生效，接收游标契约见 event-protocol.md §11。
 export const CRITICAL_EVENT_TYPES = Object.freeze(new Set(['confirm_required', 'error', 'session_end']));
-// 审批/进程终态与停止证据必须立即落持久队列，不能滞留普通输出内存缓冲。
-export const CRITICAL_CUSTOM_TYPES = Object.freeze(new Set(['approval_result', 'session_exit', 'session_stop_result']));
+// 原生接收里程碑关系到手机能否及时停止；与审批/终态一起立即落持久队列。
+export const CRITICAL_CUSTOM_TYPES = Object.freeze(new Set(['approval_result', 'session_exit', 'session_stop_result', 'gemini_core_started']));
 // 批量缓冲上限：满即 flush，不再等 pushBatchMs。
 export const PUSH_BATCH_MAX_EVENTS = 200;
 // V1-019②：分级队列预算——critical（审批/错误/ACK）在 outbox 普通上限之外的预留容量。
@@ -122,7 +128,7 @@ export class ManagedSession {
       : capabilitiesFor(agentType);
     this.sequencer = new SessionSequencer();
     const Runner = agentKey === 'comate' ? ComateApiRunner : AgentRunner;
-    this.runner = new Runner({ command, args, cwd, env: productEnv, ...(agentKey === 'dsh' ? { stopGraceMs: 15000 } : {}) });
+    this.runner = new Runner({ command, args, cwd, env: productEnv, ...(['dsh','workbuddy','zcode','gemini-cli'].includes(agentKey) ? { stopGraceMs: 15000 } : {}) });
     this.status = 'starting';
     this.lastSeq = 0;
     this.exitInfo = null;
@@ -207,7 +213,7 @@ export class ManagedSession {
       }));
     });
     this.runner.on('exit', (info) => {
-      if ((!this.textOutput && this.agentKey !== 'comate' && this.agentKey !== 'junie' && this.agentKey !== 'dsh') || info?.error) {
+      if ((!this.textOutput && this.agentKey !== 'comate' && this.agentKey !== 'junie' && this.agentKey !== 'dsh' && this.agentKey !== 'workbuddy' && this.agentKey !== 'zcode' && this.agentKey !== 'gemini-cli') || info?.error) {
         this.handleRunnerExit(info);
         return;
       }
@@ -219,7 +225,7 @@ export class ManagedSession {
       }, TEXT_OUTPUT_DRAIN_MS);
     });
     this.runner.on('io-close', (info) => {
-      if ((this.textOutput || this.agentKey === 'comate' || this.agentKey === 'junie' || this.agentKey === 'dsh') && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || info);
+      if ((this.textOutput || this.agentKey === 'comate' || this.agentKey === 'junie' || this.agentKey === 'dsh' || this.agentKey === 'workbuddy' || this.agentKey === 'zcode' || this.agentKey === 'gemini-cli') && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || info);
     });
     this.runner.start();
     this.status = 'running';
@@ -232,6 +238,9 @@ export class ManagedSession {
       && this.agentKey !== 'comate' // 同实例原生取消必须保留控制通道
       && this.agentKey !== 'junie' // 单轮 ACP worker 的 EOF 是停止请求，启动时必须保留。
       && this.agentKey !== 'dsh' // SDK worker 保留控制停止，EOF 不可作为初始prompt分隔。
+      && this.agentKey !== 'workbuddy' // 原生 worker 的 stdin 是受控停止通道。
+      && this.agentKey !== 'zcode' // 固定SDK worker保留控制通道，不能在启动后结束stdin。
+      && this.agentKey !== 'gemini-cli' // 原生核心 worker 保留私有停止通道。
       && this.capabilities.initialPromptChannel === 'launch-args'
       && this.capabilities.append === false)) {
       try { this.runner.stdin?.end(); } catch { /* stdin 已关闭/不可用则忽略 */ }
@@ -346,6 +355,27 @@ export class ManagedSession {
         eventType: 'error', payload: { code: 'dsh-result-missing', message: 'DSH 已退出但原生与代理关闭结果缺失', severity: 'fatal', recoverable: false },
       }));
     }
+    if (this.agentKey === 'gemini-cli' && !this._hasSessionEnd) {
+      this.status = 'failed';
+      if (info?.code === 0) this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'error', payload: { code: 'gemini-result-missing', message: 'Gemini 已退出但原生与代理关闭结果缺失', severity: 'fatal', recoverable: false },
+      }));
+    }
+    if (this.agentKey === 'zcode' && !this._hasSessionEnd) {
+      this.status = 'failed';
+      if (info?.code === 0) this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'error', payload: { code: 'zcode-result-missing', message: 'ZCode 已退出但原生与代理关闭结果缺失', severity: 'fatal', recoverable: false },
+      }));
+    }
+    if (this.agentKey === 'workbuddy' && !this._hasSessionEnd) {
+      this.status = 'failed';
+      if (info?.code === 0) this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'error', payload: { code: 'workbuddy-result-missing', message: 'WorkBuddy 已退出但原生与代理关闭结果缺失', severity: 'fatal', recoverable: false },
+      }));
+    }
     this.clearAllDeadlineTimers();
     this.pendingInputs.clear();
     const openclawFrame = this.openclawOutput?.finish({ stopped: this._stopRequested });
@@ -448,6 +478,18 @@ export class ManagedSession {
     try {
       const raw = JSON.parse(line);
       if (!raw || typeof raw !== 'object') return;
+      if (this.agentKey === 'gemini-cli') {
+        if (isGeminiCoreStartedFrame(raw)) this.setNativeSessionRef(raw.native_session_id);
+        return;
+      }
+      if (this.agentKey === 'zcode') {
+        if (isZCodeStartedFrame(raw)) this.setNativeSessionRef(raw.native_session_id);
+        return;
+      }
+      if (this.agentKey === 'workbuddy') {
+        if (isWorkbuddyStartedFrame(raw)) this.setNativeSessionRef(raw.native_session_id);
+        return;
+      }
       if (this.agentKey === 'dsh') {
         if (raw.protocol === 'miniproctor-dsh-sdk-v1' && raw.type === 'started'
           && /^s_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(raw.native_session_id || '')) this.setNativeSessionRef(raw.native_session_id);
@@ -632,7 +674,7 @@ export class ManagedSession {
     this.pendingInputs.clear();
     // OpenHands 在待审批时以 stdin 作为控制通道。先告知受控停止，再关管道，
     // 否则 SDK 会把 EOF 误报成审批通道故障，手机端显示任务失败。
-    if (this.agentKey === 'openhands' || this.agentKey === 'junie' || this.agentKey === 'dsh') this.runner.sendJson({ type: 'control_stop' });
+    if (this.agentKey === 'openhands' || this.agentKey === 'junie' || this.agentKey === 'dsh' || this.agentKey === 'workbuddy' || this.agentKey === 'zcode' || this.agentKey === 'gemini-cli') this.runner.sendJson({ type: 'control_stop' });
     return this.runner.stop();
   }
 }
@@ -1018,7 +1060,14 @@ export class SessionManager {
   /** 下一次轮询延迟：连续失败指数退避 min(base*2^n, max)，成功归零。 */
   nextPollDelay() {
     const base = Math.max(50, this.pollIntervalMs || 3000);
-    if (this.pollFailStreak <= 0) return base;
+    if (this.pollFailStreak <= 0) {
+      // A short native turn can finish while a phone stop waits for the next pull.
+      // Only live controllable tasks accelerate healthy pulls; idle and failed
+      // pulls keep the configured cadence/backoff. pollTick remains serial.
+      const controllable = [...this.sessions.values()].some(session =>
+        session.capabilities.stop === true && session.runner.alive);
+      return controllable ? Math.min(base, 1000) : base;
+    }
     const backoff = base * (2 ** Math.min(this.pollFailStreak, MAX_BACKOFF_EXPONENT));
     return Math.min(backoff, this.maxBackoffMs);
   }
@@ -1585,6 +1634,18 @@ export class SessionManager {
       }
       if (spec.agentKey === 'dsh' && (!prompt || Buffer.byteLength(prompt, 'utf8') > 16000)) {
         return { ok: false, error: 'invalid-prompt', reason: 'dsh-single-turn-prompt-required' };
+      }
+      if (spec.agentKey === 'workbuddy') {
+        try { validateWorkbuddyPrompt(prompt); }
+        catch { return { ok:false,error:'invalid-prompt',reason:'workbuddy-single-turn-text-required' }; }
+      }
+      if (spec.agentKey === 'zcode') {
+        try { validateZCodePrompt(prompt); }
+        catch { return { ok:false,error:'invalid-prompt',reason:'zcode-single-turn-text-required' }; }
+      }
+      if (spec.agentKey === 'gemini-cli') {
+        try { validateGeminiPrompt(prompt); }
+        catch { return { ok:false,error:'invalid-prompt',reason:'gemini-single-turn-text-required' }; }
       }
       // 全局工作区授权（D4 语义不变）：拒绝时零进程 + 审计行
       const authz = authorizeWorkspace({ rawCwd, workspaces: this.workspaces });

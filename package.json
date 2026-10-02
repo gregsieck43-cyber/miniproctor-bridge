@@ -1,6 +1,6 @@
 {
   "name": "miniproctor-bridge",
-  "version": "0.6.0-rc29",
+  "version": "0.6.0-rc30",
   "private": true,
   "type": "module",
   "description": "miniproctor PC bridge: agent stdio -> structured events -> cloud relay (zero runtime dependencies)",

@@ -8,48 +8,48 @@
   "adapter_id": "generic",
   "integration_mode": "stdio",
   "capabilities": {
-    "create": false,
-    "read": false,
-    "stop": false,
+    "create": true,
+    "read": true,
+    "stop": true,
     "append": false,
     "resume": false,
     "approve": false,
     "fileChanges": false,
     "usage": false
   },
-  "initial_prompt_channel": null,
+  "initial_prompt_channel": "launch-args",
   "verification": {
     "create": {
-      "status": "pending",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控create证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "status": "verified",
+      "evidence": "2026-10-02 Windows固定官方ZCode CLI0.16.9/Node24.14.0/SDK29628c9与3981项pin，生产worker/协议及诊断ManagedSession真实读取、模型负向、活跃/启动停止、全部所属PID+birth归零和代理排空已验。仅单轮文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云最新状态见A29卡，不等于手机/首发发布通过。"
     },
     "read": {
-      "status": "pending",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控read证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "status": "verified",
+      "evidence": "2026-10-02 Windows固定官方ZCode CLI0.16.9/Node24.14.0/SDK29628c9与3981项pin，生产worker/协议及诊断ManagedSession真实读取、模型负向、活跃/启动停止、全部所属PID+birth归零和代理排空已验。仅单轮文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云最新状态见A29卡，不等于手机/首发发布通过。"
     },
     "stop": {
-      "status": "pending",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控stop证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "status": "verified",
+      "evidence": "2026-10-02 Windows固定官方ZCode CLI0.16.9/Node24.14.0/SDK29628c9与3981项pin，生产worker/协议及诊断ManagedSession真实读取、模型负向、活跃/启动停止、全部所属PID+birth归零和代理排空已验。仅单轮文本分析/输出读取，无文件或命令工具；正常Factory/profile与模拟器真云最新状态见A29卡，不等于手机/首发发布通过。"
     },
     "append": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控append证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
     },
     "resume": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控resume证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
     },
     "approve": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控approve证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
     },
     "fileChanges": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控fileChanges证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
     },
     "usage": {
       "status": "unavailable",
-      "evidence": "2026-10-01 用户纳入28款首发。仅完成独立登记与官方资料复核；官方 ZCode CLI Node bundle；非交互协议、插件/MCP隔离与受控停止尚待复核。本项目尚无真实受控usage证据，不开放能力；目录/版本/fixture不算验收通过。"
+      "evidence": "固定单轮SDK暂无此生产通路，工具registry0，执行/文件/MCP/工作流等ports缺省，hooks等关闭；不伪造能力或用量。"
     }
   },
   "probe": {
