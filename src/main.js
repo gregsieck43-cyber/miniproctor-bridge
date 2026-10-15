@@ -6,7 +6,6 @@ import { loadConfig, inferAgentType } from './lib/config.js';
 // inferAgentType 实现移至 lib/config.js（P1-A 参数预设与能力协商共用同一推断源）；
 // 此处保留导出兼容既有 import 路径。
 export { inferAgentType };
-import { SessionManager } from './agent/session-manager.js';
 import { buildDoctorReport } from './lib/doctor.js';
 import { resolveCommandPath } from './lib/command-resolve.js';
 import { HttpPollTransport } from './transport/http-poll.js';
@@ -15,16 +14,10 @@ import { CloudGatewayTransport } from './transport/cloud-gateway.js';
 import { EndpointTransport } from './transport/endpoint.js';
 import { createPairingOffer, evaluatePairingStatus } from './pairing/pair.js';
 import { loadAgentConfig } from './lib/agent-config.js';
-import { ProfileStore, ProfileStoreError, PERMISSION_POLICY_MODES, PROFILE_REGIONS } from './agents/profile-store.js';
-import { ProfileSyncService } from './agents/profile-sync.js';
-import { AdapterFactory, SessionLaunchLedger } from './agents/adapter-factory.js';
-import { identifyRuntime, sanitizeSelfReport, SELF_REPORT_MAX_BYTES } from './agents/identify.js';
-import { resolveAgentKey, getCatalogEntry } from './agents/catalog.js';
 import { EventOutbox } from './lib/outbox.js';
 import { CommandInbox } from './lib/inbox.js';
 import { WorkspaceLockManager, WORKSPACE_LOCK_DIR_NAME } from './lib/workspace-lock.js';
 import { acquireInstanceLock, InstanceLockError, inspectInstanceLock } from './lib/instance-lock.js';
-import { isRevocationError } from './agent/session-manager.js';
 import { setEventPolicy } from './lib/events.js';
 import { createLogger } from './lib/log.js';
 import { writeDeviceStateFile } from './cloud/device-keys.js';
@@ -46,8 +39,8 @@ const USAGE = `usage: node src/main.js [doctor|pair|run|demo|workspace|status|pr
     --max-run-ms <ms>    看门狗：到期停止全部会话
     --relay-url <url> --relay-kind <kind> --device-id <id> --poll-ms <ms> --push-batch-ms <ms>
   workspace add <path>|list            维护授权工作区（远程 create_session 只允许落在列表内，D4）
-  status [--offline]                   只读状态：单实例锁 + 配对 + 服务端绑定真实读回
-                                       （device.json 存在 ≠ 绑定有效，§9；--offline 跳过网络往返）
+  status [--offline]                   本地只读状态：单实例锁 + 本地配对文件
+                                       （始终不联网，不验证当前服务端绑定；active/generation 未知）
   profiles list [--all]                列出本机 Agent 配置实例（--all 含已停用；不含已删除）
   profiles register --agent-key <key> --command <cmd>
       [--display-name <n>] [--region cn|global|unknown] [--mode readonly|ask|allowlist]
@@ -192,6 +185,13 @@ async function pair(args) {
  *   - SIGINT/SIGTERM：整体关停（stopAll + outbox 排空后退出，复用 TASK-006 语义）。
  */
 async function runSession(args) {
+  // 帮助与离线查询不加载 Agent 运行图；真正启动前仍完整加载并保留所有校验。
+  const [{ SessionManager }, { ProfileStore }, { ProfileSyncService }, { AdapterFactory, SessionLaunchLedger }] = await Promise.all([
+    import('./agent/session-manager.js'),
+    import('./agents/profile-store.js'),
+    import('./agents/profile-sync.js'),
+    import('./agents/adapter-factory.js'),
+  ]);
   const config = loadConfig();
   // TASK-019 ②①：thinking/sensitive 事件上传策略——config bridge.uploadThinking 默认
   // 缺省（=false，降级为脱敏占位事件），config.json 显式 bridge.uploadThinking=true 才透传正文。
@@ -515,30 +515,15 @@ function statePath(config) {
   return path.join(config.bridge.dataDir, 'device.json');
 }
 
-/**
- * status 子命令（V12-14，§9）：只读状态——单实例锁 + 本地配对 + 服务端绑定真实读回。
- *
- * 为什么要真实读回（§9 原文）：device.json 存在不等于绑定有效——本地文件可能是撤销前的
- * 陈旧身份。这里做一次真实 pullCommands 往返（与 run 心跳同一条通道、同一种鉴权），
- * 按响应分类：ok → 绑定有效；unauthorized + revoked/binding-not-active → 已撤销；
- * 其他网络/服务端错误 → active=null（结果未知，诚实呈现，不猜）。
- *
- * 用途：
- *   1. 安装提示词的幂等检查（取代「扫描任意 main.js/run 进程」的宽泛进程探测——
- *      §9：安装进程识别用自己数据目录的锁/实例ID）；
- *   2. 配对幂等检查不再只看 device.json 是否存在；
- *   3. 新旧安装路径 / 权限 / 绑定错误可诊断。
- * 不修改任何文件；一次 pull 会刷新服务端 last_seen_at（与 run 心跳同语义，无副作用）。
- */
+// pullCommands 会领取/续租命令，不能用于只读绑定检查。
 async function statusCmd(args) {
   const offline = args.includes('--offline');
   const config = loadConfig();
   const state = loadDeviceState(config);
   const lockStatus = inspectInstanceLock(config.bridge.dataDir);
-  const skipRoundTripReason = !state ? 'no-device-state'
+  const bindingReason = !state ? 'no-device-state'
     : offline ? 'offline-flag'
-      : config.relay.kind === 'wss' ? 'wss-status-not-supported'
-        : null;
+      : 'readonly-binding-api-unavailable';
   const out = {
     data_dir: config.bridge.dataDir,
     paired: Boolean(state),
@@ -548,38 +533,9 @@ async function statusCmd(args) {
       checked: false,
       active: null,
       generation: null,
-      reason: skipRoundTripReason,
+      reason: bindingReason,
     },
   };
-  if (skipRoundTripReason === null) {
-    try {
-      // 与 run 心跳同一条通道、同一种鉴权：一次真实 pullCommands 往返即绑定读回
-      //（云端 pullCommands 成功响应携带 binding_generation，一并读回展示，§9）
-      const transport = makeTransport(config, {
-        deviceId: state.device_id,
-        tokenHash: state.token_hash || null,
-        privateKey: state.private_key || null,
-      });
-      const res = await transport.pullCommands();
-      out.binding = {
-        checked: true,
-        active: res.ok === true && Array.isArray(res.data?.commands) ? true : null,
-        generation: Number.isFinite(res.data?.binding_generation)
-          ? res.data.binding_generation
-          : Number.isFinite(res.data?.profile_meta?.binding_generation)
-            ? res.data.profile_meta.binding_generation : null,
-        reason: res.ok === true && Array.isArray(res.data?.commands) ? 'pull-ok' : 'unexpected-response',
-      };
-    } catch (err) {
-      if (isRevocationError(err)) {
-        // 已撤销：明确 active=false（本地 device.json 是陈旧身份，需重新配对）
-        out.binding = { checked: true, active: false, generation: null, reason: 'binding-revoked' };
-      } else {
-        // 网络/服务端/凭据错误：绑定有效性未知——不伪造成功也不误判撤销
-        out.binding = { checked: true, active: null, generation: null, reason: String(err?.code || err?.message || 'transport-error').slice(0, 120) };
-      }
-    }
-  }
   console.log(JSON.stringify(out, null, 2));
   return { ok: true, ...out };
 }
@@ -592,6 +548,8 @@ async function statusCmd(args) {
  */
 async function profilesCmd(args) {
   const [action = 'list', ...rest] = args;
+  const { ProfileStore, ProfileStoreError, PERMISSION_POLICY_MODES, PROFILE_REGIONS } = await import('./agents/profile-store.js');
+  const { resolveAgentKey, getCatalogEntry } = await import('./agents/catalog.js');
   const config = loadConfig();
   const store = new ProfileStore({ dir: config.bridge.dataDir });
   try {
@@ -615,6 +573,7 @@ async function profilesCmd(args) {
     }
 
     if (action === 'register') {
+      const { identifyRuntime, sanitizeSelfReport, SELF_REPORT_MAX_BYTES } = await import('./agents/identify.js');
       const flag = (name) => {
         const idx = rest.indexOf(name);
         return idx >= 0 ? rest[idx + 1] : undefined;
@@ -728,6 +687,7 @@ async function profilesCmd(args) {
     }
 
     if (action === 'doctor') {
+      const { identifyRuntime } = await import('./agents/identify.js');
       const idx = rest.indexOf('--profile');
       const targetId = idx >= 0 ? rest[idx + 1] : null;
       const candidates = targetId

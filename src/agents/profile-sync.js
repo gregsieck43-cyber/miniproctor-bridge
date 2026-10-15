@@ -7,6 +7,7 @@ import { DSH_RUNTIME_VERSION } from './dsh-sdk-client.js';
 import { WORKBUDDY_PROFILE_VERSION, workbuddyRuntimeRoot } from './workbuddy-native-worker.js';
 import { ZCODE_PROFILE_VERSION, zcodeProfileRuntime } from './zcode-runtime-probe.js';
 import { GEMINI_PROFILE_VERSION, geminiProfileRuntime } from './gemini-runtime-probe.js';
+import { QODER_PROFILE_VERSION, qoderProfileEntry } from './qoder-runtime-probe.js';
 
 export const MAX_PROFILES_PER_SYNC = 50;
 
@@ -20,12 +21,14 @@ export function buildProfileProjection(profile) {
     : profile.agent_key === 'dsh' ? profile.adapter_version === DSH_RUNTIME_VERSION
       : profile.agent_key === 'workbuddy' ? profile.adapter_version === WORKBUDDY_PROFILE_VERSION
         : profile.agent_key === 'zcode' ? profile.adapter_version === ZCODE_PROFILE_VERSION
-          : profile.agent_key === 'gemini-cli' ? profile.adapter_version === GEMINI_PROFILE_VERSION : true;
+          : profile.agent_key === 'gemini-cli' ? profile.adapter_version === GEMINI_PROFILE_VERSION
+            : profile.agent_key === 'qoder' ? profile.adapter_version === QODER_PROFILE_VERSION : true;
   const entry = profile.executable_ref?.resolved_path;
   let entrySupported = profile.agent_key !== 'dsh' || (typeof entry === 'string' && path.isAbsolute(entry) && /\.[cm]?js$/i.test(entry));
   if (profile.agent_key === 'workbuddy') { try { workbuddyRuntimeRoot(entry); } catch { entrySupported = false; } }
   if (profile.agent_key === 'zcode') { try { zcodeProfileRuntime(entry); } catch { entrySupported = false; } }
   if (profile.agent_key === 'gemini-cli') { try { geminiProfileRuntime(entry); } catch { entrySupported = false; } }
+  if (profile.agent_key === 'qoder') { try { qoderProfileEntry(entry); } catch { entrySupported = false; } }
   const canOpen = active && health === 'ok' && runtime !== null && versionSupported && entrySupported;
   const capabilities = {};
   for (const key of CAPABILITY_KEYS) capabilities[key] = canOpen && runtime.open[key] === true;

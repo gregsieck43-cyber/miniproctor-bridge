@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { createEvent, getEventPolicy, redactThinkingEvent, sanitizePreview, truncateText } from '../lib/events.js';
+import { isNativeChatFrame, mapNativeChatFrame } from './native-chat.js';
 
 const KNOWN_TYPES = new Set([
   'system', 'assistant', 'user', 'result', 'control_request', 'control_cancel_request',
@@ -11,10 +12,12 @@ const KNOWN_TYPES = new Set([
 ]);
 
 export function isClaudeStreamType(raw) {
+  if (isNativeChatFrame(raw, 'claude-code')) return true;
   return Boolean(raw && typeof raw === 'object' && KNOWN_TYPES.has(raw.type));
 }
 
 export function mapClaudeRaw(raw, { sessionId, agentType = 'claude-code', sequencer }) {
+  if (isNativeChatFrame(raw, 'claude-code')) return mapNativeChatFrame(raw, { sessionId, sequencer });
   if (!raw || typeof raw !== 'object') return [];
   const events = [];
   switch (raw.type) {

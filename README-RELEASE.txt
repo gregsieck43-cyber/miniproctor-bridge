@@ -7,8 +7,9 @@ miniproctor bridge 发行包
 （设备身份与配置永不随包分发；升级安装会原样保留它们）。
 
 一键安装（推荐；自动定位包内容，默认装到用户主目录 miniproctor-bridge）：
-  Windows PowerShell：powershell -NoProfile -ExecutionPolicy Bypass -File installer\setup.ps1
+  Windows PowerShell：powershell -NoProfile -File installer\setup.ps1
   macOS / Linux / Git Bash：sh installer/setup.sh
+  若系统执行策略或权限拒绝安装，立即停止并交由用户确认；不得绕过策略或改用其他执行方式重试。
   升级保护（原子升级）：先建暂存目录并按 RELEASE-MANIFEST.json 校验完整性，通过才切换；
   目标已有的 config.json / device.json / data/（outbox/inbox）一律保留，config.json 仅补齐缺失字段；
   切换时旧目录整体改名 <安装目录>.old-<时间戳>（完整配置/数据备份，可改名回去回滚），
@@ -24,6 +25,19 @@ miniproctor bridge 发行包
   5. node src/main.js pair         # 生成 6 位配对码，到小程序输入完成绑定
   6. node src/main.js run --no-initial-session  # 驻留接收手机任务，不启动默认 Agent
   （可另配语音识别：node tools/setup-asr.cjs）
+
+本轮优先支持：Codex、Claude Code、WorkBuddy、DSH、ZCode
+  # 五款已有正常配置→模拟器SDK→真云→Bridge的文本create/read/活跃stop组合验收证据。
+  # Claude Code/ZCode沿用此前固定点证据；不宣称五款全部在最后源码重新真云实测。
+  # 其它Agent保留原目录与能力限制，不代表本轮均已实测；真机、第二用户及安装升级未实测。
+  # 第三方CLI、合法账号、固定版本运行时和模型额度必须由用户自行准备，不随包分发。
+  # CommandCode路由：在本机创建私有JSON，四个字段必须如下（路径替换成本机绝对路径）：
+  # {"api_format":"chat-completions","base_url":"https://api.commandcode.ai/provider/v1","model":"deepseek/deepseek-v4.1-flash","api_key_file":"<本机绝对路径>/provider-key.txt"}
+  # provider-key.txt仅保存用户自己的API密钥；将JSON绝对路径设为进程环境MINIPROCTOR_CHAT_PROVIDER_CONFIG。
+  # Codex/Claude Code通过各自原生协议接入；真实密钥仅由可信Node父加载，不写profile/argv/手机或发行包。
+  # 文本路由的文件/命令工具关闭；不能当作OS沙箱或任意工具工作的证明。
+  # status只检查本机配对记录与单实例锁，不领取命令，也不证明服务端绑定当前有效。
+  # 新配对以本次pair.log中的真实服务端回执为准；复用绑定请在小程序核对电脑在线。
 
 OpenHands Agent SDK（可选；Windows Python 3.14 本机通路已验）：
   node tools/setup-openhands.cjs --workspace <Agent 项目目录> --python <Python 3.14 路径>

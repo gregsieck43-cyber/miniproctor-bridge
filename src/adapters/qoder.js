@@ -1,3 +1,5 @@
+// V12-A18旧裸帧观察逻辑保留为历史兼容；2026-10-11固定原生SDK worker由
+// qoder-sdk.js经profile绑定解析。此文件不认领其他产品的同形SDK帧。
 import { createEvent } from '../lib/events.js';
 
 // Qoder 国际版 CLI headless 适配器（V12-A18）。
@@ -56,7 +58,7 @@ export function mapQoderRaw(raw, { sessionId, agentType = 'generic', sequencer }
 
 /** 声明层能力（V12-A18；与 catalog-entries/qoder.json 同步，执行门禁另经 capabilities.js 开放视图）。 */
 export const QODER_CAPABILITIES = Object.freeze({
-  create: false, // 无产品专属拉起路径（无启动预设；AdapterFactory 对 adapter_id=generic 拒绝新会话），待 V03 接通
+  create: true, // 固定官方1.1.64 SDK worker的本机受限创建已验；旧裸帧解析不承担拉起。
   read: true, // 文本输出经 generic 行流路径读取（官方 text 为默认输出格式）；结构化帧 schema 未提供，无映射
   stop: true, // runner 进程树终止为 bridge 自有能力（generic 同源）
   append: false, // stream-json 输入官方仅述及存在，消息 schema 未提供——无编码路径，不声明

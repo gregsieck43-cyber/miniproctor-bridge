@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import {requestParentChatCompletion,prepareNativeParentChat,frameNativeParentChat} from './parent-chat-provider.js';
 
 const UPSTREAM = 'https://api.deepseek.com/chat/completions';
 function failure(code) { return Object.assign(new Error(code), { code }); }
@@ -47,6 +48,8 @@ function withoutCredential(key, maximum) {
 /** A per-task loopback route. The real provider key never leaves this parent process. */
 export class ZcodeCompletionsGateway extends EventEmitter {
   #providerKey;
+  #chatProvider;
+  #reportedModel = null;
   #childKey = crypto.randomBytes(32).toString('hex');
   #server = null;
   #controllers = new Set();
@@ -58,18 +61,23 @@ export class ZcodeCompletionsGateway extends EventEmitter {
   #maxBodyBytes;
   #timeoutMs;
 
-  constructor({ providerKey, fetchImpl = globalThis.fetch, maxCalls = 8,
+  constructor({ providerKey, chatProvider = null, fetchImpl = globalThis.fetch, maxCalls = 8,
     maxBodyBytes = 2 * 1024 * 1024, requestTimeoutMs = 45000 } = {}) {
     super();
-    if (typeof providerKey !== 'string' || providerKey.length < 9) throw failure('zcode-provider-key-missing');
+    if (!chatProvider?.configured && (typeof providerKey !== 'string' || providerKey.length < 9)) throw failure('zcode-provider-key-missing');
     if (typeof fetchImpl !== 'function') throw new TypeError('ZcodeCompletionsGateway requires fetch');
-    this.#providerKey = providerKey;
+    this.#chatProvider = chatProvider;
+    this.#providerKey = chatProvider?.configured ? null : providerKey;
     this.#fetch = fetchImpl;
-    this.#maxCalls = limit(maxCalls, 8, 8);
+    this.#maxCalls = chatProvider?.configured ? 1 : limit(maxCalls, 8, 8);
     this.#maxBodyBytes = limit(maxBodyBytes, 2 * 1024 * 1024, 2 * 1024 * 1024);
     this.#timeoutMs = limit(requestTimeoutMs, 45000, 45000);
   }
 
+  containsSecret(value) {
+    return this.#chatProvider?.containsSecret(value) || Boolean(this.#providerKey && String(value).includes(this.#providerKey));
+  }
+  redact(value) { return this.#chatProvider ? this.#chatProvider.redact(value) : String(value).split(this.#providerKey).join('[REDACTED_PROVIDER_KEY]'); }
   get childKey() { return this.#childKey; }
   get baseUrl() {
     const address = this.#server?.address();
@@ -102,11 +110,12 @@ export class ZcodeCompletionsGateway extends EventEmitter {
       || request.headers.authorization !== 'Bearer '+this.#childKey) { refuse(401, false); request.resume(); return; }
     if (request.url !== '/v1/chat/completions') { refuse(404); request.resume(); return; }
     if (request.method !== 'POST') { refuse(405); request.resume(); return; }
-    let body;
+    let body, value, chatOptions;
     try {
       body = await readBody(request, this.#maxBodyBytes);
-      if (body.includes(Buffer.from(this.#providerKey))) throw failure('zcode-gateway-key-in-body');
-      const value = JSON.parse(body);
+      if (this.containsSecret(body)) throw failure('zcode-gateway-key-in-body');
+      value = JSON.parse(body);
+      if (this.containsSecret(value) || body.includes(Buffer.from(this.#childKey)) || JSON.stringify(value).includes(this.#childKey)) throw failure('zcode-gateway-key-in-body');
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw failure('zcode-gateway-json-invalid');
       if (value.model !== 'deepseek-v4-flash' || !Number.isInteger(value.max_tokens)
         || value.max_tokens < 1 || value.max_tokens > 2048) throw failure('zcode-gateway-model-unverified');
@@ -116,6 +125,7 @@ export class ZcodeCompletionsGateway extends EventEmitter {
       if (Object.keys(value).some(key => /session.*log|plugin.*package/i.test(key))) {
         throw failure('zcode-gateway-logs-disabled');
       }
+      if (this.#chatProvider?.configured) chatOptions = prepareNativeParentChat(value);
     } catch (error) {
       refuse(error.code === 'zcode-gateway-body-limit' ? 413 : error.code === 'zcode-gateway-body-timeout' ? 408 : 400);
       return;
@@ -129,6 +139,14 @@ export class ZcodeCompletionsGateway extends EventEmitter {
     try {
       this.#counts.contacted++;
       this.emit('request-started', { call: this.#counts.contacted });
+      if (chatOptions) {
+        const result = await requestParentChatCompletion(this.#chatProvider, {...chatOptions,fetchImpl:this.#fetch,signal:controller.signal,timeoutMs:this.#timeoutMs});
+        if (controller.signal.aborted || response.destroyed) throw failure('zcode-gateway-aborted');
+        this.#reportedModel = result.model;
+        const framed = frameNativeParentChat(result, {stream:value.stream === true});
+        response.writeHead(200, {'Content-Type':framed.contentType}); response.end(framed.body);
+        this.#counts.successful++; return;
+      }
       const upstream = await this.#fetch(UPSTREAM, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+this.#providerKey },
         body, redirect: 'error', signal: controller.signal,
@@ -150,7 +168,8 @@ export class ZcodeCompletionsGateway extends EventEmitter {
     }
   }
 
-  summary() { return { ...this.#counts, active: this.#controllers.size, closed: Boolean(this.#closing) }; }
+  summary() { return { ...this.#counts, active: this.#controllers.size, closed: Boolean(this.#closing),
+    ...(this.#chatProvider?.configured ? {provider:'commandcode',upstream_model:this.#chatProvider.model,native_model:'deepseek-v4-flash',reported_upstream_model:this.#reportedModel,response_mode:'parent-buffered'} : {}) }; }
 
   close() {
     if (this.#closing) return this.#closing;

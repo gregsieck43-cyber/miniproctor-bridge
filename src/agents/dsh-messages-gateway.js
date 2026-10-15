@@ -3,6 +3,14 @@ import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import {requestParentChatCompletion,prepareNativeParentChat,frameNativeParentChat,getParentChatFailureDiagnostic} from './parent-chat-provider.js';
+
+const LOCAL_FAILURE_CODES = new Map([
+  ['parent-chat-text-only','parent-chat-text-only'],['parent-chat-request-invalid','parent-chat-request-invalid'],
+  ['dsh-gateway-key-in-body','parent-chat-native-credential-blocked'],['dsh-gateway-tools-disabled','parent-chat-native-tools-disabled'],
+  ['dsh-gateway-logs-disabled','parent-chat-native-upload-disabled'],['dsh-gateway-body-limit','parent-chat-native-body-limit'],
+  ['dsh-gateway-body-timeout','parent-chat-native-body-timeout'],
+]);
 
 const UPSTREAM = 'https://api.deepseek.com/anthropic/v1/messages';
 function failure(code) { return Object.assign(new Error(code), { code }); }
@@ -47,6 +55,11 @@ function withoutCredential(key, maximum) {
 /** A per-task loopback route. The real provider key never leaves this parent process. */
 export class DshMessagesGateway extends EventEmitter {
   #providerKey;
+  #chatProvider;
+  #reportedModel = null;
+  #fetchStarted = 0;
+  #lastFailure = null;
+  #lastRefusal = null;
   #childKey = crypto.randomBytes(32).toString('hex');
   #server = null;
   #controllers = new Set();
@@ -58,18 +71,23 @@ export class DshMessagesGateway extends EventEmitter {
   #maxBodyBytes;
   #timeoutMs;
 
-  constructor({ providerKey, fetchImpl = globalThis.fetch, maxCalls = 8,
+  constructor({ providerKey, chatProvider = null, fetchImpl = globalThis.fetch, maxCalls = 8,
     maxBodyBytes = 2 * 1024 * 1024, requestTimeoutMs = 45000 } = {}) {
     super();
-    if (typeof providerKey !== 'string' || providerKey.length < 9) throw failure('dsh-provider-key-missing');
+    if (!chatProvider?.configured && (typeof providerKey !== 'string' || providerKey.length < 9)) throw failure('dsh-provider-key-missing');
     if (typeof fetchImpl !== 'function') throw new TypeError('DshMessagesGateway requires fetch');
-    this.#providerKey = providerKey;
+    this.#chatProvider = chatProvider;
+    this.#providerKey = chatProvider?.configured ? null : providerKey;
     this.#fetch = fetchImpl;
-    this.#maxCalls = limit(maxCalls, 8, 8);
+    this.#maxCalls = chatProvider?.configured ? 1 : limit(maxCalls, 8, 8);
     this.#maxBodyBytes = limit(maxBodyBytes, 2 * 1024 * 1024, 2 * 1024 * 1024);
     this.#timeoutMs = limit(requestTimeoutMs, 45000, 45000);
   }
 
+  containsSecret(value) {
+    return this.#chatProvider?.containsSecret(value) || Boolean(this.#providerKey && String(value).includes(this.#providerKey));
+  }
+  redact(value) { return this.#chatProvider ? this.#chatProvider.redact(value) : String(value).split(this.#providerKey).join('[REDACTED_PROVIDER_KEY]'); }
   get childKey() { return this.#childKey; }
   get baseUrl() {
     const address = this.#server?.address();
@@ -94,19 +112,23 @@ export class DshMessagesGateway extends EventEmitter {
   }
 
   async #serve(request, response) {
-    const refuse = (status, authenticated = true) => {
+    let nativeRequestBytes = null;
+    const refuse = (status, authenticated = true, failureCode = 'parent-chat-native-route-refused') => {
       if (authenticated) this.#counts.rejected++;
+      if(authenticated && this.#chatProvider?.configured)this.#lastRefusal=Object.freeze({failure_code:failureCode,stage:'native-admission',
+        fetch_started:false,http_status:status,request_bytes:nativeRequestBytes,response_bytes:0,finish_reason:null,usage_present:false});
       if (!response.destroyed) { response.writeHead(status); response.end('DSH local route refused'); }
     };
     if (this.#closing || request.socket.remoteAddress !== '127.0.0.1'
       || request.headers['x-api-key'] !== this.#childKey) { refuse(401, false); request.resume(); return; }
     if (request.url !== '/v1/messages') { refuse(404); request.resume(); return; }
     if (request.method !== 'POST') { refuse(405); request.resume(); return; }
-    let body;
+    let body, value, chatOptions;
     try {
-      body = await readBody(request, this.#maxBodyBytes);
-      if (body.includes(Buffer.from(this.#providerKey))) throw failure('dsh-gateway-key-in-body');
-      const value = JSON.parse(body);
+      body = await readBody(request, this.#maxBodyBytes);nativeRequestBytes=body.length;
+      if (this.containsSecret(body)) throw failure('dsh-gateway-key-in-body');
+      value = JSON.parse(body);
+      if (this.containsSecret(value) || body.includes(Buffer.from(this.#childKey)) || JSON.stringify(value).includes(this.#childKey)) throw failure('dsh-gateway-key-in-body');
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw failure('dsh-gateway-json-invalid');
       if (value.tools !== undefined && (!Array.isArray(value.tools) || value.tools.length !== 0)) {
         throw failure('dsh-gateway-tools-disabled');
@@ -114,11 +136,13 @@ export class DshMessagesGateway extends EventEmitter {
       if (Object.keys(value).some(key => /session.*log|plugin.*package/i.test(key))) {
         throw failure('dsh-gateway-logs-disabled');
       }
+      if (this.#chatProvider?.configured) chatOptions = prepareNativeParentChat(value, {messagesFormat:true});
     } catch (error) {
-      refuse(error.code === 'dsh-gateway-body-limit' ? 413 : error.code === 'dsh-gateway-body-timeout' ? 408 : 400);
+      refuse(error.code === 'dsh-gateway-body-limit' ? 413 : error.code === 'dsh-gateway-body-timeout' ? 408 : 400,
+        true,LOCAL_FAILURE_CODES.get(error.code)||'parent-chat-native-request-invalid');
       return;
     }
-    if (this.#counts.contacted >= this.#maxCalls) { this.#counts.quota_exceeded = true; refuse(429); return; }
+    if (this.#counts.contacted >= this.#maxCalls) { this.#counts.quota_exceeded = true; refuse(429,true,'parent-chat-native-call-quota'); return; }
     const controller = new AbortController();
     this.#controllers.add(controller);
     const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
@@ -127,6 +151,15 @@ export class DshMessagesGateway extends EventEmitter {
     try {
       this.#counts.contacted++;
       this.emit('request-started', { call: this.#counts.contacted });
+      if (chatOptions) {
+        const result = await requestParentChatCompletion(this.#chatProvider, {...chatOptions,thinking:{type:'disabled'},fetchImpl:this.#fetch,signal:controller.signal,timeoutMs:this.#timeoutMs,
+          onDiagnostic:diagnostic=>{if(diagnostic.stage==='fetch-started' && diagnostic.failure_code===null)this.#fetchStarted++;}});
+        if (controller.signal.aborted || response.destroyed) throw failure('dsh-gateway-aborted');
+        this.#reportedModel = result.model;
+        const framed = frameNativeParentChat(result, {messagesFormat:true,stream:value.stream === true});
+        response.writeHead(200, {'Content-Type':framed.contentType}); response.end(framed.body);
+        this.#counts.successful++; return;
+      }
       const upstream = await this.#fetch(UPSTREAM, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': this.#providerKey, 'anthropic-version': '2023-06-01' },
         body, redirect: 'error', signal: controller.signal,
@@ -136,8 +169,11 @@ export class DshMessagesGateway extends EventEmitter {
       await pipeline(Readable.fromWeb(upstream.body), withoutCredential(this.#providerKey, 8 * 1024 * 1024), response);
       if (upstream.status >= 200 && upstream.status < 300) this.#counts.successful++;
       else this.#counts.failed++;
-    } catch {
+    } catch (error) {
       this.#counts.failed++;
+      if(this.#chatProvider?.configured)this.#lastFailure=getParentChatFailureDiagnostic(error)||Object.freeze({
+        failure_code:'parent-chat-native-response-failed',stage:'native-response',fetch_started:this.#fetchStarted>0,
+        http_status:null,request_bytes:null,response_bytes:0,finish_reason:null,usage_present:false});
       if (!response.destroyed) {
         if (!response.headersSent) response.writeHead(502);
         response.end('DSH upstream request failed');
@@ -148,7 +184,9 @@ export class DshMessagesGateway extends EventEmitter {
     }
   }
 
-  summary() { return { ...this.#counts, active: this.#controllers.size, closed: Boolean(this.#closing) }; }
+  summary() { return { ...this.#counts, active: this.#controllers.size, closed: Boolean(this.#closing),
+    ...(this.#chatProvider?.configured ? {provider:'commandcode',upstream_model:this.#chatProvider.model,native_model:'deepseek-v4-flash',reported_upstream_model:this.#reportedModel,response_mode:'parent-buffered',
+      fetch_started:this.#fetchStarted,last_failure:this.#lastFailure,last_refusal:this.#lastRefusal} : {}) }; }
 
   close() {
     if (this.#closing) return this.#closing;

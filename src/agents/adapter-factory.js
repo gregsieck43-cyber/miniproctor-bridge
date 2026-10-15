@@ -24,6 +24,17 @@ import { DSH_RUNTIME_VERSION } from './dsh-sdk-client.js';
 import { WORKBUDDY_PROFILE_VERSION, workbuddyRuntimeRoot } from './workbuddy-native-worker.js';
 import { ZCODE_PROFILE_VERSION, zcodeProfileRuntime } from './zcode-runtime-probe.js';
 import { GEMINI_PROFILE_VERSION, geminiProfileRuntime } from './gemini-runtime-probe.js';
+import { QODER_PROFILE_VERSION, qoderProfileEntry, qoderAuthConfigDir } from './qoder-runtime-probe.js';
+import { NATIVE_CHAT_PINS, verifyNativeChatPhysicalPath } from './native-chat-worker.js';
+
+function parentChatProviderEnv() {
+  if (!Object.hasOwn(process.env, 'MINIPROCTOR_CHAT_PROVIDER_CONFIG')) return {};
+  const configPath = process.env.MINIPROCTOR_CHAT_PROVIDER_CONFIG;
+  try { verifyNativeChatPhysicalPath(configPath); }
+  catch { throw new ProfileRouteError('父provider配置必须显式指向本机绝对文件', { code: 'invalid-profile-route' }); }
+  // The trusted Node worker alone opens the configuration/key. No cloud/native DTO receives it.
+  return { MINIPROCTOR_CHAT_PROVIDER_CONFIG: configPath };
+}
 
 /** profile 路由失败码（与 event-protocol.md §14.4 扁平错误串对齐；§14.4 未列的为本机校验扩展）。 */
 export const PROFILE_ROUTE_ERROR_CODES = Object.freeze([
@@ -140,6 +151,11 @@ export class AdapterFactory {
       }
     }
     const { adapterId, runtime } = this.resolveVerifiedAdapter(profile.agent_key);
+    const isNativeChat = runtime.nativeChatGateway === true;
+    if (isNativeChat && profile.adapter_version !== NATIVE_CHAT_PINS[profile.agent_key]?.version) {
+      throw new ProfileRouteError('官方CLI版本不符合固定父网关配方', { code: 'profile-capability-unsupported' });
+    }
+    const providerEnv = isNativeChat || ['dsh', 'workbuddy', 'zcode'].includes(profile.agent_key) ? parentChatProviderEnv() : {};
     if (profile.agent_key === 'junie' && profile.adapter_version !== JUNIE_PLAN_PROFILE_VERSION) {
       throw new ProfileRouteError('Junie 原生版本未经此单轮 Plan 配方验证', { code: 'profile-capability-unsupported' });
     }
@@ -151,6 +167,9 @@ export class AdapterFactory {
     }
     if (profile.agent_key === 'zcode' && profile.adapter_version !== ZCODE_PROFILE_VERSION) {
       throw new ProfileRouteError('ZCode CLI/Node/SDK版本未经固定配方验证', { code: 'profile-capability-unsupported' });
+    }
+    if (profile.agent_key === 'qoder' && profile.adapter_version !== QODER_PROFILE_VERSION) {
+      throw new ProfileRouteError('Qoder CLI/Node/传输版本未经固定SDK配方验证', { code: 'profile-capability-unsupported' });
     }
     if (profile.agent_key === 'gemini-cli' && profile.adapter_version !== GEMINI_PROFILE_VERSION) {
       throw new ProfileRouteError('Gemini CLI/Node/Core版本未经固定配方验证', { code: 'profile-capability-unsupported' });
@@ -167,12 +186,21 @@ export class AdapterFactory {
     } else if (/[\\/]/.test(command) && !this._fileExists(command)) {
       throw new ProfileRouteError(`profile 可执行文件不存在：${command}`, { code: 'profile-executable-missing' });
     }
+    if (isNativeChat && (!ref.resolved_path || !path.isAbsolute(command) || !/\.exe$/iu.test(command))) {
+      throw new ProfileRouteError('父网关需要正常profile已解析的官方原生exe路径', { code: 'profile-executable-missing' });
+    }
     const args = this.resolveLaunchArgs({ agentKey: profile.agent_key, adapterId, profile, runtime });
     const isJunie = profile.agent_key === 'junie';
     const isDsh = profile.agent_key === 'dsh';
     const isWorkbuddy = profile.agent_key === 'workbuddy';
     const isZcode = profile.agent_key === 'zcode';
     const isGemini = profile.agent_key === 'gemini-cli';
+    const isQoder = profile.agent_key === 'qoder';
+    let qoderEntry, qoderAuth;
+    if (isQoder) {
+      try { if (!ref.resolved_path) throw new Error(); qoderEntry = qoderProfileEntry(command); qoderAuth = qoderAuthConfigDir(); }
+      catch { throw new ProfileRouteError('Qoder 需要已解析的官方CLI入口及本机认证目录引用', { code: 'profile-executable-missing' }); }
+    }
     let geminiRuntime;
     if (isGemini) {
       try { if (!ref.resolved_path) throw new Error(); geminiRuntime = geminiProfileRuntime(command); }
@@ -198,14 +226,23 @@ export class AdapterFactory {
       profileId: profile.profile_id,
       profileRevision: profile.revision, // 冻结创建时刻 revision（profile 热改不影响本会话）
       agentKey: profile.agent_key,
+      // 仅从已校验的本机注册配置冻结公开创建来源，不携带启动配方/凭据。
+      sourceSnapshot: Object.freeze({
+        profile_id: profile.profile_id,
+        profile_revision: profile.revision,
+        agent_key: profile.agent_key,
+        display_name: profile.display_name,
+      }),
       agentType: adapterId,
-      command: isJunie || isDsh || isWorkbuddy || isZcode || isGemini ? process.execPath : command,
+      command: isNativeChat || isJunie || isDsh || isWorkbuddy || isZcode || isGemini || isQoder ? process.execPath : command,
       args: Object.freeze([...args]),
-      productEnv: isJunie ? Object.freeze({ ...runtime.env, MINIPROCTOR_JUNIE_EXECUTABLE: command })
-        : isDsh ? Object.freeze({ ...runtime.env, MINIPROCTOR_DSH_ENTRY: command })
-          : isWorkbuddy ? Object.freeze({ ...runtime.env, MINIPROCTOR_WORKBUDDY_RUNTIME_ROOT: workbuddyRoot })
-            : isZcode ? Object.freeze({ ...runtime.env, MINIPROCTOR_ZCODE_SOURCE: zcodeRuntime.sourceRoot, MINIPROCTOR_ZCODE_NODE: zcodeRuntime.nodeExecutable })
-              : isGemini ? Object.freeze({ ...runtime.env, MINIPROCTOR_GEMINI_SOURCE: geminiRuntime.sourceRoot, MINIPROCTOR_GEMINI_NODE: geminiRuntime.nodeExecutable }) : runtime.env,
+      productEnv: isNativeChat ? Object.freeze({ ...runtime.env, ...providerEnv, MINIPROCTOR_NATIVE_CHAT_AGENT: profile.agent_key, MINIPROCTOR_NATIVE_CHAT_EXECUTABLE: command })
+        : isJunie ? Object.freeze({ ...runtime.env, MINIPROCTOR_JUNIE_EXECUTABLE: command })
+        : isDsh ? Object.freeze({ ...runtime.env, ...providerEnv, MINIPROCTOR_DSH_ENTRY: command })
+          : isWorkbuddy ? Object.freeze({ ...runtime.env, ...providerEnv, MINIPROCTOR_WORKBUDDY_RUNTIME_ROOT: workbuddyRoot })
+            : isZcode ? Object.freeze({ ...runtime.env, ...providerEnv, MINIPROCTOR_ZCODE_SOURCE: zcodeRuntime.sourceRoot, MINIPROCTOR_ZCODE_NODE: zcodeRuntime.nodeExecutable })
+              : isGemini ? Object.freeze({ ...runtime.env, MINIPROCTOR_GEMINI_SOURCE: geminiRuntime.sourceRoot, MINIPROCTOR_GEMINI_NODE: geminiRuntime.nodeExecutable })
+                : isQoder ? Object.freeze({ ...runtime.env, MINIPROCTOR_QODER_ENTRY: qoderEntry, MINIPROCTOR_QODER_AUTH_DIR: qoderAuth }) : runtime.env,
       adapterVersion: profile.adapter_version || null,
       executionCapabilities: runtime.open,
       capabilitySnapshot: runtime.open,
@@ -215,7 +252,7 @@ export class AdapterFactory {
 
   /** 启动参数：注入 resolver 优先；否则只取随发行的产品静态配方。 */
   resolveLaunchArgs({ agentKey, adapterId, profile, runtime }) {
-    if ((agentKey === 'junie' || agentKey === 'dsh' || agentKey === 'workbuddy' || agentKey === 'zcode' || agentKey === 'gemini-cli') && this.launchArgsResolver) {
+    if ((runtime?.nativeChatGateway || agentKey === 'junie' || agentKey === 'dsh' || agentKey === 'workbuddy' || agentKey === 'zcode' || agentKey === 'gemini-cli' || agentKey === 'qoder') && this.launchArgsResolver) {
       throw new ProfileRouteError(`${agentKey} 不支持覆盖单轮 worker 配方`, { code: 'invalid-profile-route' });
     }
     if (this.launchArgsResolver) {

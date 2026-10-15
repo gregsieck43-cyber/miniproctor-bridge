@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "package": "miniproctor-bridge",
-  "version": "0.6.0-rc30",
-  "commit": "4bb973660038d5b0c82eb90d0fdbd846a438be4c",
+  "version": "0.6.0-rc31",
+  "commit": "3763ca01ab6c8c839c8aacd9bd295e7c61f96c8a",
   "files": [
     {
       "path": "config.example.json",
@@ -21,8 +21,8 @@
     },
     {
       "path": "installer/setup.ps1",
-      "sha256": "416788e5139c83adde6ba4b15f17cf806bcf7c9c02f8503b1611cbd52d2c642c",
-      "bytes": 14746
+      "sha256": "a9f9d84bd4c1894228ed03f3a1508fb1e9b3346e011ee1c019c005dbcaf4853b",
+      "bytes": 14722
     },
     {
       "path": "installer/setup.sh",
@@ -31,13 +31,13 @@
     },
     {
       "path": "package.json",
-      "sha256": "46b302558c54df6d44c38ea8de402faf47850c9540e6428c3c9670049b0ce01b",
+      "sha256": "7c57c3ade6d8f5bf72fe37a8cf1c828a12fc116b3dd5b237a2326142ad6f452e",
       "bytes": 443
     },
     {
       "path": "README-RELEASE.txt",
-      "sha256": "a9b309662d77c00a5ea50741c880f34791d91da3c6e7047df3b91fc54af32125",
-      "bytes": 4949
+      "sha256": "aefdc3c9205ec1e081510c8b7e2f0c8bd646bf6e851270f374c55242e6618c5b",
+      "bytes": 6499
     },
     {
       "path": "src/adapters/aider.js",
@@ -61,8 +61,8 @@
     },
     {
       "path": "src/adapters/claude-code.js",
-      "sha256": "1400942a055acf8aa0322ff7b817144c6002adf0ef402aeb606d66ebe03c6e42",
-      "bytes": 14886
+      "sha256": "60e198b2063a1c15c4706b13b78a572144ab893a5e2c65570175bad58336adbd",
+      "bytes": 15124
     },
     {
       "path": "src/adapters/cline.js",
@@ -81,8 +81,8 @@
     },
     {
       "path": "src/adapters/codex.js",
-      "sha256": "105ee9038bbb31b10070d66d7b13dbf18b64223f156c5cbdf8ca5652ac51c351",
-      "bytes": 12190
+      "sha256": "0f93c204555c786f2ff4eb39a52e3a3eeb5dac0ab59a50d068f4b7eaefcfb696",
+      "bytes": 12413
     },
     {
       "path": "src/adapters/comate-local-api.js",
@@ -131,8 +131,8 @@
     },
     {
       "path": "src/adapters/generic.js",
-      "sha256": "8d2608fd582ea16dc24a7f3ef74531b6073507db01f8fc4ecfa051078e572239",
-      "bytes": 17177
+      "sha256": "127bfdb504424711617ef0f22e40122d5587511159aeabeabbf088507c26022e",
+      "bytes": 17407
     },
     {
       "path": "src/adapters/goose.js",
@@ -165,6 +165,11 @@
       "bytes": 4696
     },
     {
+      "path": "src/adapters/native-chat.js",
+      "sha256": "6cc29f8eb30823032a3620346e5cd817f16e73d74a231b784e8ec01838af149e",
+      "bytes": 7054
+    },
+    {
       "path": "src/adapters/openclaw.js",
       "sha256": "2dd9436d094559c2e3d46f70e73c026db3871b4bb08df83c2f182f96aa482407",
       "bytes": 6736
@@ -190,9 +195,14 @@
       "bytes": 10011
     },
     {
+      "path": "src/adapters/qoder-sdk.js",
+      "sha256": "65d823744da3ada806ea11b59780d2c6603534be07b9acfe5dee6405373ca2cb",
+      "bytes": 3869
+    },
+    {
       "path": "src/adapters/qoder.js",
-      "sha256": "cc3f8b176c82810c3a110de95b50ae936983914352038bf4b59e7dbc10e8040b",
-      "bytes": 4251
+      "sha256": "f150f14b2e222ce788b1b50b3aba71c5f600b9381dc9c2bdaf32fb76a7d97dec",
+      "bytes": 4401
     },
     {
       "path": "src/adapters/qwen-code.js",
@@ -226,8 +236,8 @@
     },
     {
       "path": "src/agent/session-manager.js",
-      "sha256": "6c2b87fd0786963c6fe1100a307e53f9ce75e2240614c1308c007a0fee2d6e7e",
-      "bytes": 96574
+      "sha256": "ccc4f498c8c77af6b434b8f558f091d0ee25f70c71eb68d8b56d3257c1ccb64d",
+      "bytes": 109218
     },
     {
       "path": "src/agents/adapter-contract.md",
@@ -236,8 +246,8 @@
     },
     {
       "path": "src/agents/adapter-factory.js",
-      "sha256": "4ff0d97b5cbf0ced9dfc30fa8373c19e75110d5f5de9089a15ca7c23d86b7326",
-      "bytes": 19585
+      "sha256": "0ef3557756753198218df5f95b930e5f2a530ac68d2212960408d6c12880bb62",
+      "bytes": 22371
     },
     {
       "path": "src/agents/catalog-entries/aider.json",
@@ -361,8 +371,8 @@
     },
     {
       "path": "src/agents/catalog-entries/qoder.json",
-      "sha256": "8d352fdfee9eeef4d50f50fb68f60089df0cb1ea62589c2f7bfa9a3ff366d024",
-      "bytes": 2660
+      "sha256": "25cf76804d9ff4648cab3995a63192bc7d8e96de3657a8a83449dc2d355effd0",
+      "bytes": 2735
     },
     {
       "path": "src/agents/catalog-entries/qwen-code.json",
@@ -396,8 +406,8 @@
     },
     {
       "path": "src/agents/catalog.js",
-      "sha256": "ca0180aaa56f41775245504c2e2e1954971f5c9664d61edbcc99e02516ae1919",
-      "bytes": 92815
+      "sha256": "35ecf6b2bfb436ba192c237ef22def375dc00afd81dd04c453eae069ae5d6234",
+      "bytes": 92890
     },
     {
       "path": "src/agents/codebuddy-empty-mcp.json",
@@ -436,8 +446,8 @@
     },
     {
       "path": "src/agents/dsh-messages-gateway.js",
-      "sha256": "3f0c455ff3d5fac665afc24379b79ecb71aa6eb0887e035cd30b7a0ae370a4ac",
-      "bytes": 7577
+      "sha256": "bdd99a3bb2d0fe87c53f7735f4961820bc7ae86433ac7926a6ef24a96f06b6ae",
+      "bytes": 11013
     },
     {
       "path": "src/agents/dsh-restricted.patch.json",
@@ -451,8 +461,13 @@
     },
     {
       "path": "src/agents/dsh-sdk-worker.js",
-      "sha256": "236d6b5da1fa5dfa1fdfea6ce1da2d758e26f1691195e67ef6bf10368e797a13",
-      "bytes": 11742
+      "sha256": "0ea9dd3c1e161098e67cb4696e1019caf2b6c414742521ecccdd8f893f91ba2e",
+      "bytes": 12970
+    },
+    {
+      "path": "src/agents/factory-hook-settings.js",
+      "sha256": "0dd803a8bb77f41ac7c84d170e0edf5c5c3b015e1cf42cf3cd58260c05abff49",
+      "bytes": 1973
     },
     {
       "path": "src/agents/gemini-core-native.mjs",
@@ -486,8 +501,8 @@
     },
     {
       "path": "src/agents/identify.js",
-      "sha256": "70dd2f4851d968afa28940fb9cc8f8b7d81a1b68b76681ca42b50047d38c7d7b",
-      "bytes": 16686
+      "sha256": "4cd211597f9bf31cd74e09ba2f44d6ef1c1f964684adf60148354cd1078fa437",
+      "bytes": 16840
     },
     {
       "path": "src/agents/junie-plan-client.js",
@@ -510,6 +525,16 @@
       "bytes": 265
     },
     {
+      "path": "src/agents/native-chat-gateway.js",
+      "sha256": "f42ba1ce25d7789fd22a26682bb6066535aac5ceab632f07787c9de9569fdd94",
+      "bytes": 21336
+    },
+    {
+      "path": "src/agents/native-chat-worker.js",
+      "sha256": "9f579585bbd79ffb334c7b26fb3ad9ebf21f26428190b9f295828b998edd63e6",
+      "bytes": 34306
+    },
+    {
       "path": "src/agents/openclaw-readonly.json",
       "sha256": "4101167667cb62c14c921caf93455bad33c555bead2075c30d0b8db6c452a728",
       "bytes": 757
@@ -520,9 +545,14 @@
       "bytes": 7815
     },
     {
+      "path": "src/agents/parent-chat-provider.js",
+      "sha256": "d0066cf9495fb313fc0bf16b4752029c3fcfc0ce4d7ef1ce45369bfb71ff30fc",
+      "bytes": 29266
+    },
+    {
       "path": "src/agents/product-runtime.js",
-      "sha256": "823b7758e1e0c95af309d62fd52b20c01f1ffcecb6d1ad4ea68d9b59981cffe9",
-      "bytes": 19148
+      "sha256": "ca64da79c7b15ae4658c84ca6d683a7f8537b974a84ac2d739ba8933164b1f81",
+      "bytes": 22778
     },
     {
       "path": "src/agents/profile-store.js",
@@ -531,8 +561,23 @@
     },
     {
       "path": "src/agents/profile-sync.js",
-      "sha256": "8ea809861482b1d6345ad0a8d29ffdadcbe60bc2ce5bb719be2ac999b1f7ed7d",
-      "bytes": 4942
+      "sha256": "e8d49b324173b62f099ce5e04830f63348fb8c7f49c3ef61b1aeb26871974c56",
+      "bytes": 5232
+    },
+    {
+      "path": "src/agents/qoder-runtime-probe.js",
+      "sha256": "4d48b8076620a64115cf99718a297de6a3464149167e6c7b6c92b909ceef6477",
+      "bytes": 3995
+    },
+    {
+      "path": "src/agents/qoder-sdk-client.js",
+      "sha256": "7480d0d403ea6381f30cd5766cc68583229b4a3698a496a48c4860debb9641e3",
+      "bytes": 16331
+    },
+    {
+      "path": "src/agents/qoder-sdk-worker.js",
+      "sha256": "db1fb283fa68a26980cdc4a0a8ae9240d5b3ef307611de245f3facb69f106960",
+      "bytes": 16130
     },
     {
       "path": "src/agents/workbuddy-acp-client.cjs",
@@ -541,18 +586,18 @@
     },
     {
       "path": "src/agents/workbuddy-completions-gateway.js",
-      "sha256": "8d5e4b3c719facec602e85ac6e20a2647834f89f6604ee6d5ba0640499a9049e",
-      "bytes": 8996
+      "sha256": "730d26cc37ee52f88c64d24f1d8bebeb8f0f5d0ae1473ca8571ba60caf3d5a0f",
+      "bytes": 13386
     },
     {
       "path": "src/agents/workbuddy-native-kernel.cjs",
-      "sha256": "bad9c85abf274bdae0f99db4f0233e7ab0b60764137a3e7a39ae4df1a8bed194",
-      "bytes": 11765
+      "sha256": "3d18757540446a01f7c3563a28021e68a218ec6f90bda881aeb3d45710289830",
+      "bytes": 11807
     },
     {
       "path": "src/agents/workbuddy-native-worker.js",
-      "sha256": "42f92b4f3c73cf2d954d762a28040385c6f4bf9711c5047a4ce56a71f30d4223",
-      "bytes": 16013
+      "sha256": "01266783a16d191252352a8505056359da69029c8e5af6a91673872151bdf387",
+      "bytes": 17577
     },
     {
       "path": "src/agents/workbuddy-runtime-pin.json",
@@ -566,8 +611,8 @@
     },
     {
       "path": "src/agents/zcode-completions-gateway.js",
-      "sha256": "6576292e517d7fe086c5e910d60f67bf76acd8ce4c7b9fa665619324e82e03f1",
-      "bytes": 7812
+      "sha256": "5837ee104e052e7e309c1b0d4e889bc0cc16c3327af31cbe44c1457286df9a7e",
+      "bytes": 9496
     },
     {
       "path": "src/agents/zcode-node-pin.json",
@@ -596,8 +641,8 @@
     },
     {
       "path": "src/agents/zcode-sdk-worker.js",
-      "sha256": "2eddcf81b3f2559ceab319be30428c22c874d67e630697dcc0ab8584cfb83368",
-      "bytes": 14836
+      "sha256": "f069963014100c8e686e654f53aba8f3527434a9982aad102a9be914cbb6483f",
+      "bytes": 16607
     },
     {
       "path": "src/cloud/device-keys.js",
@@ -606,8 +651,8 @@
     },
     {
       "path": "src/cloud/wechat-auth.js",
-      "sha256": "018bdc3f70ec4b992a5b8832fb0ae62d24c04a05e3ac5f6ed6debfa7d82e2bba",
-      "bytes": 4165
+      "sha256": "2fbe5091d9897cedca40cdfb66ad02875b8412616920c6fa2e43a8f061a1e43d",
+      "bytes": 7121
     },
     {
       "path": "src/lib/agent-config.js",
@@ -681,8 +726,8 @@
     },
     {
       "path": "src/main.js",
-      "sha256": "025986dab202a3f3969a83b178e82bf50c7752d3095e8b807bf86a0d6bf597ff",
-      "bytes": 44386
+      "sha256": "f34ff0c94d77f00dd7604432c9d1917e1b5c9e79f938d85e8f3aeed67c92747d",
+      "bytes": 42159
     },
     {
       "path": "src/pairing/pair.js",
@@ -696,8 +741,8 @@
     },
     {
       "path": "src/transport/cloud-gateway.js",
-      "sha256": "286cf1776d35e1790a8796e7810098c191238302626c6798250f23fda7cac77b",
-      "bytes": 5974
+      "sha256": "6261a4ef0ecb783bae3104e80e647e8c0ae1a72d6ba789a14ad33d7be176c234",
+      "bytes": 7131
     },
     {
       "path": "src/transport/endpoint.js",
@@ -721,8 +766,8 @@
     },
     {
       "path": "tools/make-release.cjs",
-      "sha256": "71977b0f98333e4304c00bc5dde68bf2aba8ec7594dac40b6dce24bc65d45ce5",
-      "bytes": 18187
+      "sha256": "491d6816bb5f019366b84361cbebec9584e48a67b984d3224bb98b0f45511d9d",
+      "bytes": 19760
     },
     {
       "path": "tools/mock-relay.mjs",

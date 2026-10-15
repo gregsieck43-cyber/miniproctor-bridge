@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { createEvent, sanitizePreview } from '../lib/events.js';
+import { isNativeChatFrame, mapNativeChatFrame } from './native-chat.js';
 
 // Codex `exec --json` emits JSONL. Event shapes are version-sensitive; this
 // adapter is defensive: every branch falls back to `custom` when unknown.
@@ -14,6 +15,7 @@ import { createEvent, sanitizePreview } from '../lib/events.js';
 // 恢复只能靠 bridge 进程树停止，不能等 CLI 错误帧），本机网络恢复后需 V03 补成功往返。
 
 export function isCodexStreamType(raw) {
+  if (isNativeChatFrame(raw, 'codex')) return true;
   if (!raw || typeof raw !== 'object') return false;
   if (typeof raw.type !== 'string') return false;
   if (raw.type === 'event_msg' || raw.type === 'item' || raw.type === 'item.completed') return true;
@@ -25,6 +27,7 @@ export function isCodexStreamType(raw) {
 }
 
 export function mapCodexRaw(raw, { sessionId, agentType = 'codex', sequencer }) {
+  if (isNativeChatFrame(raw, 'codex')) return mapNativeChatFrame(raw, { sessionId, sequencer });
   if (!raw || typeof raw !== 'object') return [];
   const payload = raw.payload || {};
   const item = raw.item || payload.item || payload;

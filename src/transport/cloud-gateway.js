@@ -10,11 +10,17 @@
  * 网关异常 / errcode!=0 / 云函数 ok:false 一律抛 TransportError（lib/outbox.js
  * 全桥唯一规范错误），调用方必须 catch——禁止把失败响应当成功消费。
  */
+import { randomUUID } from 'node:crypto';
 import { invokeCloudFunction } from '../cloud/wechat-auth.js';
 import { appendAuthFields } from '../cloud/device-keys.js';
 import { canonical } from '../lib/canonical.js';
 import { TransportError, isPermanentFailure } from '../lib/outbox.js';
 import { createLogger } from '../lib/log.js';
+
+const LOG_FUNCTIONS = new Set(['syncReport', 'pullCommands', 'ackCommand', 'registerPairing', 'checkPairing']);
+const LOG_CODES = new Set(['UPSTREAM_UNAVAILABLE', 'INVALID_RESPONSE', 'unauthorized', 'forbidden', 'DB_UNAVAILABLE', 'INTERNAL']);
+const PHASES = new Set(['token-fetch', 'invoke-fetch', 'invoke-body']);
+const FAILURE_KINDS = new Set(['timeout', 'abort', 'error', 'invalid-response', 'upstream', 'configuration']);
 
 export class CloudGatewayTransport {
   /**
@@ -82,48 +88,60 @@ export class CloudGatewayTransport {
 
   /** 云函数版状态上报暂无对应函数，保留接口避免调用方分支。 */
   async reportStatus(status = {}) {
-    this.logger.warn?.('[gateway] reportStatus 未映射云函数，已忽略', { status_keys: Object.keys(status) });
+    this.logger.warn?.('[gateway] reportStatus not mapped; ignored');
     return { ok: true, status: 200, accepted: false, data: { ok: true, accepted: false } };
   }
 
   async _invoke(name, data) {
-    const startedAt = this._now ? this._now() : Date.now();
-    this.logger.debug?.(`[gateway] invoke ${name} start`, { fn: name });
+    const now = this._now || Date.now;
+    const startedAt = now();
+    const requestId = randomUUID();
+    const fn = LOG_FUNCTIONS.has(name) ? name : 'unknown';
+    // info is not sampled: the start/failure pair must remain usable for local diagnosis.
+    this.logger.info?.('[gateway] request started', { fn, request_id: requestId });
+    const fail = (code, status, body, retryable, metadata = {}) => {
+      const phase = PHASES.has(metadata.phase) ? metadata.phase : 'invoke-fetch';
+      const elapsed = now() - startedAt;
+      const diagnostic = {
+        request_id: requestId,
+        phase,
+        elapsed_ms: Number.isFinite(elapsed) ? Math.max(0, Math.round(elapsed)) : 0,
+        failure_kind: FAILURE_KINDS.has(metadata.failure_kind) ? metadata.failure_kind : 'error',
+        timeout_ms: phase === 'token-fetch' ? 8000 : 10000,
+      };
+      // Explicit field/value allowlist, even with an injected logger. Business code/data remain
+      // on TransportError for existing consumers, but raw response/error text never enters logs.
+      this.logger.warn?.('[gateway] request failed', {
+        fn, ...diagnostic,
+        error_code: LOG_CODES.has(code) ? code : typeof code === 'string' && /^WERR_-?\d+$/.test(code) ? 'WECHAT_API_ERROR' : 'BUSINESS_ERROR',
+        http_status: Number.isInteger(status) && status >= 0 && status <= 599 ? status : 0,
+        retryable,
+      });
+      return Object.assign(new TransportError('[gateway] request failed', { code, status, data: body, retryable }), diagnostic);
+    };
     let res;
     try {
       res = await invokeCloudFunction(this.config, name, data, {
         ...(this._fetchImpl ? { fetchImpl: this._fetchImpl } : {}),
-        ...(this._now ? { now: this._now } : {}),
+        now, requestId, startedAt,
       });
     } catch (e) {
-      // token 获取失败 / 网络异常 / 配置缺失：一律归一为可重试的规范错误
-      this.logger.warn?.(`[gateway] ${name} failure: ${e.message}`, {
-        fn: name, error_code: 'UPSTREAM_UNAVAILABLE', http_status: 0, retryable: true,
-      });
-      throw new TransportError(`[gateway] ${name} failure: ${e.message}`, {
-        code: 'UPSTREAM_UNAVAILABLE', status: 0, data: null, retryable: true,
-      });
+      // Existing token/fetch/configuration failure code and retry policy stay unchanged.
+      throw fail('UPSTREAM_UNAVAILABLE', 0, null, true, e);
     }
     if (!res || res.ok !== true) {
       const bizCode = res && res.data && typeof res.data === 'object' ? res.data.error : null;
       const errcode = res ? res.errcode : -1;
       const code = bizCode || (errcode ? `WERR_${errcode}` : 'UPSTREAM_UNAVAILABLE');
       const status = res ? res.status : 0;
-      const retryable = isPermanentFailure({ status: res ? res.status : 0, data: res ? res.data : null }) ? false : true;
-      this.logger.warn?.(`[gateway] ${name} failed: errcode=${errcode}${bizCode ? ` ${bizCode}` : ''}`, {
-        fn: name, error_code: code, http_status: status, retryable,
-      });
-      throw new TransportError(`[gateway] ${name} failed: errcode=${errcode}${bizCode ? ` ${bizCode}` : ''}`, {
-        code, status, data: res ? res.data : null, retryable,
-      });
+      const retryable = !isPermanentFailure({ status, data: res ? res.data : null });
+      throw fail(code, status, res ? res.data : null, retryable, res || {});
     }
     if (!res.data || typeof res.data !== 'object' || Array.isArray(res.data)) {
-      throw new TransportError(`[gateway] ${name} returned an empty/invalid body`, {
-        code: 'INVALID_RESPONSE', status: res.status, data: null, retryable: true,
-      });
+      throw fail('INVALID_RESPONSE', res.status, null, true, { phase: 'invoke-body', failure_kind: 'invalid-response' });
     }
-    this.logger.debug?.(`[gateway] ${name} ok`, {
-      fn: name, http_status: res.status, duration_ms: (this._now ? this._now() : Date.now()) - startedAt,
+    this.logger.debug?.('[gateway] request succeeded', {
+      fn, request_id: requestId, http_status: res.status, elapsed_ms: Math.max(0, Math.round(now() - startedAt)),
     });
     return { ok: true, status: res.status, data: res.data };
   }

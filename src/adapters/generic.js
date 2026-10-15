@@ -34,7 +34,7 @@ import { isCodeartsAgentStreamType, mapCodeartsAgentRaw } from './codearts-agent
 // 的帧——无 profile 时无标记同形帧仍走 claude 分支；绑定 codebuddy profile 后按冻结
 // 产品身份接 2.159.0 真流（system/init 无 _requestId），不会误标 claude。
 // 两产品事件 agent_type 固定 'generic'（AGENT_TYPES 白名单未扩，身份由 catalog agent_key 承载）。
-// qoder（V12-A18）官方快照未提供帧 schema，探测器为空集，刻意不加分支（见 src/adapters/qoder.js）。
+// Qoder 旧裸帧探测保留为空；固定SDK worker只走下方qoder profile绑定分支，不借用Claude帧形。
 import { isKimiCodeStreamType, mapKimiCodeRaw, isKimiCodeProfileOutput, mapKimiCodeProfileOutput } from './kimi-code.js';
 import { isCodebuddyStreamType, mapCodebuddyRaw, isCodebuddyProfileOutput, mapCodebuddyProfileOutput } from './codebuddy.js';
 // V12-A03/A15（适配组2）：gemini-cli / qwen-code stream-json 解析（契约 §3 授权的唯一接线点）。
@@ -49,6 +49,7 @@ import { isDshSdkFrame, mapDshSdkFrame } from './dsh-sdk.js';
 import { isWorkbuddyNativeFrame, mapWorkbuddyNativeFrame } from './workbuddy-native.js';
 import { isZCodeSdkFrame, mapZCodeSdkFrame } from './zcode-sdk.js';
 import { isGeminiCoreFrame, mapGeminiCoreFrame } from './gemini-core.js';
+import { isQoderSdkFrame, mapQoderSdkFrame } from './qoder-sdk.js';
 
 const PROFILE_PARSERS = Object.freeze({
   'claude-code': Object.freeze({ accepts: isClaudeStreamType, map: mapClaudeRaw, agentType: 'claude-code' }),
@@ -72,6 +73,7 @@ const PROFILE_PARSERS = Object.freeze({
   workbuddy: Object.freeze({ accepts: isWorkbuddyNativeFrame, map: mapWorkbuddyNativeFrame, agentType: 'generic' }),
   zcode: Object.freeze({ accepts: isZCodeSdkFrame, map: mapZCodeSdkFrame, agentType: 'generic' }),
   'gemini-cli': Object.freeze({ accepts: isGeminiCoreFrame, map: mapGeminiCoreFrame, agentType: 'generic' }),
+  qoder: Object.freeze({ accepts: isQoderSdkFrame, map: mapQoderSdkFrame, agentType: 'generic' }),
 });
 
 export function lineToEvent(line, { sessionId, agentType = 'generic', agentKey = null, sequencer }) {

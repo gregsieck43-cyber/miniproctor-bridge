@@ -10,6 +10,10 @@ import { buildDshSdkLaunch } from './dsh-sdk-worker.js';
 import { buildWorkbuddyNativeLaunch } from './workbuddy-native-worker.js';
 import { buildZCodeSdkLaunch } from './zcode-sdk-worker.js';
 import { buildGeminiCoreLaunch } from './gemini-core-worker.js';
+import { buildQoderSdkLaunch } from './qoder-sdk-worker.js';
+import { buildNativeChatLaunch, verifyNativeChatPhysicalPath } from './native-chat-worker.js';
+
+const NATIVE_CHAT_WORKER = fileURLToPath(new URL('./native-chat-worker.js', import.meta.url));
 
 const OPENCLAW_CONFIG_PATH = fileURLToPath(new URL('./openclaw-readonly.json', import.meta.url));
 const CODEBUDDY_EMPTY_MCP_PATH = fileURLToPath(new URL('./codebuddy-empty-mcp.json', import.meta.url));
@@ -159,11 +163,15 @@ const RECIPES = Object.freeze({
     adapterId: 'generic',
     args: [fileURLToPath(new URL('./gemini-core-worker.js', import.meta.url))],
   }),
+  qoder: Object.freeze({
+    adapterId: 'generic',
+    args: [fileURLToPath(new URL('./qoder-sdk-worker.js', import.meta.url))],
+  }),
 });
 
 function buildRuntime(agentKey, recipe) {
   // These product recipes have only been verified on Windows.
-  if ((agentKey === 'gemini-cli' || agentKey === 'zcode' || agentKey === 'workbuddy' || agentKey === 'dsh' || agentKey === 'junie' || agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline' || agentKey === 'cursor-cli' || agentKey === 'kimi-code' || agentKey === 'openclaw' || agentKey === 'copilot-cli' || agentKey === 'codebuddy') && process.platform !== 'win32') return null;
+  if ((agentKey === 'qoder' || agentKey === 'gemini-cli' || agentKey === 'zcode' || agentKey === 'workbuddy' || agentKey === 'dsh' || agentKey === 'junie' || agentKey === 'openhands' || agentKey === 'goose' || agentKey === 'continue' || agentKey === 'cline' || agentKey === 'cursor-cli' || agentKey === 'kimi-code' || agentKey === 'openclaw' || agentKey === 'copilot-cli' || agentKey === 'codebuddy') && process.platform !== 'win32') return null;
   const entry = getCatalogEntry(agentKey);
   if (!entry || entry.adapter_id !== recipe.adapterId) return null;
   const declared = {};
@@ -191,13 +199,34 @@ const RUNTIMES = Object.freeze(Object.fromEntries(
     .filter(([, runtime]) => runtime !== null),
 ));
 
-export function getProductRuntime(agentKey) {
+const NATIVE_CHAT_RUNTIMES = Object.freeze(Object.fromEntries(['claude-code', 'codex'].map(agentKey => {
+  const runtime = buildRuntime(agentKey, { ...RECIPES[agentKey], args: [NATIVE_CHAT_WORKER, agentKey] });
+  return [agentKey, Object.freeze({ ...runtime, nativeChatGateway: true })];
+})));
+
+export function getProductRuntime(agentKey, { env = process.env } = {}) {
+  // Explicit local opt-in only. Absent configuration preserves the legacy CLI route.
+  if (Object.hasOwn(env, 'MINIPROCTOR_CHAT_PROVIDER_CONFIG') && Object.hasOwn(NATIVE_CHAT_RUNTIMES, agentKey)) return NATIVE_CHAT_RUNTIMES[agentKey];
   return Object.hasOwn(RUNTIMES, agentKey) ? RUNTIMES[agentKey] : null;
 }
 
 /** 只计算本机启动参数；目录由 SessionManager 在工作区授权后创建。 */
 export function prepareProductLaunch(spec, { sessionId, dataDir, workspace } = {}) {
-  if (spec.agentKey !== 'gemini-cli' && spec.agentKey !== 'zcode' && spec.agentKey !== 'workbuddy' && spec.agentKey !== 'dsh' && spec.agentKey !== 'junie' && spec.agentKey !== 'openclaw' && spec.agentKey !== 'copilot-cli' && spec.agentKey !== 'codebuddy') {
+  if (spec.productEnv?.MINIPROCTOR_NATIVE_CHAT_AGENT) {
+    const agent = spec.productEnv.MINIPROCTOR_NATIVE_CHAT_AGENT, runtime = NATIVE_CHAT_RUNTIMES[agent];
+    if (!runtime || spec.agentKey !== agent || spec.command !== process.execPath || JSON.stringify(spec.args) !== JSON.stringify(runtime.args)
+      || !/^s_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(sessionId || '')
+      || typeof dataDir !== 'string' || !path.isAbsolute(dataDir)) throw new TypeError('父网关必须使用固定官方CLI worker配方和本机会话目录');
+    verifyNativeChatPhysicalPath(spec.productEnv.MINIPROCTOR_CHAT_PROVIDER_CONFIG);
+    const stateDir = path.join(path.resolve(dataDir), 'native-chat-runs', agent, sessionId), runDir = path.join(stateDir, 'native');
+    buildNativeChatLaunch({ agent, command: spec.productEnv.MINIPROCTOR_NATIVE_CHAT_EXECUTABLE, runDir, workspace,
+      model: 'deepseek/deepseek-v4.1-flash', childKey: '0'.repeat(64), baseUrl: 'http://127.0.0.1:1', ambientEnv: {} });
+    return { args: [...runtime.args], stateDir, productEnv: { ...spec.productEnv, MINIPROCTOR_NATIVE_CHAT_RUN_DIR: runDir,
+      HOME: stateDir, USERPROFILE: stateDir, APPDATA: stateDir, LOCALAPPDATA: stateDir, TEMP: stateDir, TMP: stateDir, TMPDIR: stateDir,
+      XDG_CONFIG_HOME: stateDir, XDG_CACHE_HOME: stateDir, XDG_DATA_HOME: stateDir, XDG_STATE_HOME: stateDir,
+      NODE_DISABLE_COMPILE_CACHE: '1', NODE_COMPILE_CACHE: '', NODE_OPTIONS: '', NODE_PATH: '', ELECTRON_RUN_AS_NODE: '' } };
+  }
+  if (spec.agentKey !== 'qoder' && spec.agentKey !== 'gemini-cli' && spec.agentKey !== 'zcode' && spec.agentKey !== 'workbuddy' && spec.agentKey !== 'dsh' && spec.agentKey !== 'junie' && spec.agentKey !== 'openclaw' && spec.agentKey !== 'copilot-cli' && spec.agentKey !== 'codebuddy') {
     return { args: [...spec.args], productEnv: { ...(spec.productEnv || {}) }, stateDir: null };
   }
   if (!/^s_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(sessionId || '')) {
@@ -205,6 +234,18 @@ export function prepareProductLaunch(spec, { sessionId, dataDir, workspace } = {
   }
   if (typeof dataDir !== 'string' || !path.isAbsolute(dataDir)) {
     throw new TypeError('产品 dataDir 必须为 bridge 本机绝对路径');
+  }
+  if (spec.agentKey === 'qoder') {
+    const runtime = getProductRuntime('qoder');
+    if (!runtime || spec.command !== process.execPath || JSON.stringify(spec.args) !== JSON.stringify(runtime.args)) throw new TypeError('Qoder 必须使用固定Node SDK worker');
+    const stateDir = path.join(path.resolve(dataDir), 'qoder-runs', sessionId), runDir = path.join(stateDir, 'native');
+    buildQoderSdkLaunch({ entry: spec.productEnv?.MINIPROCTOR_QODER_ENTRY, authConfigDir: spec.productEnv?.MINIPROCTOR_QODER_AUTH_DIR, runDir, workspace, ambientEnv: {} });
+    return { args: [...runtime.args], stateDir, productEnv: {
+      ...(spec.productEnv || {}), ...runtime.env, MINIPROCTOR_QODER_RUN_DIR: runDir,
+      HOME: stateDir, USERPROFILE: stateDir, APPDATA: stateDir, LOCALAPPDATA: stateDir, TEMP: stateDir, TMP: stateDir, TMPDIR: stateDir,
+      XDG_CONFIG_HOME: stateDir, XDG_CACHE_HOME: stateDir, XDG_DATA_HOME: stateDir, XDG_STATE_HOME: stateDir, QODER_CONFIG_DIR: stateDir,
+      NODE_DISABLE_COMPILE_CACHE: '1', NODE_COMPILE_CACHE: '', NODE_OPTIONS: '', NODE_PATH: '', ELECTRON_RUN_AS_NODE: '',
+    } };
   }
   if (spec.agentKey === 'gemini-cli') {
     const runtime = getProductRuntime('gemini-cli');

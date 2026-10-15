@@ -8,6 +8,12 @@ import {AgentRunner,MAX_LINE_BYTES} from '../agent/runner.js';
 import {sanitizeSensitiveText} from '../lib/events.js';
 import {DshSdkClient,DSH_RUNTIME_VERSION} from './dsh-sdk-client.js';
 import {DshMessagesGateway} from './dsh-messages-gateway.js';
+import {loadParentChatProvider,isParentChatActiveStop} from './parent-chat-provider.js';
+
+/** Native SDK processes must not re-merge the trusted worker's parent-only environment. */
+export class DshNativeRunner extends AgentRunner {
+ buildChildEnv(){return {...this.env,PYTHONIOENCODING:'utf-8',LANG:'en_US.UTF-8',FORCE_COLOR:'0'};}
+}
 
 export const DSH_SDK_PROTOCOL='miniproctor-dsh-sdk-v1';
 const failure=code=>Object.assign(new Error(code),{code});
@@ -15,13 +21,14 @@ const fixedPatch=fileURLToPath(new URL('./dsh-restricted.patch.json',import.meta
 const contains=(parent,child)=>{const rel=path.relative(parent,child);return rel===''||(!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel));};
 
 /** Local frozen entry only; no native flags, model URL or credential supplied by phone commands. */
-export function buildDshSdkLaunch({runDir,workspace,nativeEntry,childKey,baseUrl,ambientEnv=process.env,providerKey=null}={}){
+export function buildDshSdkLaunch({runDir,workspace,nativeEntry,childKey,baseUrl,ambientEnv=process.env,providerKey=null,chatProvider=null}={}){
  for(const value of [runDir,workspace,nativeEntry])if(typeof value!=='string'||!path.isAbsolute(value)||/[\u0000-\u001f\u007f"]/.test(value))throw failure('dsh-launch-path-invalid');
  runDir=path.resolve(runDir);workspace=path.resolve(workspace);
  if(contains(workspace,runDir))throw failure('dsh-runtime-inside-workspace');
  if(typeof childKey!=='string'||!/^[0-9a-f]{64}$/.test(childKey)||typeof baseUrl!=='string'||!/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}\/v1\/messages$/.test(baseUrl))throw failure('dsh-local-gateway-invalid');
  const env={...ambientEnv};for(const name of Object.keys(env)){
-  if(/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL|AUTH|CONNECTIONSTRING|CONNECTION_STRING|DSH|NODE_OPTIONS|TSX_/i.test(name)
+  if(/^MINIPROCTOR_CHAT_PROVIDER_CONFIG$/i.test(name)||chatProvider?.containsSecret(env[name])){delete env[name];continue;}
+  if(/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL|AUTH|CONNECTIONSTRING|CONNECTION_STRING|DSH|NODE_|TSX_|PROXY|BASH_ENV|ZDOTDIR|PROMPT_COMMAND|^ENV$/i.test(name)
     ||(typeof providerKey==='string'&&providerKey&&typeof env[name]==='string'&&env[name].includes(providerKey)))env[name]='';
  }
  Object.assign(env,{MINIPROCTOR_DSH_PROXY_KEY:childKey,DSH_HOME:path.join(runDir,'home/dsh'),HOME:path.join(runDir,'home'),USERPROFILE:path.join(runDir,'home'),APPDATA:path.join(runDir,'appdata'),LOCALAPPDATA:path.join(runDir,'localappdata'),TEMP:path.join(runDir,'temp'),TMP:path.join(runDir,'temp'),TMPDIR:path.join(runDir,'temp'),XDG_CONFIG_HOME:path.join(runDir,'home'),XDG_CACHE_HOME:path.join(runDir,'cache'),XDG_DATA_HOME:path.join(runDir,'state'),XDG_STATE_HOME:path.join(runDir,'state'),npm_config_cache:path.join(runDir,'cache'),NODE_DISABLE_COMPILE_CACHE:'1',NODE_COMPILE_CACHE:''});
@@ -36,11 +43,11 @@ function createRun(runDir,workspace,nativeEntry){
  if(fs.existsSync(runDir)){if(!fs.statSync(runDir).isDirectory()||fs.readdirSync(runDir).length)throw failure('dsh-runtime-not-empty');}else fs.mkdirSync(runDir,{recursive:true});
  for(const name of ['home','appdata','localappdata','temp','cache','state'])fs.mkdirSync(path.join(runDir,name));
 }
-function seal(runDir,childKey,providerKey){
+function seal(runDir,childKey,gateway){
  const pending=[runDir];let files=0,bytes=0,masked=0;
  while(pending.length){const current=pending.pop(),stat=fs.lstatSync(current);if(stat.isSymbolicLink())throw failure('dsh-runtime-link');if(stat.isDirectory()){for(const name of fs.readdirSync(current))pending.push(path.join(current,name));continue;}
   if(++files>4000||(bytes+=stat.size)>32*1024*1024)throw failure('dsh-runtime-scan-limit');
-  const raw=fs.readFileSync(current);if(raw.includes(Buffer.from(providerKey)))throw failure('dsh-provider-key-persisted');
+  const raw=fs.readFileSync(current);if(gateway.containsSecret(raw))throw failure('dsh-provider-key-persisted');
   if(raw.includes(Buffer.from(childKey))){const text=raw.toString('utf8');if(!Buffer.from(text).equals(raw))throw failure('dsh-runtime-token-binary');fs.writeFileSync(current,text.split(childKey).join('[EXPIRED_LOCAL_PROXY_KEY]'));masked++;}
  }
  return{files,bytes,expired_local_tokens_masked:masked,provider_key_matches:0};
@@ -51,26 +58,27 @@ async function bounded(task,ms){let timer;try{return await Promise.race([task,ne
 export async function runDshSdk({nativeEntry,runDir,workspace,providerKey,prompt,signal,emit=()=>{},ambientEnv=process.env}={}){
  if(process.platform!=='win32')throw failure('dsh-platform-unverified');
  if(typeof prompt!=='string'||!prompt.trim()||Buffer.byteLength(prompt,'utf8')>16000)throw failure('dsh-prompt-invalid');
- const gateway=new DshMessagesGateway({providerKey}),launch=buildDshSdkLaunch({nativeEntry,runDir,workspace,childKey:gateway.childKey,baseUrl:'http://127.0.0.1:1/v1/messages',ambientEnv,providerKey});
+ const chatProvider=loadParentChatProvider({env:ambientEnv,legacyApiKey:providerKey,legacyUrl:'https://api.deepseek.com/anthropic/v1/messages',legacyModel:'deepseek-v4-flash'});
+ const gateway=new DshMessagesGateway({providerKey,chatProvider}),launch=buildDshSdkLaunch({nativeEntry,runDir,workspace,childKey:gateway.childKey,baseUrl:'http://127.0.0.1:1/v1/messages',ambientEnv,providerKey,chatProvider});
  createRun(runDir,workspace,nativeEntry);
- let runner,client,stopTask,closed,exitInfo=null,result=null,error=null,stop=null,sealed=null;
- const safeEmit=frame=>{const clean=JSON.parse(JSON.stringify(frame).split(providerKey).join('[REDACTED_PROVIDER_KEY]').split(gateway.childKey).join('[REDACTED_LOCAL_KEY]'));const out={protocol:DSH_SDK_PROTOCOL,...clean};if(Buffer.byteLength(JSON.stringify(out),'utf8')>MAX_LINE_BYTES-1)throw failure('dsh-wrapper-output-limit');emit(out);};
+ let runner,client,stopTask,closed,exitInfo=null,result=null,error=null,stop=null,sealed=null,nativeAccepted=false,activeStop=false;
+ const safeEmit=frame=>{const clean=JSON.parse(gateway.redact(JSON.stringify(frame)).split(gateway.childKey).join('[REDACTED_LOCAL_KEY]'));const out={protocol:DSH_SDK_PROTOCOL,...clean};if(Buffer.byteLength(JSON.stringify(out),'utf8')>MAX_LINE_BYTES-1)throw failure('dsh-wrapper-output-limit');emit(out);};
  const stopNative=()=>{
   if(stopTask)return stopTask;
-  if(!runner?.child)return Promise.resolve({exited:true,code:null,reason:'not-started',tree_verified:true,remaining_owned_instances:0,owned_processes:0});
+  if(!runner?.child)return Promise.resolve({exited:true,code:null,reason:'not-started',forced:false,tree_verified:true,remaining_owned_instances:0,owned_processes:0,owned_instances:[]});
   stopTask=(async()=>{
-   let owned=[],verified=false,forced=null;
+   let owned=[],verified=false,forced=null,fallbackUsed=false;
    if(runner.alive){const tree=await runner.getWindowsProcessTreeSnapshot();if(runner.windowsProcessTreeIsOwned(tree)){
      const ids=new Set([runner.child.pid]);for(let changed=true;changed;){changed=false;for(const row of tree)if(ids.has(row.parent)&&!ids.has(row.pid)){ids.add(row.pid);changed=true;}}
      owned=tree.filter(row=>ids.has(row.pid));verified=true;
    }}
-   try{await bounded(client.shutdown(),4500);await bounded(closed,4500);}catch{forced=await runner.stop();try{await bounded(closed,5000);}catch{}}
+   try{await bounded(client.shutdown(),4500);await bounded(closed,4500);}catch{fallbackUsed=true;forced=await runner.stop();try{await bounded(closed,5000);}catch{}}
    const after=await runner.getWindowsProcessTreeSnapshot();if(!Array.isArray(after))verified=false;
    const remaining=Array.isArray(after)?after.filter(row=>owned.some(old=>old.pid===row.pid&&old.birth===row.birth)).length:null;
-   return{exited:!runner.alive&&Boolean(exitInfo)&&verified&&remaining===0,code:exitInfo?.code??null,signal:exitInfo?.signal??null,reason:forced?.reason||'sdk-shutdown',tree_verified:verified,owned_processes:owned.length,remaining_owned_instances:remaining};
+   return{exited:!runner.alive&&Boolean(exitInfo)&&verified&&remaining===0,code:exitInfo?.code??null,signal:exitInfo?.signal??null,reason:forced?.reason||'sdk-shutdown',forced:fallbackUsed,tree_verified:verified,owned_processes:owned.length,owned_instances:owned.map(({pid,parent,birth})=>({pid,parent,birth})),remaining_owned_instances:remaining};
   })();stopTask.catch(()=>{});return stopTask;
  };
- const abort=()=>{stopNative().catch(()=>{});};
+ const abort=()=>{activeStop=isParentChatActiveStop({nativeAccepted,nativeCompleted:result?.finishReason==='completed',gateway:gateway.summary()});stopNative().catch(()=>{});};
  gateway.on('request-started',event=>safeEmit({type:'provider',state:'started',call:event.call}));gateway.on('request-ended',event=>safeEmit({type:'provider',state:'settled',active:event.active}));
  signal?.addEventListener('abort',abort,{once:true});
  try{
@@ -80,9 +88,9 @@ export async function runDshSdk({nativeEntry,runDir,workspace,providerKey,prompt
   launch.connection.config.baseURL=(await gateway.start()).replace(/\/messages$/,'');
   fs.writeFileSync(path.join(runDir,'connection.patch.json'),JSON.stringify([launch.connection])+'\n',{flag:'wx'});
   if(signal?.aborted)throw failure('dsh-stop');
-  runner=new AgentRunner({command:launch.command,args:launch.args,env:launch.env,cwd:workspace});
+  runner=new DshNativeRunner({command:launch.command,args:launch.args,env:launch.env,cwd:workspace});
   client=new DshSdkClient({send:frame=>runner.sendJson(frame),maxTextBytes:32000});
-  client.on('accepted',accepted=>safeEmit({type:'started',native_session_id:accepted.sessionId,native_message_id:accepted.messageId,native_version:DSH_RUNTIME_VERSION}));
+  client.on('accepted',accepted=>{nativeAccepted=true;safeEmit({type:'started',native_session_id:accepted.sessionId,native_message_id:accepted.messageId,native_version:DSH_RUNTIME_VERSION});});
   runner.on('line',(line,meta)=>{if(meta?.truncated)client.acceptLine('');else client.acceptLine(line);});runner.on('stderr',()=>{});runner.on('stdin-error',()=>client.close());
   closed=new Promise(resolve=>runner.once('io-close',info=>{exitInfo=info;client.close();resolve();}));runner.start();
   await client.initialize(workspace,'s_'+crypto.randomUUID());
@@ -93,16 +101,16 @@ export async function runDshSdk({nativeEntry,runDir,workspace,providerKey,prompt
   signal?.removeEventListener('abort',abort);
   try{stop=await stopNative();}catch{stop={exited:false,tree_verified:false};error='dsh-native-stop-failed';}
   await gateway.close();client?.close();
-  if(stop.exited){try{sealed=seal(runDir,gateway.childKey,providerKey);}catch(value){error=value.code||'dsh-runtime-seal-failed';}}else error='dsh-native-not-exited';
+  if(stop.exited){try{sealed=seal(runDir,gateway.childKey,gateway);}catch(value){error=value.code||'dsh-runtime-seal-failed';}}else error='dsh-native-not-exited';
  }
  const cancelled=signal?.aborted&&(typeof signal.reason?.code!=='string'||signal.reason.code==='dsh-stop'),counts=gateway.summary();
  if(typeof signal?.reason?.code==='string'&&signal.reason.code!=='dsh-stop')error=signal.reason.code;
  const complete=!cancelled&&!error&&result?.finishReason==='completed'&&stop.exited&&stop.code===0&&counts.successful>0&&counts.failed===0&&counts.rejected===0&&!counts.quota_exceeded&&sealed;
  // Cancellation may interrupt an upstream request; its failed count cannot become read success.
- const cancelledClean=cancelled&&stop.exited&&sealed&&!['dsh-provider-key-persisted','dsh-native-not-exited','dsh-native-stop-failed'].includes(error);
+ const cancelledClean=cancelled&&stop.exited&&sealed&&(!chatProvider?.configured||activeStop&&stop.code===0&&stop.reason==='sdk-shutdown')&&!['dsh-provider-key-persisted','dsh-native-not-exited','dsh-native-stop-failed'].includes(error);
  if(!complete&&!cancelledClean&&!error)error='dsh-native-incomplete';
  if(complete)safeEmit({type:'message',text:sanitizeSensitiveText(result.text)});
- const outcome={type:'result',status:complete?'completed':cancelledClean?'cancelled':'failed',finish_reason:result?.finishReason||null,error_code:error,native_stop:stop,gateway:counts,runtime:sealed};safeEmit(outcome);
+ const outcome={type:'result',status:complete?'completed':cancelledClean?'cancelled':'failed',finish_reason:result?.finishReason||null,error_code:error,...(chatProvider?.configured?{provider_active_stop:activeStop,cancel_semantics:'sdk-shutdown-not-native-turn-cancelled'}:{}),native_stop:stop,gateway:counts,runtime:sealed};safeEmit(outcome);
  return{...outcome,exitCode:outcome.status==='failed'?2:0};
 }
 

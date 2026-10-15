@@ -30,6 +30,7 @@ import { resolveAgentKey, getCatalogEntry } from './catalog.js';
 import { probeWorkbuddyRuntime } from './workbuddy-runtime-probe.js';
 import { probeZCodeRuntime } from './zcode-runtime-probe.js';
 import { probeGeminiRuntime } from './gemini-runtime-probe.js';
+import { probeQoderRuntime } from './qoder-runtime-probe.js';
 
 /** 自报 JSON 输入字节上限（§9：不可信输入，先限大小再解析）。 */
 export const SELF_REPORT_MAX_BYTES = 16 * 1024;
@@ -284,7 +285,8 @@ export async function identifyRuntime({ command, agentKey = null, selfReport = n
   const entry = (userKey ?? claimedKey) ? getCatalogEntry(userKey ?? claimedKey) : null;
   const probe = userKey === 'workbuddy' ? probeWorkbuddyRuntime({command:resolved.resolved_path,dataDir})
     : userKey === 'zcode' ? probeZCodeRuntime({command:resolved.resolved_path,dataDir})
-      : userKey === 'gemini-cli' ? probeGeminiRuntime({command:resolved.resolved_path,dataDir}) : await probeRuntime({
+      : userKey === 'gemini-cli' ? probeGeminiRuntime({command:resolved.resolved_path,dataDir})
+        : userKey === 'qoder' ? probeQoderRuntime({command:resolved.resolved_path,dataDir}) : await probeRuntime({
     command: resolved.resolved_path,
     nodeEntry: userKey === 'dsh' && /\.[cm]?js$/i.test(resolved.resolved_path),
     args: entry?.probe?.version_args ?? ['--version'],

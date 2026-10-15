@@ -10,6 +10,8 @@ import { lineToEvent } from '../adapters/generic.js';
 import { isWorkbuddyStartedFrame } from '../adapters/workbuddy-native.js';
 import { isZCodeStartedFrame } from '../adapters/zcode-sdk.js';
 import { isGeminiCoreStartedFrame } from '../adapters/gemini-core.js';
+import { isQoderSdkStartedFrame } from '../adapters/qoder-sdk.js';
+import { isNativeChatFrame, isNativeChatStopResultFrame, mapNativeChatFrame } from '../adapters/native-chat.js';
 import { AiderOutputAccumulator, isAiderNativeCommand } from '../adapters/aider.js';
 import { IflowOutputAccumulator } from '../adapters/iflow.js';
 import { ContinueOutputAccumulator } from '../adapters/continue.js';
@@ -22,13 +24,14 @@ import { prepareProductLaunch } from '../agents/product-runtime.js';
 import { validateWorkbuddyPrompt } from '../agents/workbuddy-native-worker.js';
 import { validateZCodePrompt } from '../agents/zcode-sdk-worker.js';
 import { validateGeminiPrompt } from '../agents/gemini-core-worker.js';
+import { validateQoderPrompt } from '../agents/qoder-sdk-worker.js';
 
 // 审批、错误和会话终态必须即时持久化，不参与普通输出批量缓冲。
 // 即时输出仍经同一持久 outbox；V12-18 优先认领 critical/ACK，同优先级内按入队序。
 // 失败退避与逐项确认保持生效，接收游标契约见 event-protocol.md §11。
 export const CRITICAL_EVENT_TYPES = Object.freeze(new Set(['confirm_required', 'error', 'session_end']));
 // 原生接收里程碑关系到手机能否及时停止；与审批/终态一起立即落持久队列。
-export const CRITICAL_CUSTOM_TYPES = Object.freeze(new Set(['approval_result', 'session_exit', 'session_stop_result', 'gemini_core_started']));
+export const CRITICAL_CUSTOM_TYPES = Object.freeze(new Set(['session_meta', 'approval_result', 'session_exit', 'session_stop_result', 'gemini_core_started', 'qoder_sdk_started', 'native_chat_started', 'native_chat_provider']));
 // 批量缓冲上限：满即 flush，不再等 pushBatchMs。
 export const PUSH_BATCH_MAX_EVENTS = 200;
 // V1-019②：分级队列预算——critical（审批/错误/ACK）在 outbox 普通上限之外的预留容量。
@@ -99,6 +102,7 @@ export class ManagedSession {
     profileId = null,
     profileRevision = null,
     agentKey = null,
+    sourceSnapshot = null,
     adapterVersion = null,
     capabilitySnapshot = null,
     executionCapabilities = null,
@@ -112,6 +116,17 @@ export class ManagedSession {
     this.profileId = profileId;
     this.profileRevision = profileRevision;
     this.agentKey = agentKey;
+    // 仅静态 recipe 的本机 spec 可打开父 worker；不读取 ambient/cloud payload env。
+    this.nativeChatAgent = Object.hasOwn(productEnv || {}, 'MINIPROCTOR_NATIVE_CHAT_AGENT')
+      ? productEnv.MINIPROCTOR_NATIVE_CHAT_AGENT : null;
+    if (this.nativeChatAgent !== null && (!['claude-code', 'codex'].includes(this.nativeChatAgent)
+      || this.nativeChatAgent !== agentKey)) throw new TypeError('native-chat-agent-mismatch');
+    // 创建来源只取 Factory 白名单；复制冻结，避免外部引用或后来改名污染历史。
+    this.sourceSnapshot = sourceSnapshot?.profile_id === profileId
+      && sourceSnapshot.profile_revision === profileRevision && sourceSnapshot.agent_key === agentKey
+      && typeof sourceSnapshot.display_name === 'string' && sourceSnapshot.display_name.trim()
+      ? Object.freeze({ profile_id: profileId, profile_revision: profileRevision,
+        agent_key: agentKey, display_name: sourceSnapshot.display_name }) : null;
     this.aiderOutput = agentKey === 'aider' ? new AiderOutputAccumulator() : null;
     this.iflowOutput = agentKey === 'iflow' ? new IflowOutputAccumulator() : null;
     this.continueOutput = agentKey === 'continue' ? new ContinueOutputAccumulator() : null;
@@ -128,7 +143,7 @@ export class ManagedSession {
       : capabilitiesFor(agentType);
     this.sequencer = new SessionSequencer();
     const Runner = agentKey === 'comate' ? ComateApiRunner : AgentRunner;
-    this.runner = new Runner({ command, args, cwd, env: productEnv, ...(['dsh','workbuddy','zcode','gemini-cli'].includes(agentKey) ? { stopGraceMs: 15000 } : {}) });
+    this.runner = new Runner({ command, args, cwd, env: productEnv, ...((this.nativeChatAgent || ['dsh','workbuddy','zcode','gemini-cli','qoder'].includes(agentKey)) ? { stopGraceMs: 15000 } : {}) });
     this.status = 'starting';
     this.lastSeq = 0;
     this.exitInfo = null;
@@ -149,6 +164,24 @@ export class ManagedSession {
     // 用户/系统显式停止：进程终止应归因为 ended（stopped），非崩溃
     this._stopRequested = false;
     this._hasSessionEnd = false;
+    // Qoder 的原生终态只从严格 Mapper 输出登记；worker exit 不能替代 pipe close。
+    this._qoderEndReason = null;
+    this._qoderFailed = false;
+    this._qoderIoCloseInfo = null;
+    this._qoderStopping = false;
+    this._qoderWorkerStopNormal = false;
+    this._qoderFinalized = agentKey === 'qoder'
+      ? new Promise(resolve => { this._resolveQoderFinalized = resolve; }) : null;
+    // 父 worker 的终态先暂存；外层 exit 与管道排空不齐备，不发布 stopped/确认 ACK。
+    this._nativeChatFailed = false;
+    this._nativeChatEndPayload = null;
+    this._nativeChatResultCount = 0;
+    this._nativeChatStopProof = false;
+    this._nativeChatIoCloseInfo = null;
+    this._nativeChatStopping = false;
+    this._nativeChatWorkerStopNormal = false;
+    this._nativeChatFinalized = this.nativeChatAgent
+      ? new Promise(resolve => { this._resolveNativeChatFinalized = resolve; }) : null;
     // 最近一次 respondAction 失败原因（供 approval_result / 错误事件归因）
     this.lastResponseError = null;
     // V1-019①：截断事件预算（见 MAX_TRUNCATION_EVENTS）——已发送 / 被抑制计数
@@ -167,10 +200,12 @@ export class ManagedSession {
       : (event) => { transport?.pushEvents([event]).catch(() => {}); };
     this._onExit = typeof onExit === 'function' ? onExit : null;
     this.runner.on('line', (line, meta) => {
+      if (this.nativeChatAgent && this._exitHandled) return;
       // 截断行不是完整产品帧；先记录证据，再拒绝交给任何解析器。
       // Aider 的最终答复按退出时聚合，必须记住这次丢字节，不能把残片标成完整回复。
       if (meta?.truncated) {
         if (this.textOutput) this.textOutput.truncated = true;
+        if (this.nativeChatAgent) this._nativeChatFailed = true;
         this.emitTruncationWithinBudget(meta);
         return;
       }
@@ -185,6 +220,21 @@ export class ManagedSession {
         return;
       }
       for (const event of events) {
+        if (this.nativeChatAgent && !this._exitHandled) {
+          if (event.event_type === 'error') this._nativeChatFailed = true;
+          if (event.payload?.custom_type === 'native_chat_started'
+            && event.payload.data?.agent_key === this.nativeChatAgent) {
+            this.setNativeSessionRef(event.payload.data.native_session_id);
+          }
+          if (event.event_type === 'session_end') {
+            this._nativeChatEndPayload = event.payload;
+            continue; // 完整父 proof 也不能替代 outer exit/io-close。
+          }
+        }
+        if (this.agentKey === 'qoder' && !this._exitHandled) {
+          if (event.event_type === 'session_end') this._qoderEndReason = event.payload?.reason;
+          if (event.event_type === 'error') this._qoderFailed = true;
+        }
         // TASK-008：confirm_required 注入 deadline（绝对毫秒，云端 approvals.deadline 同源）
         // 并登记本机定时器——到期默认 deny 真实到达 Agent。
         if (event.event_type === 'confirm_required' && event.payload?.request_id && this.deadlineMs > 0) {
@@ -198,6 +248,8 @@ export class ManagedSession {
     this.runner.on('stderr', () => {});
     this.runner.on('stdin-error', (err) => {
       // E13/资源限制：stdin 写入错误 → 会话 failed（非悬挂）
+      if (this.agentKey === 'qoder') this._qoderFailed = true;
+      if (this.nativeChatAgent) this._nativeChatFailed = true;
       this.status = 'failed';
       this.pushEventNow(createEvent({
         sessionId: this.sessionId,
@@ -213,7 +265,7 @@ export class ManagedSession {
       }));
     });
     this.runner.on('exit', (info) => {
-      if ((!this.textOutput && this.agentKey !== 'comate' && this.agentKey !== 'junie' && this.agentKey !== 'dsh' && this.agentKey !== 'workbuddy' && this.agentKey !== 'zcode' && this.agentKey !== 'gemini-cli') || info?.error) {
+      if ((!this.nativeChatAgent && !this.textOutput && this.agentKey !== 'comate' && this.agentKey !== 'junie' && this.agentKey !== 'dsh' && this.agentKey !== 'workbuddy' && this.agentKey !== 'zcode' && this.agentKey !== 'gemini-cli' && this.agentKey !== 'qoder') || info?.error) {
         this.handleRunnerExit(info);
         return;
       }
@@ -225,7 +277,28 @@ export class ManagedSession {
       }, TEXT_OUTPUT_DRAIN_MS);
     });
     this.runner.on('io-close', (info) => {
-      if ((this.textOutput || this.agentKey === 'comate' || this.agentKey === 'junie' || this.agentKey === 'dsh' || this.agentKey === 'workbuddy' || this.agentKey === 'zcode' || this.agentKey === 'gemini-cli') && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || info);
+      if (this.nativeChatAgent) {
+        this._nativeChatIoCloseInfo = info;
+        if (this._nativeChatStopping) {
+          if (this._textDrainTimer) clearTimeout(this._textDrainTimer);
+          this._textDrainTimer = null;
+          return;
+        }
+        this.handleRunnerExit(this._textExitInfo || info);
+        return;
+      }
+      if (this.agentKey === 'qoder') {
+        this._qoderIoCloseInfo = info;
+        // stop() 还须核对外层是否经过强杀；先留住已排空的最终 close 证据。
+        if (this._qoderStopping) {
+          if (this._textDrainTimer) clearTimeout(this._textDrainTimer);
+          this._textDrainTimer = null;
+          return;
+        }
+        this.handleRunnerExit(info);
+        return;
+      }
+      if ((this.textOutput || this.agentKey === 'comate' || this.agentKey === 'junie' || this.agentKey === 'dsh' || this.agentKey === 'workbuddy' || this.agentKey === 'zcode' || this.agentKey === 'gemini-cli' || this.agentKey === 'qoder') && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || info);
     });
     this.runner.start();
     this.status = 'running';
@@ -233,7 +306,7 @@ export class ManagedSession {
     // 启动后应立即发 stdin EOF；否则 CLI 可能等待管道结束才处理 argv。Codex 的证据
     // 见 CLOSE-007，OpenCode 1.18.20 的真实探针见 V12-A05 证据卡。未绑定产品的
     // generic 会话以及需要 stdin 双向帧的 Claude 会话保持原行为。
-    if (this.agentType === 'codex' || (this.profileId
+    if (!this.nativeChatAgent && (this.agentType === 'codex' || (this.profileId
       && this.agentKey !== 'openhands' // SDK 工具审批需保留 stdin 控制回写
       && this.agentKey !== 'comate' // 同实例原生取消必须保留控制通道
       && this.agentKey !== 'junie' // 单轮 ACP worker 的 EOF 是停止请求，启动时必须保留。
@@ -241,8 +314,9 @@ export class ManagedSession {
       && this.agentKey !== 'workbuddy' // 原生 worker 的 stdin 是受控停止通道。
       && this.agentKey !== 'zcode' // 固定SDK worker保留控制通道，不能在启动后结束stdin。
       && this.agentKey !== 'gemini-cli' // 原生核心 worker 保留私有停止通道。
+      && this.agentKey !== 'qoder' // SDK worker 保留受控停止，不能以启动EOF代替任务输入。
       && this.capabilities.initialPromptChannel === 'launch-args'
-      && this.capabilities.append === false)) {
+      && this.capabilities.append === false))) {
       try { this.runner.stdin?.end(); } catch { /* stdin 已关闭/不可用则忽略 */ }
     }
     // TASK-029：AGENTS.md `ui` 块 → 白名单化 ui_overrides 随 session_meta 上报。
@@ -274,6 +348,7 @@ export class ManagedSession {
             profile_id: this.profileId,
             profile_revision: this.profileRevision,
             agent_key: this.agentKey,
+            ...(this.sourceSnapshot ? { source_snapshot: this.sourceSnapshot } : {}),
             ...(this.adapterVersion ? { adapter_version: this.adapterVersion } : {}),
             capability_snapshot: this.capabilitySnapshot || openCapabilitiesFor(this.agentType),
           } : {}),
@@ -299,7 +374,7 @@ export class ManagedSession {
       this._hasSessionEnd = true;
       // 原生 Claude stream-json 等待下一条 stdin。只开放单轮文本的 profile
       // 在原生 result 到达后发 EOF，自然退出；本机显式 run/交互通路保留输入。
-      if (this.agentKey === 'claude-code'
+      if (!this.nativeChatAgent && this.agentKey === 'claude-code'
         && this.capabilities.append === false && this.capabilities.approve === false
         && !this._singleTurnStdinClosed) {
         this._singleTurnStdinClosed = true;
@@ -362,6 +437,16 @@ export class ManagedSession {
         eventType: 'error', payload: { code: 'gemini-result-missing', message: 'Gemini 已退出但原生与代理关闭结果缺失', severity: 'fatal', recoverable: false },
       }));
     }
+    if (this.agentKey === 'qoder') {
+      const failedBeforeExit = this._qoderFailed || this.adapterParseErrorCount > 0;
+      if (!this._qoderIoCloseInfo || info?.code !== 0 || info?.signal || info?.error
+        || failedBeforeExit || !['completed', 'stopped'].includes(this._qoderEndReason)
+        || (this._stopRequested && !this._qoderWorkerStopNormal)) this.status = 'failed';
+      if (!this._hasSessionEnd && info?.code === 0) this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'error', payload: { code: 'qoder-result-missing', message: 'Qoder 已退出但原生完成或取消证据缺失', severity: 'fatal', recoverable: false },
+      }));
+    }
     if (this.agentKey === 'zcode' && !this._hasSessionEnd) {
       this.status = 'failed';
       if (info?.code === 0) this.pushEventNow(createEvent({
@@ -374,6 +459,26 @@ export class ManagedSession {
       if (info?.code === 0) this.pushEventNow(createEvent({
         sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
         eventType: 'error', payload: { code: 'workbuddy-result-missing', message: 'WorkBuddy 已退出但原生与代理关闭结果缺失', severity: 'fatal', recoverable: false },
+      }));
+    }
+    if (this.nativeChatAgent) {
+      const normal = value => value?.code === 0 && value.signal === null && !value.error;
+      const reason = this._nativeChatEndPayload?.reason;
+      const valid = normal(info) && normal(this._textExitInfo) && normal(this._nativeChatIoCloseInfo)
+        && !this._nativeChatFailed && this.adapterParseErrorCount === 0 && this._nativeChatResultCount === 1
+        && (!this._stopRequested || this._nativeChatWorkerStopNormal)
+        && (reason === 'completed' || (reason === 'stopped' && this._stopRequested && this._nativeChatStopProof));
+      this.status = valid ? 'ended' : 'failed';
+      if (!valid) this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'error', payload: { code: 'native-chat-close-unconfirmed',
+          message: '官方 CLI 父 worker 原生终态或进程/管道关闭证据不完整', severity: 'fatal', recoverable: false },
+      }));
+      // 关闭验证后才创建一次终态事件；mapper draft 不预占 seq。
+      this.pushEventNow(createEvent({
+        sessionId: this.sessionId, agentType: this.agentType, sequencer: this.sequencer,
+        eventType: 'session_end', payload: valid ? this._nativeChatEndPayload
+          : { reason: 'error', summary: '父 worker 关闭验证失败', usage: {} },
       }));
     }
     this.clearAllDeadlineTimers();
@@ -464,6 +569,8 @@ export class ManagedSession {
       payload,
     });
     this.pushEventNow(event);
+    this._resolveQoderFinalized?.();
+    this._resolveNativeChatFinalized?.();
     this._onExit?.(info, event);
   }
 
@@ -478,6 +585,12 @@ export class ManagedSession {
     try {
       const raw = JSON.parse(line);
       if (!raw || typeof raw !== 'object') return;
+      // 父 worker 的原生 ID 只从 mapper 的真实 init/thread-start 通知登记。
+      if (this.nativeChatAgent || raw.protocol === 'miniproctor-native-chat-v1') return;
+      if (this.agentKey === 'qoder') {
+        if (isQoderSdkStartedFrame(raw)) this.setNativeSessionRef(raw.native_session_id);
+        return;
+      }
       if (this.agentKey === 'gemini-cli') {
         if (isGeminiCoreStartedFrame(raw)) this.setNativeSessionRef(raw.native_session_id);
         return;
@@ -533,6 +646,23 @@ export class ManagedSession {
 
   /** 适配器分发（session ↔ adapters 唯一接线点经 generic.js lineToEvent）。 */
   mapLineToEvents(line) {
+    if (this.nativeChatAgent) {
+      const raw = JSON.parse(line);
+      if (!isNativeChatFrame(raw, this.nativeChatAgent)) throw new Error('native-chat-parent-frame-invalid');
+      if (this._nativeChatResultCount > 0) this._nativeChatFailed = true; // 父 result 后不得再有业务尾帧。
+      if (raw.type === 'result') {
+        this._nativeChatResultCount += 1;
+        const ref = this.nativeChatAgent === 'claude-code' ? raw.native_identity?.sessionId : raw.native_identity?.threadId;
+        if (!this.nativeSessionRef || ref !== this.nativeSessionRef) this._nativeChatFailed = true;
+        this._nativeChatStopProof = isNativeChatStopResultFrame(raw)
+          && raw.cancellation.controller_requested === true && raw.cancellation.native_accepted === true
+          && raw.cancellation.provider_was_active === true && raw.cancellation.upstream_aborted === true
+          && raw.gateway.contacted === 1 && raw.gateway.failed === 1 && raw.gateway.aborted === 1;
+      }
+      return mapNativeChatFrame(raw, { sessionId: this.sessionId, sequencer: this.sequencer, deferSessionEnd: true });
+    }
+    // SDK marker 先识别；无可信 spec 时不落 legacy Claude/Codex 的同形 result 分支。
+    try { if (JSON.parse(line)?.protocol === 'miniproctor-native-chat-v1') return []; } catch { /* legacy 文本保持原分发 */ }
     if (this.openclawOutput) {
       this.openclawOutput.consume(line);
       return [];
@@ -674,7 +804,55 @@ export class ManagedSession {
     this.pendingInputs.clear();
     // OpenHands 在待审批时以 stdin 作为控制通道。先告知受控停止，再关管道，
     // 否则 SDK 会把 EOF 误报成审批通道故障，手机端显示任务失败。
-    if (this.agentKey === 'openhands' || this.agentKey === 'junie' || this.agentKey === 'dsh' || this.agentKey === 'workbuddy' || this.agentKey === 'zcode' || this.agentKey === 'gemini-cli') this.runner.sendJson({ type: 'control_stop' });
+    if (this.nativeChatAgent) {
+      this._nativeChatStopping = true;
+      let result;
+      try {
+        if (this.runner.sendJson({ type: 'control_stop' }) !== true) this._nativeChatFailed = true;
+        result = await this.runner.stop();
+      } catch (error) {
+        this._nativeChatFailed = true;
+        result = { exited: false, code: null, signal: null, reason: 'stop-error', error };
+      } finally { this._nativeChatStopping = false; }
+      this._nativeChatWorkerStopNormal = result?.exited === true && result.code === 0
+        && result.signal === null && !result.error && !result.forced && !Object.hasOwn(result, 'taskkill_exit_code')
+        && ['stdin-eof', 'already-exited'].includes(result.reason);
+      if (this._nativeChatIoCloseInfo && !this._exitHandled) this.handleRunnerExit(this._textExitInfo || this._nativeChatIoCloseInfo);
+      if (result?.exited && !this._exitHandled) {
+        // 只沿用已有 3s 尾窗；不修改全局 stopGrace、模型或测试预算。
+        if (!this._textDrainTimer) this._textDrainTimer = setTimeout(() => {
+          this.handleRunnerExit(this._textExitInfo || result);
+        }, TEXT_OUTPUT_DRAIN_MS);
+        await this._nativeChatFinalized;
+      }
+      if (!this._nativeChatWorkerStopNormal) this.status = 'failed';
+      const confirmed = this._nativeChatWorkerStopNormal && this._exitHandled && this.status === 'ended'
+        && !this._nativeChatFailed && this._nativeChatStopProof && this._nativeChatEndPayload?.reason === 'stopped';
+      return { ...result, confirmed, cancellation_kind: confirmed ? 'active' : null };
+    }
+    if (this.agentKey === 'qoder') this._qoderStopping = true;
+    if (this.agentKey === 'openhands' || this.agentKey === 'junie' || this.agentKey === 'dsh' || this.agentKey === 'workbuddy' || this.agentKey === 'zcode' || this.agentKey === 'gemini-cli' || this.agentKey === 'qoder') this.runner.sendJson({ type: 'control_stop' });
+    if (this.agentKey === 'qoder') {
+      let result;
+      try { result = await this.runner.stop(); }
+      finally { this._qoderStopping = false; }
+      this._qoderWorkerStopNormal = result?.exited === true && result.code === 0
+        && !result.signal && !result.error && !result.forced && result.taskkill_exit_code == null
+        && ['stdin-eof', 'already-exited'].includes(result.reason);
+      if (this._qoderIoCloseInfo && !this._exitHandled) this.handleRunnerExit(this._qoderIoCloseInfo);
+      if (result?.exited && !this._exitHandled) {
+        // 沿用 exit 监听器的 3s 排空期限，不延长 worker/native 的停止宽限或模型预算。
+        if (!this._textDrainTimer) this._textDrainTimer = setTimeout(() => {
+          this.handleRunnerExit(this._textExitInfo || result);
+        }, TEXT_OUTPUT_DRAIN_MS);
+        await this._qoderFinalized;
+      }
+      if (!this._qoderWorkerStopNormal) this.status = 'failed';
+      const confirmed = this._qoderWorkerStopNormal && this._exitHandled && this.status === 'ended'
+        && this._qoderIoCloseInfo?.code === 0 && !this._qoderIoCloseInfo.signal && !this._qoderIoCloseInfo.error
+        && !this._qoderFailed && this._qoderEndReason === 'stopped';
+      return { ...result, confirmed };
+    }
     return this.runner.stop();
   }
 }
@@ -1446,8 +1624,10 @@ export class SessionManager {
         // 事件回流；进程未确认退出时 ACK 如实 failed（不假装停止成功）。
         const stopResult = await session.stop();
         this.emitStopResult(session, stopResult);
-        if (stopResult?.exited && (session.agentKey !== 'comate' || stopResult.confirmed === true)) return true;
+        if (stopResult?.exited && ((!session.nativeChatAgent && !['comate', 'qoder'].includes(session.agentKey)) || stopResult.confirmed === true)) return true;
+        if (session.nativeChatAgent) return { ok: false, error: `stop-not-confirmed: native ${session.nativeChatAgent} cancellation unconfirmed (reason=${stopResult?.reason || 'unknown'})` };
         if (session.agentKey === 'comate') return { ok: false, error: `stop-not-confirmed: native Comate cancellation unconfirmed (reason=${stopResult?.reason || 'unknown'})` };
+        if (session.agentKey === 'qoder') return { ok: false, error: `stop-not-confirmed: native Qoder cancellation unconfirmed (reason=${stopResult?.reason || 'unknown'})` };
         const tk = stopResult?.taskkill_exit_code != null ? `, taskkill_exit=${stopResult.taskkill_exit_code}` : '';
         return { ok: false, error: `stop-not-confirmed: process still alive after stop (reason=${stopResult?.reason || 'unknown'}${tk})` };
       }
@@ -1541,7 +1721,7 @@ export class SessionManager {
   emitStopResult(session, stopResult) {
     try {
       const exited = stopResult?.exited === true;
-      const nativeConfirmed = session.agentKey !== 'comate' || stopResult?.confirmed === true;
+      const nativeConfirmed = (!session.nativeChatAgent && !['comate', 'qoder'].includes(session.agentKey)) || stopResult?.confirmed === true;
       const event = createEvent({
         sessionId: session.sessionId,
         agentType: session.agentType,
@@ -1549,7 +1729,7 @@ export class SessionManager {
         eventType: 'custom',
         payload: {
           custom_type: 'session_stop_result',
-          fallback_text: !nativeConfirmed ? 'Comate 原生停止未确认（见证据字段）'
+          fallback_text: !nativeConfirmed ? `${session.nativeChatAgent || (session.agentKey === 'qoder' ? 'Qoder' : 'Comate')} 原生停止未确认（见证据字段）`
             : exited ? '停止命令已执行：进程已退出' : '停止命令已接纳：进程退出未确认（见证据字段）',
           accepted: true,
           exited,
@@ -1558,6 +1738,9 @@ export class SessionManager {
           signal: stopResult?.signal ?? null,
           ...(session.agentKey === 'comate' ? { confirmed: stopResult?.confirmed === true,
             native_cancelled: stopResult?.native_cancelled === true } : {}),
+          ...(session.agentKey === 'qoder' ? { confirmed: stopResult?.confirmed === true } : {}),
+          ...(session.nativeChatAgent ? { confirmed: stopResult?.confirmed === true,
+            cancellation_kind: stopResult?.cancellation_kind || null } : {}),
           ...(stopResult?.taskkill_exit_code != null ? { taskkill_exit_code: stopResult.taskkill_exit_code } : {}),
         },
       });
@@ -1642,6 +1825,10 @@ export class SessionManager {
       if (spec.agentKey === 'zcode') {
         try { validateZCodePrompt(prompt); }
         catch { return { ok:false,error:'invalid-prompt',reason:'zcode-single-turn-text-required' }; }
+      }
+      if (spec.agentKey === 'qoder') {
+        try { validateQoderPrompt(prompt); }
+        catch { return { ok:false,error:'invalid-prompt',reason:'qoder-single-turn-text-required' }; }
       }
       if (spec.agentKey === 'gemini-cli') {
         try { validateGeminiPrompt(prompt); }
@@ -1760,6 +1947,7 @@ export class SessionManager {
         profileId: spec.profileId,
         profileRevision: spec.profileRevision,
         agentKey: spec.agentKey,
+        sourceSnapshot: spec.sourceSnapshot,
         adapterVersion: spec.adapterVersion,
         executionCapabilities: spec.executionCapabilities,
         capabilitySnapshot: spec.capabilitySnapshot,

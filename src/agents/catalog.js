@@ -1558,7 +1558,7 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "adapter_id": "generic",
       "integration_mode": "stdio",
       "capabilities": {
-        "create": false,
+        "create": true,
         "read": true,
         "stop": true,
         "append": false,
@@ -1570,16 +1570,16 @@ export const CATALOG_ENTRIES = Object.freeze(  [
       "initial_prompt_channel": "launch-args",
       "verification": {
         "create": {
-          "status": "unavailable",
-          "evidence": "无产品专属拉起路径（无启动预设；AdapterFactory 对 adapter_id=generic 拒绝新会话，fail-closed）；官方 headless 形态为 qoder -p \"<prompt>\"（launch-args 通道，A18a），待 V03 真实 CLI 往返接通"
+          "status": "verified",
+          "evidence": "2026-10-11 Windows固定CLI1.1.64/Node24.16.0/wire1.5.0 SDK worker真实单轮创建、读取/负向/活跃取消与所属PID+birth归零通过；仅文本分析，tools/MCP/skills/plugins0、空设置来源、只读原生登录；正式profile/真云/手机仍待验，见docs/audit/2026-10-11/QoderSDK原生组件验收.md"
         },
         "read": {
-          "status": "pending",
-          "evidence": "文本输出（官方 text 默认格式）经 generic 行流路径读取（bridge/test/adapters/qoder-adapter.test.js fixture 对拍）；官方资料未给出 json/stream-json 帧 schema——探测为空集、不伪造结构化事件。2026-09-29 项目内固定 npm 兼容包 1.1.64 的 version/help 已验；无认证模型往返，真实读仍未取证"
+          "status": "verified",
+          "evidence": "2026-10-11 官方真实Qwen3.8-Flash/qfmodel返回随机标记/16637，单main策略放行、512输出token/0重试、原生exit0与捕获实例归零；固定SDK wrapper按profile绑定，不借Claude/CN帧形，不声明文件读取或用量能力"
         },
         "stop": {
-          "status": "pending",
-          "evidence": "runner 进程树终止为 bridge 自有能力（bridge/test/runner.test.js / runner-windows.test.js 同源路径）；2026-09-29 仅固定包 version/help，qoder 真实会话进程停止未验"
+          "status": "verified",
+          "evidence": "2026-10-11 正式worker在原生模型流开始后成功interrupt receipt、同用户命令cancelled、aborted_streaming/Operation aborted、原生exit1/worker取消exit0、6所属实例归零；普通exit1不归停止，提前停止零原生进程/模型，见QoderSDK原生组件验收"
         },
         "append": {
           "status": "unavailable",

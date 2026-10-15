@@ -1,6 +1,6 @@
 ﻿# miniproctor bridge 安装/升级脚本（Windows PowerShell 5.1+）
 #
-# 用法：powershell -NoProfile -ExecutionPolicy Bypass -File setup.ps1 [-Source <解压目录>] [-Target <安装目录>]
+# 用法：powershell -NoProfile -File setup.ps1 [-Source <解压目录>] [-Target <安装目录>]
 #   Source 缺省 = 自动定位（本脚本所在的发行包或源码树；兼容"扁平结构"与"bridge/ 子目录"两种布局）
 #   Target  缺省 = $HOME\miniproctor-bridge（用户主目录；也可用 -Target 指定任意目录）
 #
