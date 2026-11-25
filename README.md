@@ -2,6 +2,16 @@
 
 微信小程序「智能体遥知」的电脑端 Bridge。
 
+## 让 AI 助手连接电脑
+
+把下面这段话复制给电脑上能运行终端命令的 AI 助手。
+
+```text
+请按这份指南安装并启动「智能体遥知」电脑端，帮我连接当前项目。
+https://github.com/gregsieck43-cyber/miniproctor-bridge/releases/download/v0.6.0-rc31/agent-prompt.txt
+首次连接时，把 6 位配对码发给我，我会在小程序里输入。已有绑定就沿用，最后帮我确认电脑是否在线。
+```
+
 ## 最新技术预发行：v0.6.0-rc31
 
 本次优先交付 **Codex、Claude Code、WorkBuddy、DSH、ZCode**。
@@ -9,7 +19,7 @@
 - [下载 RC31 安装包](https://github.com/gregsieck43-cyber/miniproctor-bridge/releases/download/v0.6.0-rc31/miniproctor-bridge-v0.6.0-rc31.zip)
 - [SHA-256 校验文件](https://github.com/gregsieck43-cyber/miniproctor-bridge/releases/download/v0.6.0-rc31/miniproctor-bridge-v0.6.0-rc31.zip.sha256)
 - [发行清单](https://github.com/gregsieck43-cyber/miniproctor-bridge/releases/download/v0.6.0-rc31/manifest.json)
-- [复制给电脑 Agent 的完整安装引导](https://github.com/gregsieck43-cyber/miniproctor-bridge/releases/download/v0.6.0-rc31/agent-prompt.txt)
+- [查看完整安装指南](https://github.com/gregsieck43-cyber/miniproctor-bridge/releases/download/v0.6.0-rc31/agent-prompt.txt)
 - [版本说明](https://github.com/gregsieck43-cyber/miniproctor-bridge/releases/tag/v0.6.0-rc31)
 
 需要已有 Node.js 22 或更高版本。先核对 ZIP 的 SHA-256，再解压到新的目录；
